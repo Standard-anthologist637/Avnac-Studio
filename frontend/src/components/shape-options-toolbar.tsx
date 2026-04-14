@@ -17,19 +17,21 @@ import type {
   ArrowPathType,
   AvnacShapeMeta,
 } from '../lib/avnac-shape-meta'
+import type { BgValue } from './background-popover'
 import {
   FloatingToolbarDivider,
   FloatingToolbarShell,
   floatingToolbarIconButton,
   floatingToolbarPopoverClass,
 } from './floating-toolbar-shell'
+import PaintPopoverControl from './paint-popover-control'
 
 type Props = {
   meta: AvnacShapeMeta
-  arrowStrokeColor?: string
+  paintValue: BgValue
+  onPaintChange: (v: BgValue) => void
   onPolygonSides: (sides: number) => void
   onStarPoints: (points: number) => void
-  onArrowStrokeColor?: (hex: string) => void
   onArrowLineStyle: (style: ArrowLineStyle) => void
   onArrowRoundedEnds: (rounded: boolean) => void
   onArrowStrokeWidth: (w: number) => void
@@ -68,10 +70,10 @@ function lineStyleIcon(style: ArrowLineStyle) {
 
 export default function ShapeOptionsToolbar({
   meta,
-  arrowStrokeColor,
+  paintValue,
+  onPaintChange,
   onPolygonSides,
   onStarPoints,
-  onArrowStrokeColor,
   onArrowLineStyle,
   onArrowRoundedEnds,
   onArrowStrokeWidth,
@@ -82,7 +84,6 @@ export default function ShapeOptionsToolbar({
   const arrowRootRef = useRef<HTMLDivElement>(null)
   const strokePanelRef = useRef<HTMLDivElement>(null)
   const lineTypePanelRef = useRef<HTMLDivElement>(null)
-  const arrowColorInputRef = useRef<HTMLInputElement>(null)
 
   const arrowPopoverOpen = strokePanelOpen || lineTypePanelOpen
   const arrowPopoverEstimateH = strokePanelOpen ? 300 : 160
@@ -110,11 +111,51 @@ export default function ShapeOptionsToolbar({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [strokePanelOpen, lineTypePanelOpen])
 
+  if (meta.kind === 'rect' || meta.kind === 'ellipse') {
+    return (
+      <FloatingToolbarShell role="toolbar" aria-label="Shape options">
+        <div className="flex items-center py-1 pl-2 pr-3">
+          <PaintPopoverControl
+            compact
+            value={paintValue}
+            onChange={onPaintChange}
+            title="Fill color and gradient"
+            ariaLabel="Fill color and gradient"
+          />
+        </div>
+      </FloatingToolbarShell>
+    )
+  }
+
+  if (meta.kind === 'line') {
+    return (
+      <FloatingToolbarShell role="toolbar" aria-label="Line options">
+        <div className="flex items-center py-1 pl-2 pr-3">
+          <PaintPopoverControl
+            compact
+            value={paintValue}
+            onChange={onPaintChange}
+            title="Stroke color and gradient"
+            ariaLabel="Stroke color and gradient"
+          />
+        </div>
+      </FloatingToolbarShell>
+    )
+  }
+
   if (meta.kind === 'polygon') {
     const sides = meta.polygonSides ?? 6
     return (
       <FloatingToolbarShell role="toolbar" aria-label="Polygon options">
-        <div className="flex items-center gap-2 py-1 pl-3 pr-3">
+        <div className="flex items-center gap-1 py-1 pl-2 pr-3">
+          <PaintPopoverControl
+            compact
+            value={paintValue}
+            onChange={onPaintChange}
+            title="Fill color and gradient"
+            ariaLabel="Fill color and gradient"
+          />
+          <FloatingToolbarDivider />
           <span className={smallLabel()}>Sides</span>
           <input
             type="number"
@@ -145,7 +186,15 @@ export default function ShapeOptionsToolbar({
     const pts = meta.starPoints ?? 5
     return (
       <FloatingToolbarShell role="toolbar" aria-label="Star options">
-        <div className="flex items-center gap-2 py-1 pl-3 pr-3">
+        <div className="flex items-center gap-1 py-1 pl-2 pr-3">
+          <PaintPopoverControl
+            compact
+            value={paintValue}
+            onChange={onPaintChange}
+            title="Fill color and gradient"
+            ariaLabel="Fill color and gradient"
+          />
+          <FloatingToolbarDivider />
           <span className={smallLabel()}>Points</span>
           <input
             type="number"
@@ -172,39 +221,22 @@ export default function ShapeOptionsToolbar({
     )
   }
 
-  if (meta.kind === 'arrow') {
+   if (meta.kind === 'arrow') {
     const lineStyle = meta.arrowLineStyle ?? 'solid'
     const rounded = meta.arrowRoundedEnds ?? false
     const strokeW = meta.arrowStrokeWidth ?? 10
-    const strokeHex = arrowStrokeColor ?? '#262626'
     const pathType = meta.arrowPathType ?? 'straight'
 
     return (
       <div ref={arrowRootRef} className="relative">
         <FloatingToolbarShell role="toolbar" aria-label="Arrow options">
           <div className="flex items-center gap-1 py-1 pl-2 pr-2">
-            <button
-              type="button"
-              className={floatingToolbarIconButton(false)}
-              onClick={() => arrowColorInputRef.current?.click()}
-              aria-label="Stroke color"
-              title="Stroke color"
-            >
-              <span
-                className="h-5 w-5 rounded-md border border-black/15 shadow-inner"
-                style={{ backgroundColor: strokeHex }}
-              />
-            </button>
-            <input
-              ref={arrowColorInputRef}
-              type="color"
-              value={
-                /^#[0-9A-Fa-f]{6}$/.test(strokeHex) ? strokeHex : '#262626'
-              }
-              onChange={(e) => onArrowStrokeColor?.(e.target.value)}
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden
+            <PaintPopoverControl
+              compact
+              value={paintValue}
+              onChange={onPaintChange}
+              title="Stroke color and gradient"
+              ariaLabel="Stroke color and gradient"
             />
 
             <FloatingToolbarDivider />
