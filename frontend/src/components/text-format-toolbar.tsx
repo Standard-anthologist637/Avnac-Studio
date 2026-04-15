@@ -8,7 +8,14 @@ import {
   TextItalicIcon,
   TextUnderlineIcon,
 } from '@hugeicons/core-free-icons'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { GOOGLE_FONT_FAMILIES } from '../data/google-font-families'
 import { loadGoogleFontFamily } from '../lib/load-google-font'
 import type { BgValue } from './background-popover'
@@ -34,6 +41,7 @@ export type TextFormatToolbarValues = {
 type TextFormatToolbarProps = {
   values: TextFormatToolbarValues
   onChange: (next: Partial<TextFormatToolbarValues>) => void
+  footerSlot?: ReactNode
 }
 
 const LIST_LIMIT = 80
@@ -44,6 +52,7 @@ const FONT_MENU_ESTIMATE_PX = 288
 export default function TextFormatToolbar({
   values,
   onChange,
+  footerSlot,
 }: TextFormatToolbarProps) {
   const [fontOpen, setFontOpen] = useState(false)
   const [fontQuery, setFontQuery] = useState('')
@@ -310,6 +319,12 @@ export default function TextFormatToolbar({
           </button>
         </div>
       </div>
+      {footerSlot ? (
+        <>
+          <FloatingToolbarDivider />
+          <div className="flex shrink-0 items-center py-1 pr-2">{footerSlot}</div>
+        </>
+      ) : null}
     </FloatingToolbarShell>
   )
 }
