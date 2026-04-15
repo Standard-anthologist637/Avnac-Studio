@@ -44,3 +44,21 @@ export function setAvnacShapeMeta(
   ;(obj as FabricObject & { avnacShape?: AvnacShapeMeta | null }).avnacShape =
     meta
 }
+
+/** Stroke line/arrow groups: arrow, or line drawn as a headless arrow group (not legacy `fabric.Line`). */
+export function isAvnacStrokeLineLike(
+  meta: AvnacShapeMeta | null | undefined,
+): boolean {
+  if (!meta) return false
+  if (meta.kind === 'arrow') return true
+  return (
+    meta.kind === 'line' &&
+    !!meta.arrowEndpoints &&
+    meta.arrowStrokeWidth != null
+  )
+}
+
+/** `layoutArrowGroup` head fraction: lines are always headless; arrows use `arrowHead`. */
+export function avnacStrokeLineHeadFrac(meta: AvnacShapeMeta): number {
+  return meta.kind === 'line' ? 0 : (meta.arrowHead ?? 1)
+}

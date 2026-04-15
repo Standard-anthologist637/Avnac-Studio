@@ -189,12 +189,12 @@ function headTangentAngleDeg(
 
 export function getArrowParts(
   g: Group,
-): { shaft: Path; head: Polygon } | null {
+): { shaft: Path; head: Polygon | undefined } | null {
   const objs = g.getObjects()
   const shaft = objs.find((o) => o instanceof Path) as Path | undefined
+  if (!shaft) return null
   const head = objs.find((o) => o instanceof Polygon) as Polygon | undefined
-  if (shaft && head) return { shaft, head }
-  return null
+  return { shaft, head }
 }
 
 export function arrowDisplayColor(g: Group): string {
@@ -202,8 +202,10 @@ export function arrowDisplayColor(g: Group): string {
   if (parts) {
     const s = parts.shaft.stroke
     if (typeof s === 'string') return s
-    const f = parts.head.fill
-    if (typeof f === 'string') return f
+    if (parts.head) {
+      const f = parts.head.fill
+      if (typeof f === 'string') return f
+    }
   }
   return '#262626'
 }
@@ -321,6 +323,7 @@ export function layoutArrowGroup(
 ): void {
   const parts = getArrowParts(group)
   if (!parts) return
+  const { shaft, head } = parts
 
   const {
     strokeWidth: strokeW,
@@ -348,8 +351,8 @@ export function layoutArrowGroup(
   const pathD = shaftPathDFromTail(shaftLen, bulge, ct)
   const headTilt = headTangentAngleDeg(shaftLen, bulge, ct)
 
-  parts.shaft._setPath(pathD, false)
-  parts.shaft.set({
+  shaft._setPath(pathD, false)
+  shaft.set({
     originX: 'center',
     originY: 'center',
     stroke: color,
@@ -362,15 +365,15 @@ export function layoutArrowGroup(
     scaleY: 1,
     angle: 0,
   })
-  setShaftPositionAnchoredToTail(parts.shaft, L)
+  setShaftPositionAnchoredToTail(shaft, L)
 
-  if (hf >= 0.01) {
+  if (hf >= 0.01 && head) {
     const headPts: XY[] = [
       { x: 0, y: -headHalf },
       { x: headLen, y: 0 },
       { x: 0, y: headHalf },
     ]
-    parts.head.set({
+    head.set({
       points: headPts,
       left: L / 2 - headLen,
       top: 0,
@@ -384,13 +387,13 @@ export function layoutArrowGroup(
       scaleY: 1,
       visible: true,
     })
-    parts.head.setDimensions()
-  } else {
-    parts.head.set({ visible: false })
+    head.setDimensions()
+  } else if (head) {
+    head.set({ visible: false })
   }
 
-  parts.shaft.setCoords()
-  parts.head.setCoords()
+  shaft.setCoords()
+  head?.setCoords()
 
   const { w, h } = arrowGroupSize(L, strokeW, headHalf, bulge)
 
@@ -413,7 +416,10 @@ export function arrowTailTipLocal(
   g: Group,
 ): { tail: Point; tip: Point } | null {
   const meta = getAvnacShapeMeta(g)
-  if (meta?.kind === 'arrow' && meta.arrowEndpoints) {
+  if (
+    (meta?.kind === 'arrow' || meta?.kind === 'line') &&
+    meta.arrowEndpoints
+  ) {
     const { x1, y1, x2, y2 } = meta.arrowEndpoints
     const L = Math.max(Math.hypot(x2 - x1, y2 - y1), 1)
     return {
@@ -424,7 +430,9 @@ export function arrowTailTipLocal(
   const parts = getArrowParts(g)
   if (!parts) return null
   const shaftW = parts.shaft.width ?? 0
-  const headW = parts.head.visible !== false ? (parts.head.width ?? 0) : 0
+  const head =
+    parts.head && parts.head.visible !== false ? parts.head : undefined
+  const headW = head ? (head.width ?? 0) : 0
   const totalHalf = (shaftW + headW) / 2
   return {
     tail: new Point(-totalHalf, 0),
