@@ -12,10 +12,11 @@ import {
   useStablePickPanel,
   useViewportAwarePopoverPlacement,
 } from '../hooks/use-viewport-aware-popover'
-import type {
-  ArrowLineStyle,
-  ArrowPathType,
-  AvnacShapeMeta,
+import {
+  isAvnacStrokeLineLike,
+  type ArrowLineStyle,
+  type ArrowPathType,
+  type AvnacShapeMeta,
 } from '../lib/avnac-shape-meta'
 import type { BgValue } from './background-popover'
 import {
@@ -127,7 +128,7 @@ export default function ShapeOptionsToolbar({
     )
   }
 
-  if (meta.kind === 'line') {
+  if (meta.kind === 'line' && !isAvnacStrokeLineLike(meta)) {
     return (
       <FloatingToolbarShell role="toolbar" aria-label="Line options">
         <div className="flex items-center py-1 pl-2 pr-3">
@@ -221,15 +222,20 @@ export default function ShapeOptionsToolbar({
     )
   }
 
-   if (meta.kind === 'arrow') {
+  if (isAvnacStrokeLineLike(meta)) {
     const lineStyle = meta.arrowLineStyle ?? 'solid'
     const rounded = meta.arrowRoundedEnds ?? false
     const strokeW = meta.arrowStrokeWidth ?? 10
     const pathType = meta.arrowPathType ?? 'straight'
+    const strokeOptionsLabel =
+      meta.kind === 'line' ? 'Line options' : 'Arrow options'
 
     return (
       <div ref={arrowRootRef} className="relative">
-        <FloatingToolbarShell role="toolbar" aria-label="Arrow options">
+        <FloatingToolbarShell
+          role="toolbar"
+          aria-label={strokeOptionsLabel}
+        >
           <div className="flex items-center gap-1 py-1 pl-2 pr-2">
             <PaintPopoverControl
               compact
