@@ -1199,12 +1199,67 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     let canvas: Canvas | null = null
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Backspace' && e.key !== 'Delete') return
       const t = e.target as HTMLElement
       if (t.closest('input, textarea, [contenteditable="true"]')) return
+      if (t.closest('[data-avnac-chrome]')) return
+
       const c = fabricCanvasRef.current
-      if (!c) return
-      if (!c.getActiveObject()) return
+      const mod = fabricModRef.current
+      if (!c || !mod) return
+
+      const active = c.getActiveObject()
+      if (!active) return
+
+      const dirX =
+        e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
+      const dirY = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0
+      const step = e.shiftKey ? 5 : 1
+      const arrowDx = dirX * step
+      const arrowDy = dirY * step
+      const isArrow = dirX !== 0 || dirY !== 0
+
+      if (isArrow) {
+        if ('isEditing' in active && (active as IText).isEditing) return
+        if (
+          mod.ActiveSelection &&
+          active instanceof mod.ActiveSelection &&
+          active.getObjects().some((o) => getAvnacLocked(o))
+        ) {
+          return
+        }
+        if (
+          !(mod.ActiveSelection && active instanceof mod.ActiveSelection) &&
+          getAvnacLocked(active)
+        ) {
+          return
+        }
+        e.preventDefault()
+        e.stopPropagation()
+        if (mod.ActiveSelection && active instanceof mod.ActiveSelection) {
+          active.getObjects().forEach((o) => {
+            o.set({
+              left: (o.left ?? 0) + arrowDx,
+              top: (o.top ?? 0) + arrowDy,
+            })
+            o.setCoords()
+          })
+          active.setCoords()
+        } else {
+          active.set({
+            left: (active.left ?? 0) + arrowDx,
+            top: (active.top ?? 0) + arrowDy,
+          })
+          active.setCoords()
+        }
+        c.requestRenderAll()
+        selectionTick()
+        persistAfterMutation(c, active)
+        syncTextToolbarRef.current()
+        syncShapeToolbarRef.current()
+        return
+      }
+
+      if (e.key !== 'Backspace' && e.key !== 'Delete') return
       e.preventDefault()
       e.stopPropagation()
       if (!removeActiveObjectFromCanvas(c)) return
