@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from '@hugeicons/react'
-import { SparklesIcon } from '@hugeicons/core-free-icons'
+import { BackgroundIcon } from '@hugeicons/core-free-icons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FabricShadowUi } from '../lib/avnac-fabric-shadow'
 import { useViewportAwarePopoverPlacement } from '../hooks/use-viewport-aware-popover'
@@ -74,7 +74,7 @@ export default function ShadowToolbarPopover({
         aria-haspopup="dialog"
         onClick={() => setOpen((o) => !o)}
       >
-        <HugeiconsIcon icon={SparklesIcon} size={18} strokeWidth={1.75} />
+        <HugeiconsIcon icon={BackgroundIcon} size={18} strokeWidth={1.75} />
         <span className="min-w-[2.25rem] text-left text-xs font-medium tabular-nums text-neutral-700">
           {shadowActive ? `${blur}` : '—'}
         </span>
