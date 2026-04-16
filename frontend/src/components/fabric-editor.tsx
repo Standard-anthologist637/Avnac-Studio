@@ -4,10 +4,11 @@ import {
   BackgroundIcon,
   HelpCircleIcon,
   Image01Icon,
+  CropIcon,
   Layers02Icon,
   TextFontIcon,
 } from '@hugeicons/core-free-icons'
-import type { Canvas, FabricObject, IText } from 'fabric'
+import type { Canvas, FabricImage, FabricObject, IText } from 'fabric'
 import {
   forwardRef,
   useCallback,
@@ -79,6 +80,10 @@ import {
   type TransformDimensionUi,
 } from '../lib/fabric-transform-dimension-ui'
 import {
+  applyFabricImageSourceCrop,
+  getFabricImageSourceCrop,
+} from '../lib/avnac-fabric-image-crop'
+import {
   sceneCornerRadiusFromImage,
   sceneCornerRadiusFromRect,
   sceneCornerRadiusMaxForObject,
@@ -115,9 +120,12 @@ import CanvasElementToolbar, {
 import {
   FloatingToolbarDivider,
   FloatingToolbarShell,
+  floatingToolbarIconButton,
 } from './floating-toolbar-shell'
+import ImageCropModal, {
+  type ImageCropModalApplyPayload,
+} from './image-crop-modal'
 import { getAvnacLocked, setAvnacLocked } from '../lib/avnac-object-lock'
-import { ARTBOARD_PRESETS } from '../data/artboard-presets'
 import type { ExportPngOptions } from './editor-export-menu'
 import EditorLayersPanel, {
   type EditorLayerRow,
@@ -348,6 +356,15 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     radius: number
     max: number
   } | null>(null)
+  const [imageCropOpen, setImageCropOpen] = useState(false)
+  const [imageCropSrc, setImageCropSrc] = useState('')
+  const [imageCropInitial, setImageCropInitial] = useState({
+    x: 0,
+    y: 0,
+    w: 0,
+    h: 0,
+  })
+  const imageCropTargetRef = useRef<FabricImage | null>(null)
   const [selectionBlurPct, setSelectionBlurPct] = useState(0)
   const [selectionOpacityPct, setSelectionOpacityPct] = useState(100)
   const [sceneSnapGuides, setSceneSnapGuides] = useState<SceneSnapGuide[]>([])
@@ -647,6 +664,59 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     })
     persistAfterMutation(canvas, obj)
   }, [persistAfterMutation])
+
+  const openImageCropModal = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    const mod = fabricModRef.current
+    const a = canvas?.getActiveObject()
+    if (!canvas || !mod?.FabricImage || !(a instanceof mod.FabricImage)) return
+    if (getAvnacLocked(a)) return
+    imageCropTargetRef.current = a
+    setImageCropSrc(a.getSrc())
+    const r = getFabricImageSourceCrop(a)
+    setImageCropInitial({ x: r.cropX, y: r.cropY, w: r.width, h: r.height })
+    setImageCropOpen(true)
+  }, [])
+
+  const cancelImageCrop = useCallback(() => {
+    setImageCropOpen(false)
+    imageCropTargetRef.current = null
+  }, [])
+
+  const applyImageCropFromModal = useCallback(
+    (rect: ImageCropModalApplyPayload) => {
+      const canvas = fabricCanvasRef.current
+      const mod = fabricModRef.current
+      const img = imageCropTargetRef.current
+      if (!canvas || !mod?.FabricImage || !img) {
+        setImageCropOpen(false)
+        imageCropTargetRef.current = null
+        return
+      }
+      const sceneR = sceneCornerRadiusFromImage(img, mod.Rect)
+      applyFabricImageSourceCrop(
+        img,
+        {
+          cropX: rect.cropX,
+          cropY: rect.cropY,
+          width: rect.width,
+          height: rect.height,
+        },
+        mod,
+        sceneR,
+      )
+      canvas.requestRenderAll()
+      selectionTick()
+      setImageCornerToolbar({
+        radius: sceneCornerRadiusFromImage(img, mod.Rect),
+        max: sceneCornerRadiusMaxForObject(img),
+      })
+      persistAfterMutation(canvas, img)
+      setImageCropOpen(false)
+      imageCropTargetRef.current = null
+    },
+    [persistAfterMutation],
+  )
 
   const applyBlurToSelection = useCallback(
     (pct: number) => {
@@ -2603,10 +2673,30 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             <div className="flex items-center py-1 pl-2 pr-2">
               {imageCornerToolbar ? (
                 <>
+                  <button
+                    type="button"
+                    disabled={elementToolbarLockedDisplay}
+                    className={[
+                      floatingToolbarIconButton(false),
+                      elementToolbarLockedDisplay
+                        ? 'pointer-events-none opacity-40'
+                        : '',
+                    ].join(' ')}
+                    aria-label="Crop image"
+                    title="Crop image"
+                    onClick={openImageCropModal}
+                  >
+                    <HugeiconsIcon
+                      icon={CropIcon}
+                      size={20}
+                      strokeWidth={1.75}
+                    />
+                  </button>
                   <CornerRadiusToolbarControl
                     value={imageCornerToolbar.radius}
                     max={imageCornerToolbar.max}
                     onChange={applyImageCornerRadius}
+                    disabled={elementToolbarLockedDisplay}
                   />
                   <FloatingToolbarDivider />
                 </>
@@ -2751,50 +2841,26 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             </div>
           </div>
         </div>
+      </div>
 
-        <div
-          ref={canvasZoomRef}
-          className="pointer-events-auto fixed bottom-24 right-4 z-30 flex flex-col items-end gap-1 sm:right-6"
-        >
-          {ready && zoomPercent !== null ? (
-            <>
-              <CanvasZoomSlider
-                value={zoomPercent}
-                min={ZOOM_MIN_PCT}
-                max={ZOOM_MAX_PCT}
-                onChange={onZoomSliderChange}
-                onFitRequest={onZoomFitRequest}
-              />
-              <label className="flex items-center gap-1 pr-1 text-xs text-[var(--text-muted)]">
-                <span className="tabular-nums">
-                  {artboardW}×{artboardH}px
-                </span>
-                <select
-                  className="max-w-[140px] rounded-md border border-black/10 bg-[var(--surface)] px-1 py-0.5 text-[11px] font-medium text-[var(--text)]"
-                  aria-label="Artboard preset"
-                  value={
-                    ARTBOARD_PRESETS.find(
-                      (p) => p.width === artboardW && p.height === artboardH,
-                    )?.id ?? 'custom'
-                  }
-                  onChange={(e) => {
-                    const id = e.target.value
-                    if (id === 'custom') return
-                    const p = ARTBOARD_PRESETS.find((x) => x.id === id)
-                    if (p) setArtboardSize({ w: p.width, h: p.height })
-                  }}
-                >
-                  <option value="custom">Custom size</option>
-                  {ARTBOARD_PRESETS.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          ) : null}
-        </div>
+      <div
+        ref={canvasZoomRef}
+        className="pointer-events-auto absolute bottom-[max(0.5rem,env(safe-area-inset-bottom,0px))] right-3 z-30 flex flex-col items-end gap-1 sm:right-4"
+      >
+        {ready && zoomPercent !== null ? (
+          <>
+            <CanvasZoomSlider
+              value={zoomPercent}
+              min={ZOOM_MIN_PCT}
+              max={ZOOM_MAX_PCT}
+              onChange={onZoomSliderChange}
+              onFitRequest={onZoomFitRequest}
+            />
+            <span className="pr-1 text-xs tabular-nums text-[var(--text-muted)]">
+              {artboardW}×{artboardH}px
+            </span>
+          </>
+        ) : null}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center pb-2 pt-24">
@@ -2918,6 +2984,13 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       <EditorShortcutsModal
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
+      />
+      <ImageCropModal
+        open={imageCropOpen}
+        imageSrc={imageCropSrc}
+        initialCrop={imageCropInitial}
+        onCancel={cancelImageCrop}
+        onApply={applyImageCropFromModal}
       />
       {ready && transformDimensionUi
         ? createPortal(
