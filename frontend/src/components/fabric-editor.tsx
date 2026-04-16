@@ -4,7 +4,6 @@ import {
   HelpCircleIcon,
   Image01Icon,
   CropIcon,
-  Layers02Icon,
   TextFontIcon,
 } from '@hugeicons/core-free-icons'
 import type { Canvas, FabricImage, FabricObject, IText } from 'fabric'
@@ -103,6 +102,7 @@ import {
   migrateLegacyImageBlurFilters,
   readBlurPctFromFabricObject,
 } from '../lib/avnac-object-blur'
+import { ensureAvnacLayerId, renewAvnacLayerId } from '../lib/ensure-avnac-layer-id'
 import { linearGradientForBox } from '../lib/fabric-linear-gradient'
 import { loadCanvasGoogleFontsAndRelayout } from '../lib/avnac-canvas-google-fonts'
 import { loadGoogleFontFamily } from '../lib/load-google-font'
@@ -138,10 +138,14 @@ import ImageCropModal, {
 } from './image-crop-modal'
 import { getAvnacLocked, setAvnacLocked } from '../lib/avnac-object-lock'
 import type { ExportPngOptions } from './editor-export-menu'
+import EditorFloatingSidebar, {
+  type EditorSidebarPanelId,
+} from './editor-floating-sidebar'
 import EditorLayersPanel, {
   type EditorLayerRow,
 } from './editor-layers-panel'
 import EditorShortcutsModal from './editor-shortcuts-modal'
+import EditorUploadsPanel from './editor-uploads-panel'
 
 const DEFAULT_ARTBOARD_W = 4000
 const DEFAULT_ARTBOARD_H = 4000
@@ -156,6 +160,7 @@ const OBJECT_SERIAL_KEYS = [
   'avnacBlur',
   'avnacFill',
   'avnacStroke',
+  'avnacLayerId',
 ] as const
 
 const DEFAULT_PAINT: BgValue = { type: 'solid', color: '#262626' }
@@ -387,7 +392,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   const [selectionShadowActive, setSelectionShadowActive] = useState(false)
   const [sceneSnapGuides, setSceneSnapGuides] = useState<SceneSnapGuide[]>([])
   const [artboardEmptyHovered, setArtboardEmptyHovered] = useState(false)
-  const [layersOpen, setLayersOpen] = useState(false)
+  const [editorSidebarPanel, setEditorSidebarPanel] =
+    useState<EditorSidebarPanelId | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [elementToolbarLayout, setElementToolbarLayout] = useState<{
     left: number
@@ -1301,6 +1307,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           } else {
             clearLock(dup as FabricObject)
           }
+          renewAvnacLayerId(dup as FabricObject)
           cnv.add(dup)
           cnv.discardActiveObject()
           cnv.setActiveObject(dup)
@@ -1694,6 +1701,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     enableTextboxAutoWidth(t)
     fitTextboxWidthToContent(t)
     applyBgValueToFill(mod, t, selectedPaint)
+    ensureAvnacLayerId(t)
     canvas.add(t)
     canvas.setActiveObject(t)
     canvas.requestRenderAll()
@@ -1715,6 +1723,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     })
     setAvnacShapeMeta(r, { kind: 'rect' })
     applyBgValueToFill(mod, r, selectedPaint)
+    ensureAvnacLayerId(r)
     canvas.add(r)
     canvas.setActiveObject(r)
     canvas.requestRenderAll()
@@ -1737,6 +1746,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     })
     setAvnacShapeMeta(e, { kind: 'ellipse' })
     applyBgValueToFill(mod, e, selectedPaint)
+    ensureAvnacLayerId(e)
     canvas.add(e)
     canvas.setActiveObject(e)
     canvas.requestRenderAll()
@@ -1758,6 +1768,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     })
     setAvnacShapeMeta(p, { kind: 'polygon', polygonSides: sides })
     applyBgValueToFill(mod, p, selectedPaint)
+    ensureAvnacLayerId(p)
     canvas.add(p)
     canvas.setActiveObject(p)
     canvas.requestRenderAll()
@@ -1779,6 +1790,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     })
     setAvnacShapeMeta(p, { kind: 'star', starPoints: points })
     applyBgValueToFill(mod, p, selectedPaint)
+    ensureAvnacLayerId(p)
     canvas.add(p)
     canvas.setActiveObject(p)
     canvas.requestRenderAll()
@@ -1813,6 +1825,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       arrowPathType: 'straight',
     })
     installArrowEndpointControls(g)
+    ensureAvnacLayerId(g)
     canvas.add(g)
     canvas.setActiveObject(g)
     canvas.requestRenderAll()
@@ -1848,6 +1861,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       arrowPathType: 'straight',
     })
     installArrowEndpointControls(g)
+    ensureAvnacLayerId(g)
     canvas.add(g)
     canvas.setActiveObject(g)
     canvas.requestRenderAll()
@@ -2052,6 +2066,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     } else {
       clearLock(dup as FabricObject)
     }
+    renewAvnacLayerId(dup as FabricObject)
     canvas.discardActiveObject()
     canvas.add(dup)
     canvas.setActiveObject(dup)
@@ -2123,6 +2138,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         left: (o.left ?? 0) + dx,
         top: (o.top ?? 0) + dy,
       })
+      renewAvnacLayerId(o)
       canvas.add(o)
     })
     canvas.discardActiveObject()
@@ -2211,6 +2227,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     canvas.discardActiveObject()
     for (const o of snapshot) canvas.remove(o)
     const group = new mod.Group(snapshot, { canvas })
+    ensureAvnacLayerId(group)
     canvas.add(group)
     canvas.setActiveObject(group)
     canvas.requestRenderAll()
@@ -2310,6 +2327,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         })
         setBgValue(doc.bg)
         await canvas.loadFromJSON(doc.fabric)
+        for (const o of canvas.getObjects()) ensureAvnacLayerId(o)
         try {
           migrateLegacyImageBlurFilters(canvas, mod)
         } catch (err) {
@@ -2683,9 +2701,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   const layerRows: EditorLayerRow[] = useMemo(() => {
     const c = fabricCanvasRef.current
     const mod = fabricModRef.current
-    if (!c || !mod || !layersOpen) return []
+    if (!c || !mod || editorSidebarPanel !== 'layers') return []
     void selectionRev
     const stack = c.getObjects()
+    for (const o of stack) ensureAvnacLayerId(o)
     const objs = [...stack].reverse()
     const active = c.getActiveObject()
     return objs.map((o, uiIdx) => {
@@ -2701,14 +2720,14 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         selected = active === o
       }
       return {
-        id: `${stackIndex}-${o.type}-${uiIdx}`,
+        id: ensureAvnacLayerId(o),
         index: stackIndex,
         label: fabricObjectLabel(o, mod),
         visible: o.visible !== false,
         selected,
       }
     })
-  }, [layersOpen, selectionRev, ready])
+  }, [editorSidebarPanel, selectionRev, ready])
 
   const onSelectLayer = useCallback((stackIndex: number) => {
     const c = fabricCanvasRef.current
@@ -2754,6 +2773,41 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     persistAfterMutation(c, o)
   }, [persistAfterMutation])
 
+  const onLayerReorder = useCallback(
+    (orderedLayerIds: string[]) => {
+      const c = fabricCanvasRef.current
+      if (!c) return
+      const stack = c.getObjects()
+      if (orderedLayerIds.length !== stack.length) return
+      const byId = new Map<string, FabricObject>()
+      for (const o of stack) {
+        byId.set(ensureAvnacLayerId(o), o)
+      }
+      const topFirst: FabricObject[] = []
+      for (const id of orderedLayerIds) {
+        const o = byId.get(id)
+        if (!o) return
+        topFirst.push(o)
+      }
+      const targetStack = topFirst.slice().reverse()
+      let moved: FabricObject | undefined
+      for (let i = 0; i < targetStack.length; i++) {
+        const want = targetStack[i]!
+        const cur = c.getObjects()
+        const curIdx = cur.indexOf(want)
+        if (curIdx !== i) {
+          c.moveObjectTo(want, i)
+          moved = want
+        }
+      }
+      if (!moved) return
+      c.requestRenderAll()
+      selectionTick()
+      persistAfterMutation(c, moved)
+    },
+    [persistAfterMutation],
+  )
+
   function addImageFromFiles(files: FileList | null) {
     const f = files?.[0]
     if (!f || !f.type.startsWith('image/')) return
@@ -2780,6 +2834,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             const sc = Math.min(maxW / iw, maxH / ih)
             img.scale(sc)
           }
+          ensureAvnacLayerId(img)
           canvas.add(img)
           canvas.setActiveObject(img)
           canvas.requestRenderAll()
@@ -3192,16 +3247,6 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           <button
             type="button"
             disabled={!ready}
-            className={`${toolbarIconBtn(!ready)} ${layersOpen ? 'bg-black/[0.08]' : ''}`}
-            onClick={() => setLayersOpen((o) => !o)}
-            aria-label="Layers"
-            title="Layers"
-          >
-            <HugeiconsIcon icon={Layers02Icon} size={20} strokeWidth={1.75} />
-          </button>
-          <button
-            type="button"
-            disabled={!ready}
             className={toolbarIconBtn(!ready)}
             onClick={() => setShortcutsOpen(true)}
             aria-label="Keyboard shortcuts"
@@ -3225,14 +3270,27 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           </span>
         </div>
       ) : null}
+      {ready ? (
+        <EditorFloatingSidebar
+          activePanel={editorSidebarPanel}
+          onSelectPanel={(id) =>
+            setEditorSidebarPanel((p) => (p === id ? null : id))
+          }
+        />
+      ) : null}
       <EditorLayersPanel
-        open={layersOpen}
-        onClose={() => setLayersOpen(false)}
+        open={ready && editorSidebarPanel === 'layers'}
+        onClose={() => setEditorSidebarPanel(null)}
         rows={layerRows}
         onSelectLayer={onSelectLayer}
         onToggleVisible={onToggleLayerVisible}
         onBringForward={onLayerBringForward}
         onSendBackward={onLayerSendBackward}
+        onReorder={onLayerReorder}
+      />
+      <EditorUploadsPanel
+        open={ready && editorSidebarPanel === 'uploads'}
+        onClose={() => setEditorSidebarPanel(null)}
       />
       <EditorShortcutsModal
         open={shortcutsOpen}
