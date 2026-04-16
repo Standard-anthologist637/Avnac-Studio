@@ -62,10 +62,19 @@ import {
   applyBgValueToStroke,
   bgValueFromFabricFill,
   bgValueFromFabricStroke,
+  bgValuesShallowEqual,
   bgValueSolidFallback,
   getAvnacStroke,
   setAvnacStroke,
 } from '../lib/avnac-fill-paint'
+import {
+  averageFabricShadowUi,
+  buildFabricShadow,
+  DEFAULT_FABRIC_SHADOW_UI,
+  readFabricShadowUi,
+  type FabricShadowUi,
+} from '../lib/avnac-fabric-shadow'
+import { collectOutlineStrokeTargets } from '../lib/avnac-selection-outline-stroke'
 import {
   disableTextboxAutoWidth,
   enableTextboxAutoWidth,
@@ -112,6 +121,8 @@ import BackgroundPopover, {
 } from './background-popover'
 import ArtboardResizeToolbarControl from './artboard-resize-toolbar-control'
 import BlurToolbarControl from './blur-toolbar-control'
+import ShadowToolbarPopover from './shadow-toolbar-popover'
+import StrokeToolbarPopover from './stroke-toolbar-popover'
 import CornerRadiusToolbarControl from './corner-radius-toolbar-control'
 import CanvasZoomSlider from './canvas-zoom-slider'
 import CanvasElementToolbar, {
@@ -367,6 +378,13 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   const imageCropTargetRef = useRef<FabricImage | null>(null)
   const [selectionBlurPct, setSelectionBlurPct] = useState(0)
   const [selectionOpacityPct, setSelectionOpacityPct] = useState(100)
+  const [selectionOutlineStrokeWidth, setSelectionOutlineStrokeWidth] =
+    useState(0)
+  const [selectionOutlineStrokePaint, setSelectionOutlineStrokePaint] =
+    useState<BgValue>({ type: 'solid', color: '#000000' })
+  const [selectionShadowUi, setSelectionShadowUi] =
+    useState<FabricShadowUi>(DEFAULT_FABRIC_SHADOW_UI)
+  const [selectionShadowActive, setSelectionShadowActive] = useState(false)
   const [sceneSnapGuides, setSceneSnapGuides] = useState<SceneSnapGuide[]>([])
   const [artboardEmptyHovered, setArtboardEmptyHovered] = useState(false)
   const [layersOpen, setLayersOpen] = useState(false)
@@ -534,6 +552,72 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     setSelectionOpacityPct(Math.round(op * 100))
   }, [])
 
+  const syncSelectionStroke = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    const mod = fabricModRef.current
+    if (!canvas || !mod) {
+      setSelectionOutlineStrokeWidth(0)
+      setSelectionOutlineStrokePaint({ type: 'solid', color: '#000000' })
+      return
+    }
+    const active = canvas.getActiveObject()
+    if (!active) {
+      setSelectionOutlineStrokeWidth(0)
+      setSelectionOutlineStrokePaint({ type: 'solid', color: '#000000' })
+      return
+    }
+    const targets = collectOutlineStrokeTargets(active, mod, () =>
+      canvas.getActiveObjects(),
+    )
+    if (targets.length === 0) {
+      setSelectionOutlineStrokeWidth(0)
+      setSelectionOutlineStrokePaint({ type: 'solid', color: '#000000' })
+      return
+    }
+    let sum = 0
+    for (const o of targets) {
+      sum += typeof o.strokeWidth === 'number' ? o.strokeWidth : 0
+    }
+    setSelectionOutlineStrokeWidth(Math.round(sum / targets.length))
+    const p0 = bgValueFromFabricStroke(targets[0])
+    const same = targets.every((o) =>
+      bgValuesShallowEqual(bgValueFromFabricStroke(o), p0),
+    )
+    setSelectionOutlineStrokePaint(
+      same ? p0 : { type: 'solid', color: '#000000' },
+    )
+  }, [])
+
+  const syncSelectionShadow = useCallback(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) {
+      setSelectionShadowUi({ ...DEFAULT_FABRIC_SHADOW_UI })
+      setSelectionShadowActive(false)
+      return
+    }
+    const active = canvas.getActiveObject()
+    if (!active) {
+      setSelectionShadowUi({ ...DEFAULT_FABRIC_SHADOW_UI })
+      setSelectionShadowActive(false)
+      return
+    }
+    if ('multiSelectionStacking' in active) {
+      const objs = canvas.getActiveObjects()
+      if (objs.length === 0) {
+        setSelectionShadowUi({ ...DEFAULT_FABRIC_SHADOW_UI })
+        setSelectionShadowActive(false)
+        return
+      }
+      const any = objs.some((o) => readFabricShadowUi(o) !== null)
+      setSelectionShadowActive(any)
+      setSelectionShadowUi(averageFabricShadowUi(objs))
+      return
+    }
+    const one = readFabricShadowUi(active)
+    setSelectionShadowActive(one !== null)
+    setSelectionShadowUi(one ?? { ...DEFAULT_FABRIC_SHADOW_UI })
+  }, [])
+
   const onTextFormatChange = useCallback(
     (patch: Partial<TextFormatToolbarValues>) => {
       const canvas = fabricCanvasRef.current
@@ -626,6 +710,86 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       }
       canvas.requestRenderAll()
       setSelectionOpacityPct(clamped)
+      syncTextToolbar()
+      syncShapeToolbar()
+      persistAfterMutation(canvas, active)
+    },
+    [persistAfterMutation, syncShapeToolbar, syncTextToolbar],
+  )
+
+  const applyOutlineStrokeWidth = useCallback(
+    (px: number) => {
+      const canvas = fabricCanvasRef.current
+      const mod = fabricModRef.current
+      if (!canvas || !mod) return
+      const active = canvas.getActiveObject()
+      if (!active) return
+      const targets = collectOutlineStrokeTargets(active, mod, () =>
+        canvas.getActiveObjects(),
+      )
+      if (targets.length === 0) return
+      const w = Math.max(0, Math.min(40, Math.round(px)))
+      for (const o of targets) {
+        o.set({ strokeWidth: w })
+        o.set('dirty', true)
+        o.setCoords()
+      }
+      canvas.requestRenderAll()
+      setSelectionOutlineStrokeWidth(w)
+      syncTextToolbar()
+      syncShapeToolbar()
+      persistAfterMutation(canvas, active)
+    },
+    [persistAfterMutation, syncShapeToolbar, syncTextToolbar],
+  )
+
+  const applyOutlineStrokePaint = useCallback(
+    (v: BgValue) => {
+      const canvas = fabricCanvasRef.current
+      const mod = fabricModRef.current
+      if (!canvas || !mod) return
+      const active = canvas.getActiveObject()
+      if (!active) return
+      const targets = collectOutlineStrokeTargets(active, mod, () =>
+        canvas.getActiveObjects(),
+      )
+      if (targets.length === 0) return
+      for (const o of targets) {
+        applyBgValueToStroke(mod, o, v)
+        o.set('dirty', true)
+        o.setCoords()
+      }
+      canvas.requestRenderAll()
+      setSelectionOutlineStrokePaint(v)
+      syncTextToolbar()
+      syncShapeToolbar()
+      persistAfterMutation(canvas, active)
+    },
+    [persistAfterMutation, syncShapeToolbar, syncTextToolbar],
+  )
+
+  const applyShadowToSelection = useCallback(
+    (ui: FabricShadowUi) => {
+      const canvas = fabricCanvasRef.current
+      const mod = fabricModRef.current
+      if (!canvas || !mod) return
+      const active = canvas.getActiveObject()
+      if (!active) return
+      const sh = buildFabricShadow(mod, ui)
+      if ('multiSelectionStacking' in active) {
+        for (const o of canvas.getActiveObjects()) {
+          o.set('shadow', sh)
+          o.set('dirty', true)
+          o.setCoords()
+        }
+      } else {
+        active.set('shadow', sh)
+        active.set('dirty', true)
+        active.setCoords()
+      }
+      canvas.requestRenderAll()
+      setSelectionShadowUi(ui)
+      setSelectionShadowActive(!!sh)
       syncTextToolbar()
       syncShapeToolbar()
       persistAfterMutation(canvas, active)
@@ -754,6 +918,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     if (!obj || !mod) {
       setSelectionOpacityPct(100)
       setSelectionBlurPct(0)
+      setSelectionOutlineStrokeWidth(0)
+      setSelectionOutlineStrokePaint({ type: 'solid', color: '#000000' })
+      setSelectionShadowUi({ ...DEFAULT_FABRIC_SHADOW_UI })
+      setSelectionShadowActive(false)
       selectionTick()
       return
     }
@@ -772,8 +940,15 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     }
     syncSelectionOpacity()
     syncSelectionBlur()
+    syncSelectionStroke()
+    syncSelectionShadow()
     selectionTick()
-  }, [syncSelectionOpacity, syncSelectionBlur])
+  }, [
+    syncSelectionBlur,
+    syncSelectionOpacity,
+    syncSelectionShadow,
+    syncSelectionStroke,
+  ])
 
   const syncFillFromSelection = useCallback(() => {
     const canvas = fabricCanvasRef.current
@@ -928,6 +1103,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   syncSelectionOpacityRef.current = syncSelectionOpacity
   const syncSelectionBlurRef = useRef(syncSelectionBlur)
   syncSelectionBlurRef.current = syncSelectionBlur
+  const syncSelectionStrokeRef = useRef(syncSelectionStroke)
+  syncSelectionStrokeRef.current = syncSelectionStroke
+  const syncSelectionShadowRef = useRef(syncSelectionShadow)
+  syncSelectionShadowRef.current = syncSelectionShadow
 
   useEffect(() => {
     const canvas = fabricCanvasRef.current
@@ -1128,6 +1307,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         syncShapeToolbarRef.current()
         syncSelectionOpacityRef.current()
         syncSelectionBlurRef.current()
+        syncSelectionStrokeRef.current()
+        syncSelectionShadowRef.current()
       }
       const onClear = () => {
         setHasObjectSelected(false)
@@ -1137,6 +1318,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         setShapeToolbarModel(null)
         setSelectionOpacityPct(100)
         setSelectionBlurPct(0)
+        setSelectionOutlineStrokeWidth(0)
+        setSelectionOutlineStrokePaint({ type: 'solid', color: '#000000' })
+        setSelectionShadowUi({ ...DEFAULT_FABRIC_SHADOW_UI })
+        setSelectionShadowActive(false)
         selectionTick()
       }
 
@@ -1306,6 +1491,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     syncShapeToolbar()
     syncSelectionOpacity()
     syncSelectionBlur()
+    syncSelectionStroke()
+    syncSelectionShadow()
     syncImageCornerToolbar()
   }, [
     ready,
@@ -1314,6 +1501,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     syncShapeToolbar,
     syncSelectionOpacity,
     syncSelectionBlur,
+    syncSelectionStroke,
+    syncSelectionShadow,
     syncImageCornerToolbar,
   ])
 
@@ -2584,6 +2773,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   let elementToolbarCanAlignElements = false
   let elementToolbarCanUngroup = false
   let elementToolbarAlignAlready: Record<CanvasAlignKind, boolean> | null = null
+  let selectionOutlineStrokeAllowed = false
   {
     const c = fabricCanvasRef.current
     const mod = fabricModRef.current
@@ -2614,6 +2804,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         } else {
           elementToolbarLockedDisplay = getAvnacLocked(a)
         }
+        selectionOutlineStrokeAllowed =
+          collectOutlineStrokeTargets(a, mod, () => c.getActiveObjects())
+            .length > 0
       }
     }
   }
@@ -2628,6 +2821,23 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       <TransparencyToolbarPopover
         opacityPct={selectionOpacityPct}
         onChange={applyOpacityToSelection}
+      />
+      {selectionOutlineStrokeAllowed ? (
+        <>
+          <FloatingToolbarDivider />
+          <StrokeToolbarPopover
+            strokeWidthPx={selectionOutlineStrokeWidth}
+            strokePaint={selectionOutlineStrokePaint}
+            onStrokeWidthChange={applyOutlineStrokeWidth}
+            onStrokePaintChange={applyOutlineStrokePaint}
+          />
+        </>
+      ) : null}
+      <FloatingToolbarDivider />
+      <ShadowToolbarPopover
+        value={selectionShadowUi}
+        shadowActive={selectionShadowActive}
+        onChange={applyShadowToSelection}
       />
     </>
   ) : null
