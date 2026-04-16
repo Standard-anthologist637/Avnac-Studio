@@ -134,6 +134,8 @@ const OBJECT_SERIAL_KEYS = [
   'avnacShape',
   'avnacLocked',
   'avnacBlur',
+  'avnacFill',
+  'avnacStroke',
 ] as const
 
 const DEFAULT_PAINT: BgValue = { type: 'solid', color: '#262626' }
@@ -310,6 +312,15 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   const historyIndexRef = useRef(0)
   const applyingHistoryRef = useRef(false)
   const historyInitRef = useRef(false)
+
+  const persistAfterMutation = useCallback(
+    (canvas: Canvas | null | undefined, target?: FabricObject | null) => {
+      if (!canvas || applyingHistoryRef.current) return
+      const t = target ?? canvas.getActiveObject()
+      if (t) canvas.fire('object:modified', { target: t })
+    },
+    [],
+  )
 
   const [ready, setReady] = useState(false)
   const [zoomPercent, setZoomPercent] = useState<number | null>(null)
@@ -536,8 +547,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       obj.setCoords()
       canvas.requestRenderAll()
       syncTextToolbar()
+      persistAfterMutation(canvas, obj)
     },
-    [syncTextToolbar],
+    [persistAfterMutation, syncTextToolbar],
   )
 
   const applyPaintToSelection = useCallback(
@@ -572,8 +584,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       canvas.requestRenderAll()
       syncTextToolbar()
       syncShapeToolbar()
+      persistAfterMutation(canvas, obj)
     },
-    [syncTextToolbar, syncShapeToolbar],
+    [persistAfterMutation, syncShapeToolbar, syncTextToolbar],
   )
 
   const applyOpacityToSelection = useCallback(
@@ -597,8 +610,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       setSelectionOpacityPct(clamped)
       syncTextToolbar()
       syncShapeToolbar()
+      persistAfterMutation(canvas, active)
     },
-    [syncTextToolbar, syncShapeToolbar],
+    [persistAfterMutation, syncShapeToolbar, syncTextToolbar],
   )
 
   const applyRectCornerRadius = useCallback(
@@ -612,8 +626,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       canvas.requestRenderAll()
       selectionTick()
       syncShapeToolbar()
+      persistAfterMutation(canvas, obj)
     },
-    [syncShapeToolbar],
+    [persistAfterMutation, syncShapeToolbar],
   )
 
   const applyImageCornerRadius = useCallback((px: number) => {
@@ -629,7 +644,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       radius: sceneCornerRadiusFromImage(obj, mod.Rect),
       max: sceneCornerRadiusMaxForObject(obj),
     })
-  }, [])
+    persistAfterMutation(canvas, obj)
+  }, [persistAfterMutation])
 
   const applyBlurToSelection = useCallback(
     (pct: number) => {
@@ -653,8 +669,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       setSelectionBlurPct(clamped)
       syncTextToolbar()
       syncShapeToolbar()
+      persistAfterMutation(canvas, active)
     },
-    [syncTextToolbar, syncShapeToolbar],
+    [persistAfterMutation, syncShapeToolbar, syncTextToolbar],
   )
 
   const syncSelection = useCallback(() => {
@@ -1586,6 +1603,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     obj.setCoords()
     canvas.requestRenderAll()
     syncShapeToolbar()
+    persistAfterMutation(canvas, obj)
   }
 
   function applyStarPoints(points: number) {
@@ -1604,6 +1622,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     obj.setCoords()
     canvas.requestRenderAll()
     syncShapeToolbar()
+    persistAfterMutation(canvas, obj)
   }
 
   function applyArrowLineStyle(style: ArrowLineStyle) {
@@ -1633,6 +1652,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     setAvnacShapeMeta(obj, { ...m, arrowLineStyle: style })
     canvas.requestRenderAll()
     syncShapeToolbar()
+    persistAfterMutation(canvas, obj)
   }
 
   function applyArrowRoundedEnds(rounded: boolean) {
@@ -1662,6 +1682,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     setAvnacShapeMeta(obj, { ...m, arrowRoundedEnds: rounded })
     canvas.requestRenderAll()
     syncShapeToolbar()
+    persistAfterMutation(canvas, obj)
   }
 
   function applyArrowStrokeWidth(w: number) {
@@ -1691,6 +1712,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     setAvnacShapeMeta(obj, { ...m, arrowStrokeWidth: strokeW })
     canvas.requestRenderAll()
     syncShapeToolbar()
+    persistAfterMutation(canvas, obj)
   }
 
   function applyArrowPathType(pathType: ArrowPathType) {
@@ -1727,6 +1749,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     syncAvnacArrowCurveControlVisibility(obj)
     canvas.requestRenderAll()
     syncShapeToolbar()
+    persistAfterMutation(canvas, obj)
   }
 
   const duplicateElement = useCallback(async () => {
@@ -1872,7 +1895,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     }
     canvas.requestRenderAll()
     selectionTick()
-  }, [])
+    persistAfterMutation(canvas, obj)
+  }, [persistAfterMutation])
 
   const alignSelectedElements = useCallback((kind: CanvasAlignKind) => {
     const canvas = fabricCanvasRef.current
@@ -1882,7 +1906,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     selectionTick()
     syncTextToolbar()
     syncShapeToolbar()
-  }, [syncShapeToolbar, syncTextToolbar])
+    persistAfterMutation(canvas, canvas.getActiveObject())
+  }, [persistAfterMutation, syncShapeToolbar, syncTextToolbar])
 
   const groupSelection = useCallback(() => {
     const canvas = fabricCanvasRef.current
@@ -2393,7 +2418,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     o.set('visible', !o.visible)
     c.requestRenderAll()
     selectionTick()
-  }, [])
+    persistAfterMutation(c, o)
+  }, [persistAfterMutation])
 
   const onLayerBringForward = useCallback((stackIndex: number) => {
     const c = fabricCanvasRef.current
@@ -2403,7 +2429,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     c.bringObjectForward(o)
     c.requestRenderAll()
     selectionTick()
-  }, [])
+    persistAfterMutation(c, o)
+  }, [persistAfterMutation])
 
   const onLayerSendBackward = useCallback((stackIndex: number) => {
     const c = fabricCanvasRef.current
@@ -2413,7 +2440,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     c.sendObjectBackwards(o)
     c.requestRenderAll()
     selectionTick()
-  }, [])
+    persistAfterMutation(c, o)
+  }, [persistAfterMutation])
 
   function addImageFromFiles(files: FileList | null) {
     const f = files?.[0]
