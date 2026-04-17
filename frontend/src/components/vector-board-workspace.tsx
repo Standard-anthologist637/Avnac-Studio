@@ -2,16 +2,13 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Add01Icon,
   ArrowDown01Icon,
-  ArrowRight01Icon,
   ArrowUp01Icon,
   Cancel01Icon,
   CircleIcon,
   Delete02Icon,
   Pen01Icon,
   PenTool03Icon,
-  PolygonIcon,
   Cursor02Icon,
-  SolidLine01Icon,
   SquareIcon,
   ViewIcon,
   ViewOffSlashIcon,
@@ -39,18 +36,28 @@ import {
   type VectorPenAnchor,
 } from '../lib/avnac-vector-pen-bezier'
 import {
-  applyTranslateStrokeInDoc,
+  appendClonedStrokesToActiveLayer,
+  applyTranslateStrokesInDoc,
   createVectorBoardLayer,
+  duplicateSelectionsInPlace,
   emptyVectorBoardDocument,
+  findStrokesIntersectingRect,
   findTopStrokeAt,
   getActiveLayer,
+  getStrokesForSelections,
   normBoundsForStroke,
+  parseVectorStrokeClipboardText,
+  removeStrokesFromDoc,
   updateVectorStrokeInDoc,
   vectorDocHasRenderableStrokes,
+  vectorStrokeOutlineIsVisible,
+  type DocStrokeSelection,
   type VectorBoardDocument,
   type VectorBoardStroke,
   type VectorStrokeKind,
 } from '../lib/avnac-vector-board-document'
+
+const VECTOR_CLIPBOARD_PASTE_OFFSET_N = 0.02
 
 const GRID_STEP = 24
 const POINT_EPS = 0.002
@@ -86,19 +93,16 @@ function bgValuePreferSolid(v: BgValue): string {
   return v.stops[0]?.color ?? '#1a1a1a'
 }
 
-type DrawTool =
-  | 'move'
-  | 'pencil'
-  | 'pen'
-  | 'line'
-  | 'rect'
-  | 'ellipse'
-  | 'arrow'
-  | 'polygon'
+type DrawTool = 'move' | 'pencil' | 'pen' | 'rect' | 'ellipse'
 
-type DocStrokeSelection = { layerId: string; strokeId: string }
+type MarqueeRect = {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
 
-type ShapeDraftTool = 'line' | 'rect' | 'ellipse' | 'arrow'
+type ShapeDraftTool = 'rect' | 'ellipse'
 
 type ShapeDraft = {
   kind: 'shape'
@@ -129,7 +133,7 @@ type PenBezierDraftState = {
 
 type PolylineDraftState = {
   kind: 'polyline'
-  tool: 'pencil' | 'polygon'
+  tool: 'pencil'
   points: [number, number][]
 }
 
@@ -264,25 +268,27 @@ function paintPenBezierDraft(
       ctx.fill()
       ctx.globalAlpha = 1
     }
-    ctx.strokeStyle = strokeColor
-    ctx.lineWidth = Math.max(1, strokeWidthPx)
-    ctx.beginPath()
-    ctx.moveTo(anchors[0]!.x * w, anchors[0]!.y * h)
-    for (let i = 0; i < anchors.length - 1; i++) {
-      const a = anchors[i]!
-      const b = anchors[i + 1]!
-      const [x1, y1] = ctrlOutAbs(a)
-      const [x2, y2] = ctrlInAbs(b)
-      ctx.bezierCurveTo(
-        x1 * w,
-        y1 * h,
-        x2 * w,
-        y2 * h,
-        b.x * w,
-        b.y * h,
-      )
+    if (strokeWidthPx > 0) {
+      ctx.strokeStyle = strokeColor
+      ctx.lineWidth = strokeWidthPx
+      ctx.beginPath()
+      ctx.moveTo(anchors[0]!.x * w, anchors[0]!.y * h)
+      for (let i = 0; i < anchors.length - 1; i++) {
+        const a = anchors[i]!
+        const b = anchors[i + 1]!
+        const [x1, y1] = ctrlOutAbs(a)
+        const [x2, y2] = ctrlInAbs(b)
+        ctx.bezierCurveTo(
+          x1 * w,
+          y1 * h,
+          x2 * w,
+          y2 * h,
+          b.x * w,
+          b.y * h,
+        )
+      }
+      ctx.stroke()
     }
-    ctx.stroke()
   }
 
   if (closeHover && anchors.length >= 2) {
@@ -290,7 +296,7 @@ function paintPenBezierDraft(
     const first = anchors[0]!
     ctx.save()
     ctx.strokeStyle = 'rgba(37, 99, 235, 0.9)'
-    ctx.lineWidth = Math.max(1, strokeWidthPx)
+    ctx.lineWidth = Math.max(1, strokeWidthPx || 1)
     ctx.setLineDash([5, 4])
     ctx.beginPath()
     ctx.moveTo(last.x * w, last.y * h)
@@ -382,10 +388,10 @@ function paintStroke(
   ctx.lineJoin = 'round'
   const hasFill =
     s.fill && s.fill.length > 0 && s.fill !== 'transparent'
-  const drawStroke = strokePaintVisible(s.stroke)
+  const drawStroke = vectorStrokeOutlineIsVisible(s)
   if (drawStroke) {
     ctx.strokeStyle = s.stroke
-    ctx.lineWidth = Math.max(1, s.strokeWidthN * m)
+    ctx.lineWidth = Math.max(0, s.strokeWidthN * m)
   }
 
   if (s.kind === 'pen') {
@@ -589,9 +595,10 @@ function paintDraft(
   }
 
   if (draft.kind === 'polyline') {
-    ctx.strokeStyle =
-      draft.tool === 'polygon' ? DRAFT_SHAPE_EDGE : strokeColor
-    ctx.lineWidth = Math.max(1, strokeWidthPx)
+    const baseLw = Math.max(0, strokeWidthPx)
+    if (baseLw <= 0) return
+    ctx.strokeStyle = strokeColor
+    ctx.lineWidth = baseLw
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     if (draft.points.length < 2) return
@@ -600,22 +607,14 @@ function paintDraft(
     for (let i = 1; i < draft.points.length; i++) {
       ctx.lineTo(draft.points[i]![0] * w, draft.points[i]![1] * h)
     }
-    if (draft.tool === 'polygon' && draft.points.length >= 3) {
-      ctx.closePath()
-      if (fillColor && fillColor !== 'transparent') {
-        ctx.fillStyle = fillColor
-        ctx.globalAlpha = 0.35
-        ctx.fill()
-        ctx.globalAlpha = 1
-      }
-    }
     ctx.stroke()
     return
   }
 
   const sh = draft
+  const baseLw = Math.max(0, strokeWidthPx)
+  const guideLw = baseLw > 0 ? baseLw : 1
   ctx.strokeStyle = strokeColor
-  ctx.lineWidth = Math.max(1, strokeWidthPx)
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   const b = sh.b ?? sh.a
@@ -623,15 +622,6 @@ function paintDraft(
   const y0 = sh.a[1] * h
   const x1 = b[0] * w
   const y1 = b[1] * h
-
-  if (sh.tool === 'line') {
-    ctx.strokeStyle = strokeColor
-    ctx.beginPath()
-    ctx.moveTo(x0, y0)
-    ctx.lineTo(x1, y1)
-    ctx.stroke()
-    return
-  }
 
   if (sh.tool === 'rect') {
     const minX = Math.min(x0, x1)
@@ -646,6 +636,7 @@ function paintDraft(
       ctx.fill()
       ctx.globalAlpha = 1
     }
+    ctx.lineWidth = guideLw
     ctx.strokeStyle = DRAFT_SHAPE_EDGE
     ctx.stroke()
     return
@@ -673,62 +664,73 @@ function paintDraft(
       ctx.fill()
       ctx.globalAlpha = 1
     }
+    ctx.lineWidth = guideLw
     ctx.strokeStyle = DRAFT_SHAPE_EDGE
     ctx.stroke()
-    return
   }
+}
 
-  if (sh.tool === 'arrow') {
-    ctx.strokeStyle = strokeColor
-    ctx.beginPath()
-    ctx.moveTo(x0, y0)
-    ctx.lineTo(x1, y1)
-    ctx.stroke()
-    let dx = x1 - x0
-    let dy = y1 - y0
-    const len = Math.hypot(dx, dy)
-    if (len < 2) return
-    dx /= len
-    dy /= len
-    const head = Math.min(len * 0.35, 28)
-    const wing = head * 0.45
-    const bx0 = x1 - dx * head
-    const by0 = y1 - dy * head
-    const px = -dy
-    const py = dx
-    ctx.beginPath()
-    ctx.moveTo(x1, y1)
-    ctx.lineTo(bx0 + px * wing, by0 + py * wing)
-    ctx.moveTo(x1, y1)
-    ctx.lineTo(bx0 - px * wing, by0 - py * wing)
-    ctx.stroke()
-  }
+function constrainShapeEnd(
+  a: [number, number],
+  b: [number, number],
+  w: number,
+  h: number,
+): [number, number] {
+  const dxp = (b[0] - a[0]) * w
+  const dyp = (b[1] - a[1]) * h
+  const m = Math.max(Math.abs(dxp), Math.abs(dyp))
+  const sx = dxp < 0 ? -1 : 1
+  const sy = dyp < 0 ? -1 : 1
+  return [a[0] + (sx * m) / Math.max(1, w), a[1] + (sy * m) / Math.max(1, h)]
 }
 
 function paintDocSelection(
   ctx: CanvasRenderingContext2D,
   doc: VectorBoardDocument,
-  sel: DocStrokeSelection | null,
+  selections: DocStrokeSelection[],
   w: number,
   h: number,
 ) {
-  if (!sel) return
-  const layer = doc.layers.find((l) => l.id === sel.layerId)
-  if (!layer?.visible) return
-  const s = layer.strokes.find((x) => x.id === sel.strokeId)
-  if (!s) return
-  const b = normBoundsForStroke(s)
-  if (!b) return
-  const pad = 0.01
-  const x0 = (b.minX - pad) * w
-  const y0 = (b.minY - pad) * h
-  const rw = (b.maxX - b.minX + pad * 2) * w
-  const rh = (b.maxY - b.minY + pad * 2) * h
+  if (selections.length === 0) return
   ctx.save()
   ctx.strokeStyle = '#2563eb'
   ctx.lineWidth = 1.5
   ctx.setLineDash([6, 4])
-  ctx.strokeRect(x0, y0, Math.max(1, rw), Math.max(1, rh))
+  const pad = 0.01
+  for (const sel of selections) {
+    const layer = doc.layers.find((l) => l.id === sel.layerId)
+    if (!layer?.visible) continue
+    const s = layer.strokes.find((x) => x.id === sel.strokeId)
+    if (!s) continue
+    const b = normBoundsForStroke(s)
+    if (!b) continue
+    const x0 = (b.minX - pad) * w
+    const y0 = (b.minY - pad) * h
+    const rw = (b.maxX - b.minX + pad * 2) * w
+    const rh = (b.maxY - b.minY + pad * 2) * h
+    ctx.strokeRect(x0, y0, Math.max(1, rw), Math.max(1, rh))
+  }
+  ctx.restore()
+}
+
+function paintMarqueeRect(
+  ctx: CanvasRenderingContext2D,
+  rect: MarqueeRect | null,
+  w: number,
+  h: number,
+) {
+  if (!rect) return
+  const x0 = rect.minX * w
+  const y0 = rect.minY * h
+  const rw = (rect.maxX - rect.minX) * w
+  const rh = (rect.maxY - rect.minY) * h
+  if (rw <= 0 || rh <= 0) return
+  ctx.save()
+  ctx.fillStyle = 'rgba(37,99,235,0.08)'
+  ctx.strokeStyle = 'rgba(37,99,235,0.75)'
+  ctx.lineWidth = 1
+  ctx.fillRect(x0, y0, rw, rh)
+  ctx.strokeRect(x0, y0, rw, rh)
   ctx.restore()
 }
 
@@ -756,43 +758,52 @@ export default function VectorBoardWorkspace({
   const [tool, setTool] = useState<DrawTool>('pencil')
   const [strokeColor, setStrokeColor] = useState('#1a1a1a')
   const [fillColor, setFillColor] = useState('#94a3b8')
-  const [strokeWidthPx, setStrokeWidthPx] = useState(3)
+  const [strokeWidthPx, setStrokeWidthPx] = useState(0)
   const [draft, setDraft] = useState<DraftState | null>(null)
   const draftRef = useRef<DraftState | null>(null)
   const [penRemoveHintIndex, setPenRemoveHintIndex] = useState<number | null>(
     null,
   )
   const [penCloseHover, setPenCloseHover] = useState(false)
-  const [docSelection, setDocSelection] = useState<DocStrokeSelection | null>(
-    null,
-  )
+  const [docSelection, setDocSelection] = useState<DocStrokeSelection[]>([])
   const moveDragRef = useRef<{
-    layerId: string
-    strokeId: string
+    selections: DocStrokeSelection[]
     last: [number, number]
     pointerId: number
   } | null>(null)
+  const marqueeRef = useRef<{
+    start: [number, number]
+    current: [number, number]
+    baseSelection: DocStrokeSelection[]
+    additive: boolean
+    pointerId: number
+  } | null>(null)
+  const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null)
   const [saveSplitOpen, setSaveSplitOpen] = useState(false)
   const saveSplitRef = useRef<HTMLDivElement>(null)
   const documentRef = useRef(document)
   documentRef.current = document
 
-  const selectionSyncKey = docSelection
-    ? `${docSelection.layerId}:${docSelection.strokeId}`
+  const primarySelection =
+    docSelection.length > 0 ? docSelection[docSelection.length - 1]! : null
+  const selectionSyncKey = primarySelection
+    ? `${primarySelection.layerId}:${primarySelection.strokeId}`
     : null
 
   const selectedStrokeForUi = useMemo(() => {
-    if (!docSelection) return null
-    const layer = document.layers.find((l) => l.id === docSelection.layerId)
-    return layer?.strokes.find((s) => s.id === docSelection.strokeId) ?? null
-  }, [document, docSelection])
+    if (!primarySelection) return null
+    const layer = document.layers.find((l) => l.id === primarySelection.layerId)
+    return (
+      layer?.strokes.find((s) => s.id === primarySelection.strokeId) ?? null
+    )
+  }, [document, primarySelection])
 
   useEffect(() => {
-    if (!open || !selectionSyncKey || !docSelection) return
+    if (!open || !selectionSyncKey || !primarySelection) return
     const layer = documentRef.current.layers.find(
-      (l) => l.id === docSelection.layerId,
+      (l) => l.id === primarySelection.layerId,
     )
-    const s = layer?.strokes.find((x) => x.id === docSelection.strokeId)
+    const s = layer?.strokes.find((x) => x.id === primarySelection.strokeId)
     if (!s) return
     const canvas = canvasRef.current
     const rw = canvas?.getBoundingClientRect().width ?? 1
@@ -802,11 +813,11 @@ export default function VectorBoardWorkspace({
       s.stroke && strokePaintVisible(s.stroke) ? s.stroke : '#1a1a1a'
     const nextFill =
       s.fill && s.fill !== 'transparent' ? s.fill : '#94a3b8'
-    const nextW = Math.min(16, Math.max(1, Math.round(s.strokeWidthN * m)))
+    const nextW = Math.min(16, Math.max(0, Math.round(s.strokeWidthN * m)))
     setStrokeColor(nextStroke)
     setFillColor(nextFill)
     setStrokeWidthPx(nextW)
-  }, [open, selectionSyncKey, docSelection])
+  }, [open, selectionSyncKey, primarySelection])
 
   const paintFrame = useCallback(() => {
     const wrap = wrapRef.current
@@ -837,6 +848,7 @@ export default function VectorBoardWorkspace({
       penRemoveHintIndex,
       penCloseHover,
     )
+    paintMarqueeRect(ctx, marqueeRect, w, h)
   }, [
     document,
     strokeColor,
@@ -845,6 +857,7 @@ export default function VectorBoardWorkspace({
     penRemoveHintIndex,
     penCloseHover,
     docSelection,
+    marqueeRect,
   ])
 
   useLayoutEffect(() => {
@@ -866,8 +879,12 @@ export default function VectorBoardWorkspace({
     if (!open) {
       const m = moveDragRef.current
       if (m) releasePointerIfCaptured(canvasRef.current, m.pointerId)
-      setDocSelection(null)
+      const mq = marqueeRef.current
+      if (mq) releasePointerIfCaptured(canvasRef.current, mq.pointerId)
+      setDocSelection([])
+      setMarqueeRect(null)
       moveDragRef.current = null
+      marqueeRef.current = null
     }
   }, [open])
 
@@ -948,7 +965,7 @@ export default function VectorBoardWorkspace({
 
   const strokeWidthNFromCanvas = useCallback(() => {
     const canvas = canvasRef.current
-    if (!canvas) return 0.004
+    if (!canvas) return 0
     const r = canvas.getBoundingClientRect()
     const m = Math.max(1, Math.min(r.width, r.height))
     return strokeWidthPx / m
@@ -1001,13 +1018,82 @@ export default function VectorBoardWorkspace({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose, tool, commitPenBezierDraft])
 
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (t.closest('input, textarea, [contenteditable="true"]')) return
+      if (draftRef.current) return
+
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        if (docSelection.length === 0) return
+        e.preventDefault()
+        e.stopPropagation()
+        const next = removeStrokesFromDoc(documentRef.current, docSelection)
+        documentRef.current = next
+        onDocumentChange(next)
+        setDocSelection([])
+        return
+      }
+
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === 'c' || e.key === 'C') {
+          if (docSelection.length === 0) return
+          const strokes = getStrokesForSelections(
+            documentRef.current,
+            docSelection,
+          )
+          if (strokes.length === 0) return
+          e.preventDefault()
+          e.stopPropagation()
+          const payload = JSON.stringify({
+            avnacVectorStrokeClip: true,
+            v: 1,
+            strokes,
+          })
+          void navigator.clipboard.writeText(payload).catch(() => {})
+          return
+        }
+        if (e.key === 'v' || e.key === 'V') {
+          e.preventDefault()
+          e.stopPropagation()
+          void (async () => {
+            let text: string
+            try {
+              text = await navigator.clipboard.readText()
+            } catch {
+              return
+            }
+            const strokes = parseVectorStrokeClipboardText(text)
+            if (!strokes) return
+            const appended = appendClonedStrokesToActiveLayer(
+              documentRef.current,
+              strokes,
+              VECTOR_CLIPBOARD_PASTE_OFFSET_N,
+              VECTOR_CLIPBOARD_PASTE_OFFSET_N,
+            )
+            if (!appended) return
+            documentRef.current = appended.doc
+            onDocumentChange(appended.doc)
+            const layer = getActiveLayer(appended.doc)
+            if (layer) {
+              setDocSelection(
+                appended.newStrokeIds.map((strokeId) => ({
+                  layerId: layer.id,
+                  strokeId,
+                })),
+              )
+            }
+          })()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [open, docSelection, onDocumentChange])
+
   const shapeFill = useCallback(() => {
-    if (
-      tool === 'rect' ||
-      tool === 'ellipse' ||
-      tool === 'polygon' ||
-      tool === 'pen'
-    ) {
+    if (tool === 'rect' || tool === 'ellipse' || tool === 'pen') {
       return fillColor && fillColor !== 'transparent' ? fillColor : ''
     }
     return ''
@@ -1021,19 +1107,84 @@ export default function VectorBoardWorkspace({
     if (tool === 'move') {
       const hit = findTopStrokeAt(document, p[0], p[1])
       if (!hit) {
-        setDocSelection(null)
+        if (e.shiftKey) {
+          marqueeRef.current = {
+            start: p,
+            current: p,
+            baseSelection: docSelection,
+            additive: true,
+            pointerId: e.pointerId,
+          }
+        } else {
+          setDocSelection([])
+          marqueeRef.current = {
+            start: p,
+            current: p,
+            baseSelection: [],
+            additive: false,
+            pointerId: e.pointerId,
+          }
+        }
+        setMarqueeRect({
+          minX: p[0],
+          minY: p[1],
+          maxX: p[0],
+          maxY: p[1],
+        })
+        ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
         return
       }
-      setDocSelection({ layerId: hit.layerId, strokeId: hit.stroke.id })
-      moveDragRef.current = {
+
+      const hitSel: DocStrokeSelection = {
         layerId: hit.layerId,
         strokeId: hit.stroke.id,
-        last: p,
-        pointerId: e.pointerId,
       }
-      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-      const c = canvasRef.current
-      if (c) c.style.cursor = 'grabbing'
+      const alreadySelected = docSelection.some(
+        (s) => s.layerId === hitSel.layerId && s.strokeId === hitSel.strokeId,
+      )
+
+      let nextSelection: DocStrokeSelection[]
+      if (e.shiftKey) {
+        nextSelection = alreadySelected
+          ? docSelection.filter(
+              (s) =>
+                !(
+                  s.layerId === hitSel.layerId &&
+                  s.strokeId === hitSel.strokeId
+                ),
+            )
+          : [...docSelection, hitSel]
+      } else {
+        nextSelection = alreadySelected ? docSelection : [hitSel]
+      }
+
+      if (e.altKey && nextSelection.length > 0) {
+        const dup = duplicateSelectionsInPlace(
+          documentRef.current,
+          nextSelection,
+        )
+        if (dup) {
+          documentRef.current = dup.doc
+          onDocumentChange(dup.doc)
+          nextSelection = dup.newSelections
+        }
+      }
+
+      setDocSelection(nextSelection)
+
+      const clickedStaysSelected = nextSelection.some(
+        (s) => s.layerId === hitSel.layerId && s.strokeId === hitSel.strokeId,
+      )
+      if (clickedStaysSelected && nextSelection.length > 0) {
+        moveDragRef.current = {
+          selections: nextSelection,
+          last: p,
+          pointerId: e.pointerId,
+        }
+        ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+        const c = canvasRef.current
+        if (c) c.style.cursor = 'grabbing'
+      }
       return
     }
 
@@ -1115,20 +1266,19 @@ export default function VectorBoardWorkspace({
       return
     }
 
-    if (tool === 'pencil' || tool === 'polygon') {
-      const next: PolylineDraftState = { kind: 'polyline', tool, points: [p] }
+    if (tool === 'pencil') {
+      const next: PolylineDraftState = {
+        kind: 'polyline',
+        tool: 'pencil',
+        points: [p],
+      }
       draftRef.current = next
       setDraft(next)
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
       return
     }
 
-    if (
-      tool === 'line' ||
-      tool === 'rect' ||
-      tool === 'ellipse' ||
-      tool === 'arrow'
-    ) {
+    if (tool === 'rect' || tool === 'ellipse') {
       const next: ShapeDraft = { kind: 'shape', tool, a: p }
       draftRef.current = next
       setDraft(next)
@@ -1145,15 +1295,44 @@ export default function VectorBoardWorkspace({
       const ddx = pt[0] - m.last[0]
       const ddy = pt[1] - m.last[1]
       m.last = pt
-      onDocumentChange(
-        applyTranslateStrokeInDoc(
-          document,
-          m.layerId,
-          m.strokeId,
-          ddx,
-          ddy,
-        ),
+      const moved = applyTranslateStrokesInDoc(
+        documentRef.current,
+        m.selections,
+        ddx,
+        ddy,
       )
+      documentRef.current = moved
+      onDocumentChange(moved)
+      return
+    }
+
+    if (tool === 'move' && marqueeRef.current && pt) {
+      const mq = marqueeRef.current
+      mq.current = pt
+      const minX = Math.min(mq.start[0], pt[0])
+      const minY = Math.min(mq.start[1], pt[1])
+      const maxX = Math.max(mq.start[0], pt[0])
+      const maxY = Math.max(mq.start[1], pt[1])
+      setMarqueeRect({ minX, minY, maxX, maxY })
+      const hits = findStrokesIntersectingRect(documentRef.current, {
+        minX,
+        minY,
+        maxX,
+        maxY,
+      })
+      if (mq.additive) {
+        const seen = new Set<string>()
+        const merged: DocStrokeSelection[] = []
+        for (const s of [...mq.baseSelection, ...hits]) {
+          const key = `${s.layerId}:${s.strokeId}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          merged.push(s)
+        }
+        setDocSelection(merged)
+      } else {
+        setDocSelection(hits)
+      }
       return
     }
 
@@ -1235,11 +1414,18 @@ export default function VectorBoardWorkspace({
 
     if (d.kind !== 'shape') return
     const sh = d
+    let b = pt
+    if (e.shiftKey) {
+      const rect = canvas?.getBoundingClientRect()
+      const rw = rect ? Math.max(1, rect.width) : 1
+      const rh = rect ? Math.max(1, rect.height) : 1
+      b = constrainShapeEnd(sh.a, pt, rw, rh)
+    }
     const nd: ShapeDraft = {
       kind: 'shape',
       tool: sh.tool,
       a: sh.a,
-      b: pt,
+      b,
     }
     draftRef.current = nd
     setDraft(nd)
@@ -1248,6 +1434,21 @@ export default function VectorBoardWorkspace({
   const onPointerUp = (e: React.PointerEvent) => {
     if (tool === 'move' && moveDragRef.current) {
       moveDragRef.current = null
+      const el = e.target as HTMLElement
+      if (
+        typeof el.hasPointerCapture === 'function' &&
+        el.hasPointerCapture(e.pointerId)
+      ) {
+        el.releasePointerCapture(e.pointerId)
+      }
+      const c = canvasRef.current
+      if (c) c.style.cursor = 'grab'
+      return
+    }
+
+    if (tool === 'move' && marqueeRef.current) {
+      marqueeRef.current = null
+      setMarqueeRect(null)
       const el = e.target as HTMLElement
       if (
         typeof el.hasPointerCapture === 'function' &&
@@ -1312,30 +1513,15 @@ export default function VectorBoardWorkspace({
     const fill = shapeFill()
 
     if (d.kind === 'polyline') {
-      if (d.tool === 'pencil') {
-        if (d.points.length < 2) return
-        commitStrokeToActiveLayer({
-          id: crypto.randomUUID(),
-          kind: 'pen',
-          points: d.points,
-          stroke: strokeColor,
-          strokeWidthN: swN,
-          fill: '',
-        })
-        return
-      }
-      if (d.tool === 'polygon') {
-        if (d.points.length < 3) return
-        commitStrokeToActiveLayer({
-          id: crypto.randomUUID(),
-          kind: 'polygon',
-          points: d.points,
-          stroke: '',
-          strokeWidthN: 0,
-          fill,
-        })
-        return
-      }
+      if (d.points.length < 2) return
+      commitStrokeToActiveLayer({
+        id: crypto.randomUUID(),
+        kind: 'pen',
+        points: d.points,
+        stroke: strokeColor,
+        strokeWidthN: swN,
+        fill: '',
+      })
       return
     }
 
@@ -1344,23 +1530,20 @@ export default function VectorBoardWorkspace({
     if (sh.a[0] === b[0] && sh.a[1] === b[1]) return
 
     const kind: VectorStrokeKind = sh.tool
-    const isFilledOnlyShape = kind === 'rect' || kind === 'ellipse'
     commitStrokeToActiveLayer({
       id: crypto.randomUUID(),
       kind,
       points: [sh.a, b],
-      stroke: isFilledOnlyShape ? '' : strokeColor,
-      strokeWidthN: isFilledOnlyShape ? 0 : swN,
-      fill: isFilledOnlyShape ? fill : '',
+      stroke: '',
+      strokeWidthN: 0,
+      fill,
     })
   }
 
   const clearActiveLayer = () => {
     const active = getActiveLayer(document)
     if (!active) return
-    setDocSelection((prev) =>
-      prev && prev.layerId === active.id ? null : prev,
-    )
+    setDocSelection((prev) => prev.filter((s) => s.layerId !== active.id))
     onDocumentChange({
       ...document,
       layers: document.layers.map((L) =>
@@ -1370,7 +1553,7 @@ export default function VectorBoardWorkspace({
   }
 
   const clearAll = () => {
-    setDocSelection(null)
+    setDocSelection([])
     onDocumentChange(emptyVectorBoardDocument())
   }
 
@@ -1426,7 +1609,6 @@ export default function VectorBoardWorkspace({
   const showFill =
     tool === 'rect' ||
     tool === 'ellipse' ||
-    tool === 'polygon' ||
     tool === 'pen' ||
     (tool === 'move' && Boolean(fillAppliesToSelected))
 
@@ -1569,11 +1751,8 @@ export default function VectorBoardWorkspace({
                         ['move', 'Move', Cursor02Icon],
                         ['pencil', 'Pencil', Pen01Icon],
                         ['pen', 'Pen', PenTool03Icon],
-                        ['line', 'Line', SolidLine01Icon],
                         ['rect', 'Rectangle', SquareIcon],
                         ['ellipse', 'Ellipse', CircleIcon],
-                        ['arrow', 'Arrow', ArrowRight01Icon],
-                        ['polygon', 'Polygon', PolygonIcon],
                       ] as const
                     ).map(([id, label, icon]) => (
                       <button
@@ -1597,39 +1776,42 @@ export default function VectorBoardWorkspace({
                 <FloatingToolbarShell role="toolbar" aria-label="Stroke and fill">
                   <div className="flex flex-wrap items-center gap-0.5 py-1 pl-1 pr-2">
                     <StrokeToolbarPopover
-                      strokeWidthMin={1}
                       strokeWidthMax={16}
                       strokeWidthPx={strokeWidthPx}
                       strokePaint={{ type: 'solid', color: strokeColor }}
                       onStrokeWidthChange={(px) => {
                         setStrokeWidthPx(px)
-                        if (docSelection) {
+                        if (docSelection.length > 0) {
                           const canvas = canvasRef.current
                           const rw = canvas?.getBoundingClientRect().width ?? 1
                           const rh = canvas?.getBoundingClientRect().height ?? 1
                           const m = Math.max(1, Math.min(rw, rh))
-                          onDocumentChange(
-                            updateVectorStrokeInDoc(
-                              document,
-                              docSelection.layerId,
-                              docSelection.strokeId,
+                          let next = document
+                          for (const sel of docSelection) {
+                            next = updateVectorStrokeInDoc(
+                              next,
+                              sel.layerId,
+                              sel.strokeId,
                               { strokeWidthN: px / m },
-                            ),
-                          )
+                            )
+                          }
+                          onDocumentChange(next)
                         }
                       }}
                       onStrokePaintChange={(v) => {
                         const hex = bgValuePreferSolid(v)
                         setStrokeColor(hex)
-                        if (docSelection) {
-                          onDocumentChange(
-                            updateVectorStrokeInDoc(
-                              document,
-                              docSelection.layerId,
-                              docSelection.strokeId,
+                        if (docSelection.length > 0) {
+                          let next = document
+                          for (const sel of docSelection) {
+                            next = updateVectorStrokeInDoc(
+                              next,
+                              sel.layerId,
+                              sel.strokeId,
                               { stroke: hex },
-                            ),
-                          )
+                            )
+                          }
+                          onDocumentChange(next)
                         }
                       }}
                     />
@@ -1642,17 +1824,19 @@ export default function VectorBoardWorkspace({
                           onChange={(v) => {
                             const hex = bgValuePreferSolid(v)
                             setFillColor(hex)
-                            if (docSelection) {
+                            if (docSelection.length > 0) {
                               const fill =
                                 hex && hex !== 'transparent' ? hex : ''
-                              onDocumentChange(
-                                updateVectorStrokeInDoc(
-                                  document,
-                                  docSelection.layerId,
-                                  docSelection.strokeId,
+                              let next = document
+                              for (const sel of docSelection) {
+                                next = updateVectorStrokeInDoc(
+                                  next,
+                                  sel.layerId,
+                                  sel.strokeId,
                                   { fill },
-                                ),
-                              )
+                                )
+                              }
+                              onDocumentChange(next)
                             }
                           }}
                           title="Fill color"
@@ -1745,13 +1929,6 @@ export default function VectorBoardWorkspace({
                 </FloatingToolbarShell>
               </div>
             </div>
-            {tool === 'pen' ? (
-              <p className="m-0 text-[11px] leading-snug text-neutral-500">
-                Plus cursor adds points; drag while placing for curves. Alt-click
-                an anchor to remove it. Click the first point again to close the
-                shape (fill applies when closed). Enter finishes without closing.
-              </p>
-            ) : null}
           </div>
 
           <div
