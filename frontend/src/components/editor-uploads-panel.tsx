@@ -1,6 +1,9 @@
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
-import { editorSidebarPanelTopClass } from '../lib/editor-sidebar-panel-layout'
+import {
+  editorSidebarPanelLeftClass,
+  editorSidebarPanelTopClass,
+} from '../lib/editor-sidebar-panel-layout'
 
 type Props = {
   open: boolean
@@ -14,7 +17,8 @@ export default function EditorUploadsPanel({ open, onClose }: Props) {
     <div
       data-avnac-chrome
       className={[
-        'pointer-events-auto fixed left-[5.75rem] z-40 flex w-[min(100vw-1.5rem,280px)] flex-col overflow-hidden rounded-3xl border border-black/[0.08] bg-white/95 backdrop-blur-md',
+        'pointer-events-auto fixed z-40 flex w-[min(100vw-1.5rem,280px)] flex-col overflow-hidden rounded-3xl border border-black/[0.08] bg-white/95 backdrop-blur-md',
+        editorSidebarPanelLeftClass,
         editorSidebarPanelTopClass,
       ].join(' ')}
       role="dialog"
