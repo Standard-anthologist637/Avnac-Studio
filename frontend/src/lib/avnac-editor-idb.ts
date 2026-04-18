@@ -8,6 +8,8 @@ export type AvnacEditorIdbRecord = {
   id: string
   updatedAt: number
   document: AvnacDocumentV1
+  /** User-visible file name (optional on legacy rows). */
+  name?: string
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -24,19 +26,59 @@ function openDb(): Promise<IDBDatabase> {
   })
 }
 
-export async function idbGetDocument(
+export async function idbGetEditorRecord(
   id: string,
-): Promise<AvnacDocumentV1 | null> {
+): Promise<AvnacEditorIdbRecord | null> {
   const db = await openDb()
   try {
-    return await new Promise<AvnacDocumentV1 | null>((resolve, reject) => {
+    return await new Promise<AvnacEditorIdbRecord | null>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly')
       tx.onerror = () => reject(tx.error ?? new Error('idb read failed'))
       const r = tx.objectStore(STORE).get(id)
       r.onerror = () => reject(r.error ?? new Error('idb get failed'))
       r.onsuccess = () => {
-        const row = r.result as AvnacEditorIdbRecord | undefined
-        resolve(row?.document ?? null)
+        resolve((r.result as AvnacEditorIdbRecord | undefined) ?? null)
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+export async function idbGetDocument(
+  id: string,
+): Promise<AvnacDocumentV1 | null> {
+  const row = await idbGetEditorRecord(id)
+  return row?.document ?? null
+}
+
+export type AvnacEditorIdbListItem = {
+  id: string
+  name: string
+  updatedAt: number
+  artboardWidth: number
+  artboardHeight: number
+}
+
+export async function idbListDocuments(): Promise<AvnacEditorIdbListItem[]> {
+  const db = await openDb()
+  try {
+    return await new Promise<AvnacEditorIdbListItem[]>((resolve, reject) => {
+      const tx = db.transaction(STORE, 'readonly')
+      tx.onerror = () => reject(tx.error ?? new Error('idb list failed'))
+      const r = tx.objectStore(STORE).getAll()
+      r.onerror = () => reject(r.error ?? new Error('idb getAll failed'))
+      r.onsuccess = () => {
+        const rows = r.result as AvnacEditorIdbRecord[]
+        const items: AvnacEditorIdbListItem[] = rows.map((row) => ({
+          id: row.id,
+          name: row.name?.trim() || 'Untitled',
+          updatedAt: row.updatedAt,
+          artboardWidth: row.document.artboard.width,
+          artboardHeight: row.document.artboard.height,
+        }))
+        items.sort((a, b) => b.updatedAt - a.updatedAt)
+        resolve(items)
       }
     })
   } finally {
@@ -47,7 +89,13 @@ export async function idbGetDocument(
 export async function idbPutDocument(
   id: string,
   document: AvnacDocumentV1,
+  opts?: { name?: string },
 ): Promise<void> {
+  const prev = await idbGetEditorRecord(id)
+  const name =
+    opts && opts.name !== undefined
+      ? opts.name.trim() || 'Untitled'
+      : prev?.name?.trim() || 'Untitled'
   const db = await openDb()
   try {
     await new Promise<void>((resolve, reject) => {
@@ -58,9 +106,19 @@ export async function idbPutDocument(
         id,
         updatedAt: Date.now(),
         document,
+        name,
       } satisfies AvnacEditorIdbRecord)
     })
   } finally {
     db.close()
   }
+}
+
+export async function idbSetDocumentName(
+  id: string,
+  name: string,
+): Promise<void> {
+  const row = await idbGetEditorRecord(id)
+  if (!row) return
+  await idbPutDocument(id, row.document, { name })
 }
