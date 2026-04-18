@@ -1,11 +1,11 @@
 import {
   Control,
+  InteractiveFabricObject,
   Point,
   controlsUtils,
   util,
   type Canvas,
   type Group,
-  type InteractiveFabricObject,
   type Line,
   type TransformActionHandler,
 } from 'fabric'
@@ -18,6 +18,7 @@ import {
   effectiveShaftBulge,
   layoutArrowGroup,
 } from './avnac-stroke-arrow'
+import type { SceneHandleSizes } from './fabric-selection-chrome'
 import {
   avnacStrokeLineHeadFrac,
   getAvnacShapeMeta,
@@ -30,8 +31,9 @@ const MODIFY_POLY = 'modifyPoly' as ModifyPolyEv
 
 function applyEndpointControlStyle(o: InteractiveFabricObject) {
   o.hasBorders = false
-  o.cornerSize = 40
-  o.touchCornerSize = 64
+  const ref = InteractiveFabricObject.ownDefaults.cornerSize ?? 40
+  o.cornerSize = Math.max(8, Math.round(ref * 0.65))
+  o.touchCornerSize = Math.max(12, Math.round(o.cornerSize * 1.45))
   o.transparentCorners = false
   o.cornerStyle = 'circle'
 }
@@ -310,6 +312,48 @@ export function syncAvnacArrowCurveControlVisibility(g: Group) {
     isAvnacStrokeLineLike(meta) &&
     meta.arrowPathType === 'curved'
   g.setControlVisible('curve', show)
+}
+
+export function refreshAvnacLineArrowHandleSizes(
+  canvas: Canvas,
+  mod: typeof import('fabric'),
+  sizes: SceneHandleSizes,
+) {
+  const mtrS = sizes.mtrSize
+  const mtrOy = sizes.mtrOffsetY
+  const curveS = Math.max(12, Math.round(sizes.cornerSize * 0.95))
+  const curveTouch = Math.round(curveS * 1.28)
+
+  for (const obj of canvas.getObjects()) {
+    if (obj instanceof mod.Line) {
+      applyEndpointControlStyle(obj)
+      const mtr = obj.controls?.mtr
+      if (mtr) {
+        mtr.sizeX = mtrS
+        mtr.sizeY = mtrS
+        mtr.offsetY = mtrOy
+      }
+      continue
+    }
+    if (obj instanceof mod.Group) {
+      const meta = getAvnacShapeMeta(obj)
+      if (!meta || !isAvnacStrokeLineLike(meta)) continue
+      applyEndpointControlStyle(obj)
+      const mtr = obj.controls?.mtr
+      if (mtr) {
+        mtr.sizeX = mtrS
+        mtr.sizeY = mtrS
+        mtr.offsetY = mtrOy
+      }
+      const curve = obj.controls?.curve
+      if (curve) {
+        curve.sizeX = curveS
+        curve.sizeY = curveS
+        curve.touchSizeX = curveTouch
+        curve.touchSizeY = curveTouch
+      }
+    }
+  }
 }
 
 export function installLineEndpointControls(line: Line) {
