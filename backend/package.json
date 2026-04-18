@@ -11,19 +11,17 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
-    "@opentelemetry/api": "^1.9.0",
-    "@better-auth/drizzle-adapter": "^1.4.0",
-    "@elysiajs/cors": "^1.4.0",
-    "better-auth": "^1.4.0",
-    "drizzle-orm": "^0.44.0",
-    "elysia": "^1.4.0",
+    "@elysiajs/cors": "^1.4.1",
+    "better-auth": "^1.6.5",
+    "drizzle-orm": "^0.45.2",
+    "elysia": "^1.4.28",
     "postgres": "^3.4.7",
     "tsx": "^4.19.4",
-    "zod": "^3.24.1"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "drizzle-kit": "^0.31.4",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.7.3"
   }
 }
