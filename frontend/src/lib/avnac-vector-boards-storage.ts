@@ -87,3 +87,12 @@ export function mergeVectorBoardDocsForMeta(
   }
   return next
 }
+
+export function clearAvnacVectorBoardStorage(persistId: string): void {
+  try {
+    localStorage.removeItem(keyFor(persistId))
+    localStorage.removeItem(docsKeyFor(persistId))
+  } catch {
+    /* ignore */
+  }
+}
