@@ -11,6 +11,19 @@ import {
 
 type CreateSearch = {
   id?: string
+  w?: number
+  h?: number
+}
+
+function parseSearchDimension(v: unknown): number | undefined {
+  const n =
+    typeof v === 'number'
+      ? v
+      : typeof v === 'string'
+        ? Number(v)
+        : Number.NaN
+  if (!Number.isFinite(n)) return undefined
+  return Math.min(16000, Math.max(100, Math.round(n)))
 }
 
 export const Route = createFileRoute('/create')({
@@ -18,6 +31,8 @@ export const Route = createFileRoute('/create')({
     const id = raw.id
     return {
       id: typeof id === 'string' && id.length > 0 ? id : undefined,
+      w: parseSearchDimension(raw.w),
+      h: parseSearchDimension(raw.h),
     }
   },
   component: CreatePage,
@@ -29,16 +44,22 @@ function CreatePage() {
   const [documentTitle, setDocumentTitle] = useState('Untitled')
   const search = Route.useSearch()
   const id = search.id
+  const initialW = search.w
+  const initialH = search.h
   const navigate = Route.useNavigate()
 
   useLayoutEffect(() => {
     if (id) return
     void navigate({
       to: '/create',
-      search: { id: crypto.randomUUID() },
+      search: {
+        id: crypto.randomUUID(),
+        w: initialW,
+        h: initialH,
+      },
       replace: true,
     })
-  }, [id, navigate])
+  }, [id, initialW, initialH, navigate])
 
   useEffect(() => {
     if (!id) return
@@ -109,6 +130,8 @@ function CreatePage() {
           persistId={id}
           persistDisplayName={documentTitle}
           onReadyChange={setEditorReady}
+          initialArtboardWidth={initialW}
+          initialArtboardHeight={initialH}
         />
       </div>
     </div>
