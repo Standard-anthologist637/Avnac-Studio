@@ -1,4 +1,4 @@
-import { HugeiconsIcon } from '@hugeicons/react'
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Copy01Icon,
   Delete02Icon,
@@ -6,21 +6,25 @@ import {
   LinkSquare02Icon,
   MoreVerticalSquare01Icon,
   Tick02Icon,
-} from '@hugeicons/core-free-icons'
-import { Link } from '@tanstack/react-router'
-import { useEffect, useRef, useState } from 'react'
-import { idbDuplicateDocument, type AvnacEditorIdbListItem } from '../lib/avnac-editor-idb'
-import { downloadAvnacJsonForId } from '../lib/avnac-files-export'
-import FileGridPreview from './file-grid-preview'
+} from "@hugeicons/core-free-icons";
+import { Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
+import { usePostHog } from "posthog-js/react";
+import {
+  idbDuplicateDocument,
+  type AvnacEditorIdbListItem,
+} from "../lib/avnac-editor-idb";
+import { downloadAvnacJsonForId } from "../lib/avnac-files-export";
+import FileGridPreview from "./file-grid-preview";
 
 type FileGridCardProps = {
-  row: AvnacEditorIdbListItem
-  formatUpdatedAt: (ts: number) => string
-  onListChange: () => void
-  selected: boolean
-  onToggleSelect: (id: string) => void
-  onRequestDelete: (id: string) => void
-}
+  row: AvnacEditorIdbListItem;
+  formatUpdatedAt: (ts: number) => string;
+  onListChange: () => void;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+  onRequestDelete: (id: string) => void;
+};
 
 export default function FileGridCard({
   row,
@@ -30,82 +34,93 @@ export default function FileGridCard({
   onToggleSelect,
   onRequestDelete,
 }: FileGridCardProps) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const posthog = usePostHog();
 
   useEffect(() => {
-    if (!menuOpen) return
+    if (!menuOpen) return;
     const onDoc = (e: MouseEvent) => {
-      const el = wrapRef.current
-      if (el && !el.contains(e.target as Node)) setMenuOpen(false)
-    }
+      const el = wrapRef.current;
+      if (el && !el.contains(e.target as Node)) setMenuOpen(false);
+    };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDoc)
-    document.addEventListener('keydown', onKey)
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener('mousedown', onDoc)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   const openInNewTab = () => {
-    setMenuOpen(false)
-    const u = new URL('/create', window.location.origin)
-    u.searchParams.set('id', row.id)
-    window.open(u.toString(), '_blank', 'noopener,noreferrer')
-  }
+    setMenuOpen(false);
+    posthog.capture("file_opened", { file_id: row.id, method: "new_tab" });
+    const u = new URL("/create", window.location.origin);
+    u.searchParams.set("id", row.id);
+    window.open(u.toString(), "_blank", "noopener,noreferrer");
+  };
 
   const makeCopy = () => {
-    setMenuOpen(false)
+    setMenuOpen(false);
     void (async () => {
       try {
-        const newId = await idbDuplicateDocument(row.id)
-        if (newId) onListChange()
+        const newId = await idbDuplicateDocument(row.id);
+        if (newId) {
+          posthog.capture("file_duplicated", {
+            file_id: row.id,
+            new_file_id: newId,
+          });
+          onListChange();
+        }
       } catch (err) {
-        console.error('[avnac] duplicate failed', err)
+        posthog.captureException(err);
+        console.error("[avnac] duplicate failed", err);
       }
-    })()
-  }
+    })();
+  };
 
   const downloadJson = () => {
-    setMenuOpen(false)
+    setMenuOpen(false);
     void (async () => {
       try {
-        await downloadAvnacJsonForId(row.id)
+        await downloadAvnacJsonForId(row.id);
+        posthog.capture("file_downloaded", { file_id: row.id, format: "json" });
       } catch (err) {
-        console.error('[avnac] download failed', err)
+        posthog.captureException(err);
+        console.error("[avnac] download failed", err);
       }
-    })()
-  }
+    })();
+  };
 
   const moveToTrash = () => {
-    setMenuOpen(false)
-    onRequestDelete(row.id)
-  }
+    setMenuOpen(false);
+    onRequestDelete(row.id);
+  };
 
   const menuBtnClass =
-    'flex size-9 shrink-0 items-center justify-center rounded-full border border-black/[0.1] bg-white/90 text-[var(--text-muted)] opacity-0 pointer-events-none transition-[opacity,colors,border-color] duration-150 group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto hover:border-black/[0.16] hover:bg-white hover:text-[var(--text)]'
+    "flex size-9 shrink-0 items-center justify-center rounded-full border border-black/[0.1] bg-white/90 text-[var(--text-muted)] opacity-0 pointer-events-none transition-[opacity,colors,border-color] duration-150 group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto hover:border-black/[0.16] hover:bg-white hover:text-[var(--text)]";
 
   const menuBtnVisible =
     menuOpen || selected
       ? `${menuBtnClass} opacity-100 pointer-events-auto`
-      : menuBtnClass
+      : menuBtnClass;
 
   const checkboxWrapClass =
-    'inline-flex cursor-pointer opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto'
+    "inline-flex cursor-pointer opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto";
 
   const checkboxWrapVisible =
     menuOpen || selected
       ? `${checkboxWrapClass} opacity-100 pointer-events-auto`
-      : checkboxWrapClass
+      : checkboxWrapClass;
 
   const menuItemClass =
-    'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[14px] font-medium text-[var(--text)] transition-colors hover:bg-black/[0.04]'
+    "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[14px] font-medium text-[var(--text)] transition-colors hover:bg-black/[0.04]";
 
   const openEditorClass =
-    'block no-underline text-inherit transition-colors hover:text-inherit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--text)]'
+    "block no-underline text-inherit transition-colors hover:text-inherit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--text)]";
 
   return (
     <li className="min-w-0">
@@ -125,11 +140,11 @@ export default function FileGridCard({
               />
               <span
                 className={[
-                  'flex size-[22px] items-center justify-center rounded-md border-2 bg-white/95 transition-colors',
+                  "flex size-[22px] items-center justify-center rounded-md border-2 bg-white/95 transition-colors",
                   selected
-                    ? 'border-[var(--accent)] bg-[var(--accent)]'
-                    : 'border-black/25 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--text)] peer-focus-visible:ring-offset-2',
-                ].join(' ')}
+                    ? "border-[var(--accent)] bg-[var(--accent)]"
+                    : "border-black/25 peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--text)] peer-focus-visible:ring-offset-2",
+                ].join(" ")}
                 aria-hidden
               >
                 {selected ? (
@@ -147,14 +162,20 @@ export default function FileGridCard({
             to="/create"
             search={{ id: row.id }}
             className={openEditorClass}
+            onClick={() =>
+              posthog.capture("file_opened", {
+                file_id: row.id,
+                method: "thumbnail",
+              })
+            }
           >
             <div
               className={[
-                'relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[var(--surface-subtle)] transition-shadow duration-150',
+                "relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-[var(--surface-subtle)] transition-shadow duration-150",
                 selected
-                  ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-white/80'
-                  : 'ring-1 ring-inset ring-black/[0.06]',
-              ].join(' ')}
+                  ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-white/80"
+                  : "ring-1 ring-inset ring-black/[0.06]",
+              ].join(" ")}
             >
               <FileGridPreview
                 persistId={row.id}
@@ -248,6 +269,9 @@ export default function FileGridCard({
           to="/create"
           search={{ id: row.id }}
           className={`${openEditorClass} flex min-h-0 flex-1 flex-col gap-2 border-t border-black/[0.05] px-4 pb-4 pt-3`}
+          onClick={() =>
+            posthog.capture("file_opened", { file_id: row.id, method: "title" })
+          }
         >
           <div className="truncate text-[15px] font-medium leading-snug tracking-[-0.01em] text-[var(--text)]">
             {row.name}
@@ -264,5 +288,5 @@ export default function FileGridCard({
         </Link>
       </div>
     </li>
-  )
+  );
 }
