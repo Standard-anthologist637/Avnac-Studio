@@ -37,7 +37,7 @@ type Props = {
 function layerRowClass(selected: boolean) {
   return [
     'flex items-center gap-0.5 rounded-lg py-0.5',
-    selected ? 'bg-[#8B3DFF]/12' : 'hover:bg-black/[0.04]',
+    selected ? 'bg-[var(--accent)]/20' : 'hover:bg-black/[0.04]',
   ].join(' ')
 }
 
