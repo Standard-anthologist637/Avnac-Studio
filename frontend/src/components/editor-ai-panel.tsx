@@ -183,6 +183,11 @@ function orderAssistantContentBlocks(content: readonly unknown[]): unknown[] {
   return [...toolUse, ...toolResult, ...mid, ...text];
 }
 
+function isToolResultOnlyUserMessage(m: ReactTamboThreadMessage): boolean {
+  if (m.role !== "user" || m.content.length === 0) return false;
+  return m.content.every((c) => c.type === "tool_result");
+}
+
 function groupMessagesForDisplay(
   messages: ReactTamboThreadMessage[],
 ): MessageLike[] {
@@ -190,7 +195,16 @@ function groupMessagesForDisplay(
   let i = 0;
   while (i < messages.length) {
     const m = messages[i]!;
-    if (m.role === "user" || m.role === "system") {
+    if (m.role === "system") {
+      out.push({
+        id: m.id,
+        role: m.role,
+        content: m.content as readonly unknown[],
+      });
+      i++;
+      continue;
+    }
+    if (m.role === "user" && !isToolResultOnlyUserMessage(m)) {
       out.push({
         id: m.id,
         role: m.role,
@@ -200,11 +214,24 @@ function groupMessagesForDisplay(
       continue;
     }
     const run: ReactTamboThreadMessage[] = [];
-    while (i < messages.length && messages[i]!.role === "assistant") {
-      run.push(messages[i]!);
-      i++;
+    while (i < messages.length) {
+      const cur = messages[i]!;
+      if (cur.role === "assistant") {
+        run.push(cur);
+        i++;
+        continue;
+      }
+      if (isToolResultOnlyUserMessage(cur)) {
+        run.push(cur);
+        i++;
+        continue;
+      }
+      break;
     }
-    if (run.length === 0) continue;
+    if (run.length === 0) {
+      i++;
+      continue;
+    }
     const merged = run.flatMap((x) => x.content as unknown[]);
     out.push({
       id: run.map((x) => x.id).join("\u0001"),
