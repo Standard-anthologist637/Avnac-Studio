@@ -1,4 +1,5 @@
 import { cors } from "@elysiajs/cors";
+import { node } from "@elysiajs/node";
 import { Elysia } from "elysia";
 import { auth } from "./auth";
 import { env } from "./config/env";
@@ -7,7 +8,7 @@ import { HttpError } from "./lib/http";
 import { authPlugin } from "./plugins/auth";
 import { documentsRoutes } from "./routes/documents";
 
-const app = new Elysia()
+const app = new Elysia({ adapter: node() })
   .use(
     cors({
       origin: env.CORS_ORIGIN,
