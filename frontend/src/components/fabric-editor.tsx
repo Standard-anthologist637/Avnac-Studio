@@ -53,13 +53,18 @@ import { removeActiveObjectFromCanvas } from '../lib/fabric-remove-selection'
 import {
   ensureAvnacArrowEndpoints,
   installArrowEndpointControls,
+  refreshAvnacLineArrowHandleSizes,
   syncAvnacArrowCurveControlVisibility,
   syncAvnacArrowEndpointsFromGeometry,
 } from '../lib/fabric-line-arrow-controls'
 import {
+  applySceneHandleSizesToCanvas,
+  applySceneHandleSizesToInteractiveObject,
   attachFabricHoverOutline,
   EDITOR_CANVAS_ACCENT,
+  getSceneHandleSizesForArtboard,
   installFabricSelectionChrome,
+  type SceneHandleSizes,
 } from '../lib/fabric-selection-chrome'
 import { regularPolygonPoints, starPolygonPoints } from '../lib/avnac-shape-geometry'
 import {
@@ -358,6 +363,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   const bottomToolbarRef = useRef<HTMLDivElement>(null)
   const fabricCanvasRef = useRef<Canvas | null>(null)
   const fabricModRef = useRef<typeof import('fabric') | null>(null)
+  const sceneHandleSizesRef = useRef<SceneHandleSizes | null>(null)
   const removeSceneSnapRef = useRef<(() => void) | null>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
 
@@ -1266,6 +1272,39 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       removeSceneSnapRef.current = null
     }
   }, [ready, artboardW, artboardH, fitArtboardToViewport])
+
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    const mod = fabricModRef.current
+    if (!canvas || !mod || !ready) return
+    const sizes = getSceneHandleSizesForArtboard(
+      Math.min(artboardW, artboardH),
+      zoomPercent,
+    )
+    sceneHandleSizesRef.current = sizes
+    applySceneHandleSizesToCanvas(canvas, mod, sizes)
+    refreshAvnacLineArrowHandleSizes(canvas, mod, sizes)
+  }, [ready, artboardW, artboardH, zoomPercent])
+
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    const mod = fabricModRef.current
+    if (!canvas || !mod || !ready) return
+    const onAdded = (opt: { target?: FabricObject | null }) => {
+      const sizes = sceneHandleSizesRef.current
+      if (!sizes || !opt.target) return
+      const t = opt.target
+      if (t instanceof mod.InteractiveFabricObject) {
+        applySceneHandleSizesToInteractiveObject(t, sizes)
+      }
+      if (t instanceof mod.Line || t instanceof mod.Group) {
+        refreshAvnacLineArrowHandleSizes(canvas, mod, sizes)
+      }
+      canvas.requestRenderAll()
+    }
+    canvas.on('object:added', onAdded)
+    return () => canvas.off('object:added', onAdded)
+  }, [ready])
 
   useLayoutEffect(() => {
     const el = canvasElRef.current
