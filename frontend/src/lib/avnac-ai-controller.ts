@@ -91,6 +91,7 @@ export type AiLineSpec = {
 }
 
 export type AiImageSpec = AiPlacement & {
+  /** HTTPS/HTTP image URL or `data:image/*;base64,...` */
   url: string
   width?: number
   height?: number
