@@ -1,5 +1,20 @@
 import { getPublicApiBase } from './public-api-base'
 
+/** Max width or height when placing a photo on the canvas (keeps inserts view-sized). */
+export const UNSPLASH_PLACE_MAX_EDGE_PX = 800
+
+export function scaleUnsplashToPlaceBox(
+  width: number,
+  height: number,
+  maxEdge = UNSPLASH_PLACE_MAX_EDGE_PX,
+) {
+  const s = Math.min(1, maxEdge / Math.max(width, height))
+  return {
+    width: Math.round(width * s),
+    height: Math.round(height * s),
+  }
+}
+
 export type UnsplashPhoto = {
   id: string
   width: number
