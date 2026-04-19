@@ -26,8 +26,10 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MutableRefObject,
   type RefObject,
 } from 'react'
+import { flushSync } from 'react-dom'
 import {
   measureHorizontalFlyoutInContainer,
   useContainedHorizontalPopoverPlacement,
@@ -47,6 +49,40 @@ export type CanvasAlignKind =
   | 'top'
   | 'centerV'
   | 'bottom'
+
+const VIEWPORT_CONTAIN_PAD = 8
+
+function containmentDeltaForRect(
+  rect: DOMRect,
+  vp: DOMRect,
+  pad: number,
+): { x: number; y: number } {
+  const innerL = vp.left + pad
+  const innerR = vp.right - pad
+  const innerT = vp.top + pad
+  const innerB = vp.bottom - pad
+  const maxW = innerR - innerL
+  const maxH = innerB - innerT
+
+  let dx = 0
+  let dy = 0
+
+  if (rect.width > maxW) {
+    dx = innerL - rect.left
+  } else {
+    if (rect.left < innerL) dx = innerL - rect.left
+    else if (rect.right > innerR) dx = innerR - rect.right
+  }
+
+  if (rect.height > maxH) {
+    dy = innerT - rect.top
+  } else {
+    if (rect.top < innerT) dy = innerT - rect.top
+    else if (rect.bottom > innerB) dy = innerB - rect.bottom
+  }
+
+  return { x: dx, y: dy }
+}
 
 type CanvasElementToolbarProps = {
   style: CSSProperties
@@ -115,6 +151,97 @@ const CanvasElementToolbar = forwardRef<HTMLDivElement, CanvasElementToolbarProp
       x: 0,
       y: 0,
     })
+    const [viewportNudge, setViewportNudge] = useState({ x: 0, y: 0 })
+    const rootRef = useRef<HTMLDivElement | null>(null)
+    const prevAnchorRef = useRef<{
+      left: CSSProperties['left']
+      top: CSSProperties['top']
+      placement: 'above' | 'below'
+    } | null>(null)
+
+    const assignRootRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        rootRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ;(ref as MutableRefObject<HTMLDivElement | null>).current = node
+        }
+      },
+      [ref],
+    )
+
+    useLayoutEffect(() => {
+      const el = rootRef.current
+      const vp = viewportRef.current
+      if (!el || !vp) return
+
+      const cur = {
+        left: style.left,
+        top: style.top,
+        placement,
+      }
+      const prev = prevAnchorRef.current
+      const anchorMoved =
+        !prev ||
+        prev.left !== cur.left ||
+        prev.top !== cur.top ||
+        prev.placement !== cur.placement
+      prevAnchorRef.current = cur
+
+      if (anchorMoved) {
+        flushSync(() => setViewportNudge({ x: 0, y: 0 }))
+      }
+
+      const rect = el.getBoundingClientRect()
+      const vpRect = vp.getBoundingClientRect()
+      const d = containmentDeltaForRect(rect, vpRect, VIEWPORT_CONTAIN_PAD)
+
+      if (anchorMoved) {
+        setViewportNudge({ x: d.x, y: d.y })
+      } else if (d.x !== 0 || d.y !== 0) {
+        setViewportNudge((prevNudge) => ({
+          x: prevNudge.x + d.x,
+          y: prevNudge.y + d.y,
+        }))
+      }
+
+      const clampAfterScrollOrResize = () => {
+        const node = rootRef.current
+        const vport = viewportRef.current
+        if (!node || !vport) return
+        const r = node.getBoundingClientRect()
+        const vr = vport.getBoundingClientRect()
+        const delta = containmentDeltaForRect(r, vr, VIEWPORT_CONTAIN_PAD)
+        if (Math.abs(delta.x) < 0.25 && Math.abs(delta.y) < 0.25) return
+        setViewportNudge((prevNudge) => ({
+          x: prevNudge.x + delta.x,
+          y: prevNudge.y + delta.y,
+        }))
+      }
+
+      const ro = new ResizeObserver(() => clampAfterScrollOrResize())
+      ro.observe(el)
+      vp.addEventListener('scroll', clampAfterScrollOrResize, { passive: true })
+      window.addEventListener('resize', clampAfterScrollOrResize)
+      return () => {
+        ro.disconnect()
+        vp.removeEventListener('scroll', clampAfterScrollOrResize)
+        window.removeEventListener('resize', clampAfterScrollOrResize)
+      }
+    }, [
+      viewportRef,
+      placement,
+      style.left,
+      style.top,
+      locked,
+      canGroup,
+      canUngroup,
+      canAlignElements,
+      moreOpen,
+      alignOpen,
+      alignElementsOpen,
+    ])
 
     useLayoutEffect(() => {
       if (!moreOpen) {
@@ -190,16 +317,18 @@ const CanvasElementToolbar = forwardRef<HTMLDivElement, CanvasElementToolbarProp
       if (!canAlignElements) setAlignElementsOpen(false)
     }, [canAlignElements])
 
+    const transformY =
+      placement === 'above'
+        ? `calc(-100% - 10px + ${viewportNudge.y}px)`
+        : `calc(10px + ${viewportNudge.y}px)`
+
     return (
       <div
-        ref={ref}
+        ref={assignRootRef}
         className="pointer-events-auto z-[35]"
         style={{
           position: 'absolute',
-          transform:
-            placement === 'above'
-              ? 'translate(-50%, calc(-100% - 10px))'
-              : 'translate(-50%, 10px)',
+          transform: `translate(calc(-50% + ${viewportNudge.x}px), ${transformY})`,
           ...style,
         }}
       >
