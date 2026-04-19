@@ -10,7 +10,9 @@ import type { UnsplashPhoto } from '../lib/unsplash-api'
 import {
   fetchUnsplashPopular,
   fetchUnsplashSearch,
+  scaleUnsplashToPlaceBox,
   trackUnsplashDownload,
+  UNSPLASH_PLACE_MAX_EDGE_PX,
 } from '../lib/unsplash-api'
 
 type Props = {
@@ -19,17 +21,7 @@ type Props = {
   controller: AiDesignController
 }
 
-/** Max width or height when placing a photo (canvas units); keeps inserts view-sized. */
-const MAX_PLACE_EDGE_PX = 800
 const DEBOUNCE_MS = 380
-
-function scaleToMaxEdge(width: number, height: number, maxEdge: number) {
-  const s = Math.min(1, maxEdge / Math.max(width, height))
-  return {
-    width: Math.round(width * s),
-    height: Math.round(height * s),
-  }
-}
 
 function unsplashReferralLink(absoluteUrl: string): string {
   try {
@@ -115,10 +107,10 @@ export default function EditorImagesPanel({ open, onClose, controller }: Props) 
         } catch {
           /* placement still allowed */
         }
-        const { width, height } = scaleToMaxEdge(
+        const { width, height } = scaleUnsplashToPlaceBox(
           photo.width,
           photo.height,
-          MAX_PLACE_EDGE_PX,
+          UNSPLASH_PLACE_MAX_EDGE_PX,
         )
         const r = await controller.addImageFromUrl({
           url: photo.urls.regular,
