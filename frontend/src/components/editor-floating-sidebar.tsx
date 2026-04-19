@@ -1,6 +1,7 @@
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   AiMagicIcon,
+  Album02Icon,
   CloudUploadIcon,
   DashboardCircleIcon,
   Layers02Icon,
@@ -10,6 +11,7 @@ import {
 export type EditorSidebarPanelId =
   | 'layers'
   | 'uploads'
+  | 'images'
   | 'vector-board'
   | 'apps'
   | 'ai'
@@ -24,6 +26,7 @@ type Item = {
 const ITEMS: Item[] = [
   { id: 'layers', label: 'Layers', icon: Layers02Icon },
   { id: 'uploads', label: 'Uploads', icon: CloudUploadIcon },
+  { id: 'images', label: 'Images', icon: Album02Icon },
   { id: 'vector-board', label: 'Vectors', icon: PenTool01Icon },
   { id: 'apps', label: 'Apps', icon: DashboardCircleIcon },
   { id: 'ai', label: 'Magic', icon: AiMagicIcon, fancy: true },
