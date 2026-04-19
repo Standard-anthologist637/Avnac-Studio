@@ -1,3 +1,5 @@
+import "./load-env";
+
 import { cors } from "@elysiajs/cors";
 import { node } from "@elysiajs/node";
 import { Elysia } from "elysia";
@@ -7,11 +9,20 @@ import { sql } from "./db";
 import { HttpError } from "./lib/http";
 import { authPlugin } from "./plugins/auth";
 import { documentsRoutes } from "./routes/documents";
+import { unsplashRoutes } from "./routes/unsplash";
+
+function corsOrigins(value: string): string | string[] {
+  const parts = value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length <= 1 ? (parts[0] ?? value) : parts;
+}
 
 const app = new Elysia({ adapter: node() })
   .use(
     cors({
-      origin: env.CORS_ORIGIN,
+      origin: corsOrigins(env.CORS_ORIGIN),
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowedHeaders: ["Content-Type", "Authorization"],
@@ -62,6 +73,7 @@ const app = new Elysia({ adapter: node() })
     };
   })
   .use(documentsRoutes)
+  .use(unsplashRoutes)
   .listen(env.PORT);
 
 console.log(`Avnac backend running at ${app.server?.hostname}:${app.server?.port}`);
