@@ -139,6 +139,10 @@ import { extractImageUrlFromDataTransfer } from '../lib/extract-image-url-from-d
 import { linearGradientForBox } from '../lib/fabric-linear-gradient'
 import { loadCanvasGoogleFontsAndRelayout } from '../lib/avnac-canvas-google-fonts'
 import { loadGoogleFontFamily } from '../lib/load-google-font'
+import {
+  loadExportSafeFabricImage,
+  normalizeCanvasImagesForExport,
+} from '../lib/avnac-image-proxy'
 import ShapeOptionsToolbar from './shape-options-toolbar'
 import TransparencyToolbarPopover from './transparency-toolbar-popover'
 import ShapesPopover, {
@@ -479,6 +483,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   const [vectorBoardListReady, setVectorBoardListReady] = useState(false)
   const [vectorWorkspaceId, setVectorWorkspaceId] = useState<string | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [elementToolbarLayout, setElementToolbarLayout] = useState<{
     left: number
     top: number
@@ -503,6 +508,12 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     pickBackgroundPopoverPanel,
     'center',
   )
+
+  useEffect(() => {
+    if (!exportError) return
+    const timeoutId = window.setTimeout(() => setExportError(null), 4500)
+    return () => window.clearTimeout(timeoutId)
+  }, [exportError])
 
   const syncTextToolbar = useCallback(() => {
     const canvas = fabricCanvasRef.current
@@ -1161,17 +1172,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       }
 
       try {
-        const img = await mod.FabricImage.fromURL(url, {
-          crossOrigin: 'anonymous',
-        })
+        const img = await loadExportSafeFabricImage(mod, url)
         place(img)
       } catch {
-        try {
-          const img = await mod.FabricImage.fromURL(url)
-          place(img)
-        } catch {
-          syncSelection()
-        }
+        syncSelection()
       }
     },
     [artboardW, artboardH, syncSelection],
@@ -2650,6 +2654,11 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         })
         setBgValue(doc.bg)
         await canvas.loadFromJSON(doc.fabric)
+        try {
+          await normalizeCanvasImagesForExport(canvas, mod)
+        } catch (err) {
+          console.error('FabricEditor: remote image normalization failed', err)
+        }
         for (const o of canvas.getObjects()) ensureAvnacLayerId(o)
         try {
           migrateLegacyImageBlurFilters(canvas, mod)
@@ -3163,75 +3172,89 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
   ])
 
   const exportPng = useCallback((opts?: ExportPngOptions) => {
-    const canvas = fabricCanvasRef.current
-    if (!canvas) return
-    const mult = opts?.multiplier ?? 1
-    const transparent = opts?.transparent ?? false
-    const crop = opts?.crop ?? 'none'
-    const aw = artboardWRef.current
-    const ah = artboardHRef.current
+    void (async () => {
+      const canvas = fabricCanvasRef.current
+      const mod = fabricModRef.current
+      if (!canvas || !mod) return
+      setExportError(null)
+      const mult = opts?.multiplier ?? 1
+      const transparent = opts?.transparent ?? false
+      const crop = opts?.crop ?? 'none'
+      const aw = artboardWRef.current
+      const ah = artboardHRef.current
 
-    let left = 0
-    let top = 0
-    let width = aw
-    let height = ah
+      let left = 0
+      let top = 0
+      let width = aw
+      let height = ah
 
-    if (crop === 'selection') {
-      const a = canvas.getActiveObject()
-      if (a) {
-        const br = a.getBoundingRect()
-        left = br.left
-        top = br.top
-        width = Math.max(1, br.width)
-        height = Math.max(1, br.height)
-      }
-    } else if (crop === 'content') {
-      const objs = canvas.getObjects()
-      if (objs.length) {
-        let minX = Infinity
-        let minY = Infinity
-        let maxX = -Infinity
-        let maxY = -Infinity
-        for (const o of objs) {
-          const br = o.getBoundingRect()
-          minX = Math.min(minX, br.left)
-          minY = Math.min(minY, br.top)
-          maxX = Math.max(maxX, br.left + br.width)
-          maxY = Math.max(maxY, br.top + br.height)
+      if (crop === 'selection') {
+        const a = canvas.getActiveObject()
+        if (a) {
+          const br = a.getBoundingRect()
+          left = br.left
+          top = br.top
+          width = Math.max(1, br.width)
+          height = Math.max(1, br.height)
         }
-        const pad = 32
-        left = Math.max(0, minX - pad)
-        top = Math.max(0, minY - pad)
-        width = Math.max(1, Math.min(aw, maxX + pad) - left)
-        height = Math.max(1, Math.min(ah, maxY + pad) - top)
+      } else if (crop === 'content') {
+        const objs = canvas.getObjects()
+        if (objs.length) {
+          let minX = Infinity
+          let minY = Infinity
+          let maxX = -Infinity
+          let maxY = -Infinity
+          for (const o of objs) {
+            const br = o.getBoundingRect()
+            minX = Math.min(minX, br.left)
+            minY = Math.min(minY, br.top)
+            maxX = Math.max(maxX, br.left + br.width)
+            maxY = Math.max(maxY, br.top + br.height)
+          }
+          const pad = 32
+          left = Math.max(0, minX - pad)
+          top = Math.max(0, minY - pad)
+          width = Math.max(1, Math.min(aw, maxX + pad) - left)
+          height = Math.max(1, Math.min(ah, maxY + pad) - top)
+        }
       }
-    }
 
-    const prevBg = canvas.backgroundColor
-    if (transparent) {
-      canvas.backgroundColor = 'transparent'
-      canvas.requestRenderAll()
-    }
+      try {
+        await normalizeCanvasImagesForExport(canvas, mod)
+        const prevBg = canvas.backgroundColor
+        try {
+          if (transparent) {
+            canvas.backgroundColor = 'transparent'
+            canvas.requestRenderAll()
+          }
 
-    const data = canvas.toDataURL({
-      format: 'png',
-      multiplier: mult,
-      left,
-      top,
-      width,
-      height,
-    })
+          const data = canvas.toDataURL({
+            format: 'png',
+            multiplier: mult,
+            left,
+            top,
+            width,
+            height,
+          })
 
-    if (transparent) {
-      canvas.backgroundColor = prevBg
-      canvas.requestRenderAll()
-    }
-
-    const a = document.createElement('a')
-    a.href = data
-    a.download =
-      crop === 'none' ? 'avnac-design.png' : 'avnac-design-cropped.png'
-    a.click()
+          const a = document.createElement('a')
+          a.href = data
+          a.download =
+            crop === 'none' ? 'avnac-design.png' : 'avnac-design-cropped.png'
+          a.click()
+        } finally {
+          if (transparent) {
+            canvas.backgroundColor = prevBg
+            canvas.requestRenderAll()
+          }
+        }
+      } catch (err) {
+        console.error('FabricEditor: PNG export failed', err)
+        setExportError(
+          'Could not export this canvas. External images could not be prepared for download.',
+        )
+      }
+    })()
   }, [])
 
   const saveDocument = useCallback(() => {
@@ -3462,26 +3485,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         const mod = fabricModRef.current
         if (!canvas || !mod?.FabricImage) return null
         const rawUrl = spec.url.trim()
-        const isDataUrl = /^data:image\//i.test(rawUrl)
-        const tryLoads: Array<() => Promise<FabricImage>> = isDataUrl
-          ? [() => mod.FabricImage.fromURL(rawUrl)]
-          : [
-              () =>
-                mod.FabricImage.fromURL(rawUrl, {
-                  crossOrigin: 'anonymous',
-                }),
-              () => mod.FabricImage.fromURL(rawUrl),
-            ]
-        let img: FabricImage | null = null
-        for (const load of tryLoads) {
-          try {
-            img = await load()
-            break
-          } catch {
-            /* try next strategy */
-          }
-        }
-        if (!img) {
+        let img: FabricImage
+        try {
+          img = await loadExportSafeFabricImage(mod, rawUrl)
+        } catch {
           console.error('AI addImageFromUrl failed for URL', rawUrl.slice(0, 80))
           return null
         }
@@ -3967,6 +3974,14 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           </div>
         ) : null}
       </div>
+
+      {exportError ? (
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-3">
+          <div className="rounded-full border border-red-200 bg-red-50/95 px-4 py-2 text-sm text-red-700 shadow-[0_8px_24px_rgba(153,27,27,0.12)] backdrop-blur">
+            {exportError}
+          </div>
+        </div>
+      ) : null}
 
       <div
         ref={viewportRef}
