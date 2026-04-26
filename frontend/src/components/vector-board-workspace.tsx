@@ -1755,7 +1755,10 @@ export default function VectorBoardWorkspace({
           return
         }
         if (e.key === 'd' || e.key === 'D') {
-          if (docSelection.length === 0) return
+          if (docSelection.length === 0) {
+            e.preventDefault()
+            return
+          }
           e.preventDefault()
           const dup = duplicateSelectionsInPlace(
             documentRef.current,
