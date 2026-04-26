@@ -1531,7 +1531,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       const dirX =
         e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
       const dirY = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0
-      const step = e.shiftKey ? 5 : 1
+      const step = e.shiftKey ? 10 : 1
       const arrowDx = dirX * step
       const arrowDy = dirY * step
       const isArrow = dirX !== 0 || dirY !== 0
@@ -3277,6 +3277,56 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         return
       }
       if (e.metaKey || e.ctrlKey) {
+        if (e.key === 'd' || e.key === 'D') {
+          e.preventDefault()
+          void duplicateElement()
+          return
+        }
+        if (e.key === 'l' || e.key === 'L') {
+          e.preventDefault()
+          toggleElementLock()
+          return
+        }
+        if (e.key === 'a' || e.key === 'A') {
+          e.preventDefault()
+          const objs = c.getObjects().filter((o) => o.visible && !getAvnacLocked(o))
+          if (objs.length > 0) {
+            c.discardActiveObject()
+            if (objs.length === 1) {
+              c.setActiveObject(objs[0]!)
+            } else if (mod.ActiveSelection) {
+              const sel = new mod.ActiveSelection(objs, { canvas: c })
+              c.setActiveObject(sel)
+            }
+            c.requestRenderAll()
+            selectionTick()
+          }
+          return
+        }
+        if (e.key === '0') {
+          e.preventDefault()
+          zoomUserAdjustedRef.current = true
+          applyCanvasZoom(100)
+          return
+        }
+        if (e.key === '1') {
+          e.preventDefault()
+          zoomUserAdjustedRef.current = false
+          fitArtboardToViewport()
+          return
+        }
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault()
+          zoomUserAdjustedRef.current = true
+          applyCanvasZoom((zoomPercentRef.current ?? 100) * 1.1)
+          return
+        }
+        if (e.key === '-') {
+          e.preventDefault()
+          zoomUserAdjustedRef.current = true
+          applyCanvasZoom((zoomPercentRef.current ?? 100) / 1.1)
+          return
+        }
         if (
           !vectorWorkspaceId &&
           (e.key === 'c' || e.key === 'C')
@@ -3289,6 +3339,31 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           e.preventDefault()
           if (e.shiftKey) void redo()
           else void undo()
+          return
+        }
+        if (e.key === ']') {
+          e.preventDefault()
+          const active = c.getActiveObject()
+          if (active) {
+            if (e.shiftKey) c.bringObjectToFront(active)
+            else c.bringObjectForward(active)
+            c.requestRenderAll()
+            selectionTick()
+            persistAfterMutation(c, active)
+          }
+          return
+        }
+        if (e.key === '[') {
+          e.preventDefault()
+          const active = c.getActiveObject()
+          if (active) {
+            if (e.shiftKey) c.sendObjectToBack(active)
+            else c.sendObjectBackwards(active)
+            c.requestRenderAll()
+            selectionTick()
+            persistAfterMutation(c, active)
+          }
+          return
         }
       }
     }
@@ -3300,6 +3375,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     redo,
     vectorWorkspaceId,
     copyElementToClipboard,
+    duplicateElement,
+    applyCanvasZoom,
+    fitArtboardToViewport,
   ])
 
   useEffect(() => {

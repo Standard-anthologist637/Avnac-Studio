@@ -1743,6 +1743,33 @@ export default function VectorBoardWorkspace({
           fitView()
           return
         }
+        if (e.key === 'a' || e.key === 'A') {
+          e.preventDefault()
+          const all: DocStrokeSelection[] = []
+          for (const L of documentRef.current.layers) {
+            for (const s of L.strokes) {
+              all.push({ layerId: L.id, strokeId: s.id })
+            }
+          }
+          setDocSelection(all)
+          return
+        }
+        if (e.key === 'd' || e.key === 'D') {
+          if (docSelection.length === 0) {
+            e.preventDefault()
+            return
+          }
+          e.preventDefault()
+          const dup = duplicateSelectionsInPlace(
+            documentRef.current,
+            docSelection,
+          )
+          if (dup) {
+            commit(dup.doc)
+            setDocSelection(dup.newSelections)
+          }
+          return
+        }
         if (e.key === ']') {
           if (docSelection.length === 0) return
           e.preventDefault()
