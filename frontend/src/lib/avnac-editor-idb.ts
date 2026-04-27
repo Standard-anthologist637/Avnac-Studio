@@ -148,7 +148,7 @@ export async function idbDeleteDocument(id: string): Promise<void> {
     db.close();
   }
   clearAvnacVectorBoardStorage(id);
-  clearStoredPages(id);
+  await clearStoredPages(id);
 }
 
 export async function idbDuplicateDocument(
@@ -179,6 +179,6 @@ export async function idbDuplicateDocument(
       JSON.parse(JSON.stringify(docs)) as Record<string, VectorBoardDocument>,
     );
   }
-  duplicateStoredPages(sourceId, newId);
+  await duplicateStoredPages(sourceId, newId);
   return newId;
 }

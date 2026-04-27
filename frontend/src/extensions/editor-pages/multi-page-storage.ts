@@ -1,3 +1,9 @@
+import {
+  ReadPages,
+  WritePages,
+  DeletePages,
+  DuplicatePages,
+} from "../../../wailsjs/go/avnacio/IOManager";
 import type { AvnacDocumentV1 } from "../../lib/avnac-document";
 import {
   buildMultiPageDocument,
@@ -6,16 +12,11 @@ import {
   type AvnacMultiPageDocumentV1,
 } from "./multi-page-document";
 
-const STORAGE_KEY_PREFIX = "avnac:editor-pages:";
-
-function storageKey(persistId: string): string {
-  return `${STORAGE_KEY_PREFIX}${persistId}`;
-}
-
-function readStorage(persistId: string): AvnacMultiPageDocumentV1 | null {
-  if (typeof window === "undefined") return null;
+async function readStorage(
+  persistId: string,
+): Promise<AvnacMultiPageDocumentV1 | null> {
   try {
-    const raw = window.localStorage.getItem(storageKey(persistId));
+    const raw = await ReadPages(persistId);
     if (!raw) return null;
     return parseMultiPageDocument(JSON.parse(raw));
   } catch {
@@ -23,11 +24,11 @@ function readStorage(persistId: string): AvnacMultiPageDocumentV1 | null {
   }
 }
 
-export function loadStoredPages(
+export async function loadStoredPages(
   persistId: string,
   currentDoc: AvnacDocumentV1,
-): AvnacMultiPageDocumentV1 {
-  const stored = readStorage(persistId);
+): Promise<AvnacMultiPageDocumentV1> {
+  const stored = await readStorage(persistId);
   if (!stored) {
     return buildMultiPageDocument([currentDoc], 0);
   }
@@ -38,15 +39,14 @@ export function loadStoredPages(
   return buildMultiPageDocument(pages, index);
 }
 
-export function saveStoredPages(
+export async function saveStoredPages(
   persistId: string,
   pages: readonly AvnacDocumentV1[],
   currentPage: number,
-): void {
-  if (typeof window === "undefined") return;
+): Promise<void> {
   try {
-    window.localStorage.setItem(
-      storageKey(persistId),
+    await WritePages(
+      persistId,
       JSON.stringify(buildMultiPageDocument(pages, currentPage)),
     );
   } catch (err) {
@@ -54,29 +54,29 @@ export function saveStoredPages(
   }
 }
 
-export function clearStoredPages(persistId: string): void {
-  if (typeof window === "undefined") return;
+export async function clearStoredPages(persistId: string): Promise<void> {
   try {
-    window.localStorage.removeItem(storageKey(persistId));
+    await DeletePages(persistId);
   } catch (err) {
     console.error("[avnac] clearStoredPages failed", err);
   }
 }
 
-export function duplicateStoredPages(sourceId: string, targetId: string): void {
-  if (typeof window === "undefined") return;
+export async function duplicateStoredPages(
+  sourceId: string,
+  targetId: string,
+): Promise<void> {
   try {
-    const raw = window.localStorage.getItem(storageKey(sourceId));
-    if (!raw) return;
-    window.localStorage.setItem(storageKey(targetId), raw);
+    await DuplicatePages(sourceId, targetId);
   } catch (err) {
     console.error("[avnac] duplicateStoredPages failed", err);
   }
 }
 
-export function readStoredPagesForExport(
+export async function readStoredPagesForExport(
   persistId: string,
   currentDoc: AvnacDocumentV1,
-): AvnacMultiPageDocumentV1 {
+): Promise<AvnacMultiPageDocumentV1> {
   return loadStoredPages(persistId, currentDoc);
 }
+

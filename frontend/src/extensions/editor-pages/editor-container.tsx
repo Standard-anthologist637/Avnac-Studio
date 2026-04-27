@@ -20,6 +20,7 @@ import { idbGetDocument } from "../../lib/avnac-editor-idb";
 import type { AvnacDocumentV1 } from "../../lib/avnac-document";
 import { safeAvnacFileBaseName } from "../../lib/avnac-files-export";
 import { exportJsonFile } from "../../lib/avnac-native-export";
+import { ConfirmDialog } from "../../../wailsjs/go/avnacio/IOManager";
 import {
   buildMultiPageDocument,
   clampPageIndex,
@@ -92,8 +93,8 @@ export default function EditorContainer({
   const posthog = usePostHog();
 
   const persistPages = useCallback(
-    (nextState: PageState) => {
-      saveStoredPages(persistId, nextState.pages, nextState.currentPage);
+    (nextState: PageState): Promise<void> => {
+      return saveStoredPages(persistId, nextState.pages, nextState.currentPage);
     },
     [persistId],
   );
@@ -131,7 +132,7 @@ export default function EditorContainer({
       };
 
       const { nextState, nextDoc } = recipe(withCurrent, currentDoc);
-      persistPages(nextState);
+      void persistPages(nextState);
       setPageState(nextState);
       await syncCurrentPageToEditor(nextDoc);
     },
@@ -172,6 +173,11 @@ export default function EditorContainer({
   }, [persistId, posthog, updatePages]);
 
   const deletePage = useCallback(async () => {
+    const confirmed = await ConfirmDialog(
+      "Delete page",
+      "Delete this page? This cannot be undone.",
+    ).catch(() => false);
+    if (!confirmed) return;
     await updatePages((prev) => {
       if (prev.pages.length <= 1) {
         return {
@@ -242,7 +248,7 @@ export default function EditorContainer({
         pages: imported.pages,
       };
 
-      persistPages(nextState);
+      void persistPages(nextState);
       setPageState(nextState);
       await syncCurrentPageToEditor(nextState.pages[nextState.currentPage]!);
       posthog.capture("editor_workspace_imported", {
@@ -336,7 +342,7 @@ export default function EditorContainer({
           }
           return doc;
         })();
-      const stored = loadStoredPages(persistId, currentDoc);
+      const stored = await loadStoredPages(persistId, currentDoc);
       setPageState({
         currentPage: stored.currentPage,
         pages: stored.pages,
@@ -367,7 +373,7 @@ export default function EditorContainer({
           index === state.currentPage ? currentDoc : page,
         ),
       };
-      persistPages(nextState);
+      void persistPages(nextState);
     };
 
     const onBeforeUnload = () => flushCurrentPage();

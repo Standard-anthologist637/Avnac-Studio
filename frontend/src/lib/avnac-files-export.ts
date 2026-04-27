@@ -14,7 +14,7 @@ export function safeAvnacFileBaseName(name: string): string {
 export async function downloadAvnacJsonForId(id: string): Promise<boolean> {
   const record = await idbGetEditorRecord(id);
   if (!record) return false;
-  const exportDoc = readStoredPagesForExport(id, record.document);
+  const exportDoc = await readStoredPagesForExport(id, record.document);
   const payload = exportDoc.pages.length > 1 ? exportDoc : record.document;
   const suffix =
     exportDoc.pages.length > 1 ? ".workspace.avnac" : ".page.avnac";

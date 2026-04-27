@@ -26,6 +26,7 @@ func EnsureAppDirs() (string, error) {
 	for _, dir := range []string{
 		appDir,
 		filepath.Join(appDir, "config"),
+		filepath.Join(appDir, "documents"),
 	} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return "", err

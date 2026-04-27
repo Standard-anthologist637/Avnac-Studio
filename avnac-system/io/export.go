@@ -65,3 +65,111 @@ func (m *IOManager) ExportFile(title string, data []byte) error {
 
 	return nil
 }
+
+// ConfirmDialog shows a native OS confirmation dialog with the given title and
+// message and returns true if the user confirmed (clicked "Yes" / the affirmative
+// button).
+//
+// Wails maps runtime.QuestionDialog to the correct native widget on each
+// platform:
+//   - Windows: MessageBox with Yes/No buttons
+//   - macOS:   NSAlert sheet with the two supplied button labels
+//   - Linux:   GTK message dialog
+func (m *IOManager) ConfirmDialog(title string, message string) (bool, error) {
+	if m.ctx == nil {
+		return false, fmt.Errorf("io manager not initialised")
+	}
+	result, err := runtime.MessageDialog(m.ctx, runtime.MessageDialogOptions{
+		Type:          runtime.QuestionDialog,
+		Title:         title,
+		Message:       message,
+		Buttons:       []string{"Yes", "No"},
+		DefaultButton: "No",
+		CancelButton:  "No",
+	})
+	if err != nil {
+		return false, err
+	}
+	return result == "Yes", nil
+}
+
+// pagesPath returns the path for a document's multi-page state file.
+func (m *IOManager) pagesPath(persistId string) (string, error) {
+	if m.appDir == "" {
+		return "", fmt.Errorf("io manager not initialised")
+	}
+	// Restrict persistId to safe characters (UUID format) to avoid path traversal.
+	for _, ch := range persistId {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-') {
+			return "", fmt.Errorf("invalid persistId")
+		}
+	}
+	return filepath.Join(m.appDir, "documents", persistId+".pages.json"), nil
+}
+
+// ReadPages reads the stored multi-page JSON for persistId. Returns an empty
+// string (not an error) when no file exists yet.
+func (m *IOManager) ReadPages(persistId string) (string, error) {
+	path, err := m.pagesPath(persistId)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read pages: %w", err)
+	}
+	return string(data), nil
+}
+
+// WritePages persists the multi-page JSON for persistId.
+func (m *IOManager) WritePages(persistId string, json string) error {
+	path, err := m.pagesPath(persistId)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(json), 0o644); err != nil {
+		return fmt.Errorf("write pages: %w", err)
+	}
+	return nil
+}
+
+// DeletePages removes the multi-page state file for persistId. It is not an
+// error if the file does not exist.
+func (m *IOManager) DeletePages(persistId string) error {
+	path, err := m.pagesPath(persistId)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("delete pages: %w", err)
+	}
+	return nil
+}
+
+// DuplicatePages copies the multi-page state from sourceId to targetId. It is
+// not an error if the source file does not exist.
+func (m *IOManager) DuplicatePages(sourceId string, targetId string) error {
+	src, err := m.pagesPath(sourceId)
+	if err != nil {
+		return err
+	}
+	dst, err := m.pagesPath(targetId)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(src)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("duplicate pages read: %w", err)
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return fmt.Errorf("duplicate pages write: %w", err)
+	}
+	return nil
+}
