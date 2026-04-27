@@ -1,35 +1,157 @@
-# Avnac
+<p align="center">
+  <img src="build/appicon.png" width="120" alt="Avnac Studio" />
+</p>
 
-Avnac is a desktop-first design canvas for layouts, posters, social graphics, and visual documents.
+<h1 align="center">Avnac Studio</h1>
 
-The app is built for a local workflow:
+<p align="center">
+  The native desktop version of <a href="https://github.com/akinloluwami/avnac">Avnac</a> — a design canvas for layouts, posters, social graphics, and visual documents.
+</p>
 
-1. Create or open a file
-2. Edit directly on the canvas
-3. Autosave to native app storage
-4. Export PNGs or portable workspace/page files
+<p align="center">
+  <a href="./LICENSE">MIT License</a>
+</p>
 
-## What The App Does
+---
 
-- Create canvases from presets or custom sizes
-- Edit text, shapes, lines, arrows, and images
-- Use layers, alignment tools, crop, blur, shadows, and corner radius controls
-- Build multi-page workspaces
-- Use vector boards for nested editable drawing areas
-- Generate QR codes in-editor
-- Reopen, duplicate, delete, import, and download workspace data from the Files screen
-- Export PNG with scale and transparency options
-- Use the Magic panel for prompt-based editing actions
+> **Upstream Notice:** The `main` branch of this repository is a mirror of the original web app by [@akinloluwami](https://github.com/akinloluwami) at [akinloluwami/avnac](https://github.com/akinloluwami/avnac). All desktop-specific work lives on the **`studio`** branch, which is the default branch of this fork.
 
-Avnac is not split across a separate backend anymore. The desktop app, native file storage, Unsplash config, export flow, and media proxy all run through the Wails app runtime in this repository.
+---
+
+## Why the Desktop Version?
+
+Avnac Studio is a native desktop app built with [Wails](https://wails.io/) + Go. It is not a browser tab, and it is not Electron.
+
+| | Avnac Studio (desktop) | Avnac (web) |
+|---|---|---|
+| **Runtime** | Native Wails + Go binary | Browser / Node backend |
+| **Memory usage** | Very low — no Chromium process overhead | Browser-dependent |
+| **Executable size** | Lightweight single binary | N/A (web app) |
+| **File storage** | Native OS app data directory | IndexedDB (browser storage) |
+| **Media proxy** | Built directly into the app binary | Separate backend service |
+| **HTTP backend** | None required | Elysia backend for media, Unsplash, auth |
+| **Startup time** | Fast — no cold boot of a server | Depends on backend startup |
+| **Offline use** | Fully offline after install | Partial |
+| **Export** | Native file save dialogs | Browser download |
+
+In short: Avnac Studio starts fast, uses very little memory, ships as a light executable, needs no running HTTP backend, and persists your files to the OS natively — not to your browser.
+
+---
+
+## What the App Can Do
+
+### Create and manage files
+
+- Create canvases from presets or custom dimensions
+- Manage files from the Files screen — open, duplicate, rename, delete, import, and download workspace data
+- Autosave to native app storage on every change — no manual saving required
+
+<!-- screenshot: files screen showing file grid and management actions -->
+![Files screen](./screenshots/files-screen.png)
+
+---
+
+### Full canvas editor
+
+- Edit text, shapes (rectangles, ellipses, polygons, stars), lines, and arrows directly on the canvas
+- Add and crop images from local uploads or Unsplash
+- Multi-select, group/ungroup, reorder layers, and align objects
+- Resize, rotate, and position elements with precision controls
+
+<!-- screenshot: canvas editor with a poster layout open -->
+![Canvas editor](./screenshots/canvas-editor.png)
+
+---
+
+### Layers, styling, and effects
+
+- Full layer panel with visibility and ordering controls
+- Background fill — solid, gradient, or image
+- Blur, opacity, corner radius, and shadow controls per element
+- Stroke and paint popover controls
+- Text formatting: font family (including Google Fonts), size, weight, alignment
+
+<!-- screenshot: layer panel and element styling controls -->
+![Layers and styling](./screenshots/layers-styling.png)
+
+---
+
+### Multi-page workspaces
+
+- Build documents across multiple pages in a single workspace
+- Per-page state is stored independently in native storage
+- Import and export individual pages or entire workspaces as portable files
+
+<!-- screenshot: multi-page workspace with page tabs -->
+![Multi-page workspace](./screenshots/multi-page.png)
+
+---
+
+### Vector boards
+
+- Embed nested vector-board drawing areas inside your canvas
+- Vector boards are independently editable and stored separately from the main document
+- Useful for components, reusable elements, or isolated drawing zones
+
+<!-- screenshot: vector board panel and embedded vector board on canvas -->
+![Vector boards](./screenshots/vector-boards.png)
+
+---
+
+### QR code generation
+
+- Generate QR codes directly in the editor and place them on the canvas like any other element
+- No external service — generated locally
+
+<!-- screenshot: QR code element placed on a canvas -->
+![QR code generation](./screenshots/qr-code.png)
+
+---
+
+### Magic panel (AI editing)
+
+- Prompt-based editing actions through the Magic panel
+- Powered by `@tambo-ai/react`
+- Describe what you want to change and the panel drives the editor for you
+
+<!-- screenshot: magic panel open with a prompt entered -->
+![Magic panel](./screenshots/magic-panel.png)
+
+---
+
+### Export
+
+- Export canvases as PNG with scale and transparency options
+- Native file save dialog — exports go directly to your filesystem
+- Export workspace or page data as portable JSON files
+
+<!-- screenshot: export menu with scale and transparency options -->
+![Export](./screenshots/export.png)
+
+---
+
+## What's Different from the Web App
+
+The original [Avnac web app](https://github.com/akinloluwami/avnac) is a browser-first editor. Avnac Studio is a ground-up desktop port of that product. Here is what changed:
+
+- **No separate backend.** The web app uses an Elysia/TypeScript backend for media proxying, Unsplash, and documents. In Avnac Studio, all of that is handled inside the Go runtime — the media proxy, Unsplash integration, and file IO are part of the app binary itself.
+- **Native file storage.** The web app stores documents in IndexedDB. Avnac Studio writes to the OS app data directory using a structured per-workspace folder layout. Files survive browser resets and profile wipes.
+- **One-time browser storage migration.** On first run after switching to native storage, the app migrates any existing browser-local documents so nothing is lost.
+- **Native export dialogs.** Exporting in the web app triggers a browser download. Avnac Studio opens a native OS save dialog.
+- **No Node or Deno process.** The entire backend surface is a Go binary. There is no npm service to run, no port to remember, no server to restart.
+- **Lightweight.** The compiled binary is small. There is no bundled Chromium (unlike Electron). The app uses the system webview.
+
+---
 
 ## Tech Stack
 
-- Frontend: React, Vite, TypeScript, Tailwind CSS, TanStack Router
-- Desktop runtime: Wails + Go
-- Canvas engine: Fabric.js
-- AI UI/runtime: `@tambo-ai/react`
-- Analytics: PostHog
+- **Frontend:** React, Vite, TypeScript, Tailwind CSS, TanStack Router
+- **Desktop runtime:** Wails v2 + Go
+- **Canvas engine:** Fabric.js
+- **AI UI/runtime:** `@tambo-ai/react`
+- **Analytics:** PostHog
+
+---
 
 ## Project Structure
 
@@ -40,11 +162,11 @@ app.go          Wails app bootstrap and service wiring
 main.go         Wails runtime setup and bindings
 ```
 
+---
+
 ## Native Workspace Storage
 
-Avnac stores document state in the app config directory (not browser storage).
-
-Each file gets a dedicated workspace folder:
+Each file gets a dedicated folder in the OS app config directory:
 
 ```text
 <UserConfigDir>/avnac-studio/documents/<workspace-id>/
@@ -55,24 +177,12 @@ Each file gets a dedicated workspace folder:
   vector-board-docs.json
 ```
 
-How this works:
-
 - `meta.json` powers the Files list quickly without loading full canvas data
 - `document.json` stores the main Fabric document payload
 - `pages.json` stores page-level workspace state
 - `vector-boards.json` and `vector-board-docs.json` store vector board state
-- A one-time migration clears old browser storage so stale IndexedDB/localStorage data does not compete with native workspace files
 
-This keeps large payloads out of IndexedDB/localStorage and aligns persistence with a desktop-native app model.
-
-## Media Proxy
-
-Avnac includes a native media proxy middleware in the Wails runtime for remote image loading.
-
-- Endpoint used by the webview: `/media/proxy?url=...`
-- Purpose: prevent cross-origin image tainting issues during canvas export
-
-No separate backend service is required for this repository.
+---
 
 ## Development
 
@@ -82,95 +192,101 @@ No separate backend service is required for this repository.
 - Node.js + npm
 - Wails CLI v2
 
-Install Wails CLI if you do not already have it:
-
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
-```
-
-Optional sanity check:
-
-```bash
 wails doctor
 ```
 
-### Frontend Development (UI-focused)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Vite runs at `http://localhost:3300`.
-
-Use this mode for UI and interaction work only. Native dialogs, native storage, export dialogs, Unsplash config, and other runtime-bound features should be validated in the Wails app.
-
-### Desktop App Development (Recommended)
-
-Install frontend dependencies first, then run the desktop app from the repository root:
+### Desktop App (Recommended)
 
 ```bash
 cd frontend
 npm install
 cd ..
-```
-
-Then:
-
-```bash
 wails dev
 ```
 
-This runs the full desktop app with native bindings, native workspace storage, and the built-in Wails media proxy.
+### Frontend Only (UI work)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite runs at `http://localhost:3300`. Native features (file storage, export dialogs, Unsplash config) require the full Wails runtime.
 
 ### Production Build
-
-From the repository root:
 
 ```bash
 wails build
 ```
 
-Build artifacts are generated under `build/`.
+Build output goes to `build/bin/`.
+
+---
 
 ## Useful Commands
 
-Frontend:
+**Frontend:**
 
 ```bash
 cd frontend
 npm run dev
 npm run build
-npm run preview
 npm run test
 npm exec tsc -- --noEmit --pretty false
 ```
 
-Go:
+**Go:**
 
 ```bash
 go build ./...
 ```
 
-## Recent Studio Work
+---
 
-- Native workspace persistence migration from IndexedDB/localStorage to per-file directories
-- Multi-page editor support and workspace/page import-export split
-- Native desktop export flow via Wails IO manager with browser fallback where needed
-- Files screen updates for import and desktop-native interactions
-- One-time legacy browser workspace cleanup during migration to native storage
-- Editor shell improvements around page tabs and unified header controls
+## Where To Work
 
-## Where To Work In The Codebase
+| Area | Path |
+|---|---|
+| Editor UI and behavior | `frontend/src/components/` |
+| Routes and navigation | `frontend/src/routes/` |
+| Frontend storage and document logic | `frontend/src/lib/` |
+| Native IO, config, and workspace services | `avnac-system/` |
 
-- Editor UI and behavior: `frontend/src/components/`
-- Routes and navigation: `frontend/src/routes/`
-- Frontend storage wrappers and document logic: `frontend/src/lib/`
-- Native IO, config, and workspace services: `avnac-system/`
+---
 
-## Notes
+## Port Maintainers
 
-- Unsplash credentials/settings are managed through app config in the desktop runtime
-- Wails v2 refresh/reload can drop `window.go` bindings unless the Wails runtime scripts are present in `frontend/index.html`
-- If you modify native Go bindings or IO behavior, rerun and validate through `wails dev`
+This desktop port is maintained by:
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/striker561">
+        <img src="https://github.com/striker561.png" width="80" alt="striker561" /><br />
+        <b>striker561</b>
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://github.com/d3uceY">
+        <img src="https://github.com/d3uceY.png" width="80" alt="d3uceY" /><br />
+        <b>d3uceY</b>
+      </a>
+    </td>
+  </tr>
+</table>
+
+---
+
+## Credits
+
+Original Avnac web app created by [@akinloluwami](https://github.com/akinloluwami).
+Source: [github.com/akinloluwami/avnac](https://github.com/akinloluwami/avnac)
+
+---
+
+## License
+
+[MIT](./LICENSE) © 2026 striker561, d3uceY
