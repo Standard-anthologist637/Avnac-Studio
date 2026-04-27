@@ -7,7 +7,14 @@
   "frontend:dev:watcher": "npm run dev",
   "frontend:dev:serverUrl": "auto",
   "author": {
-    "name": "d3uceY",
-    "email": "onyekwelujesse1234@gmail.com"
+    "name": "striker561 / d3uceY",
+    "email": "chideramichael@protonmail.com"
+  },
+  "info": {
+    "companyName": "striker561 / d3uceY",
+    "productName": "Avnac",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026 striker561/ d3uceY. All rights reserved.",
+    "comments": "Built using Wails (https://wails.io)"
   }
 }
