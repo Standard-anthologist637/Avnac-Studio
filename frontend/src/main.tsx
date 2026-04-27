@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 
 import { getRouter } from './router'
+import { clearLegacyBrowserWorkspaceStorage } from './lib/avnac-legacy-browser-storage'
 import './styles.css'
+
+clearLegacyBrowserWorkspaceStorage()
 
 const router = getRouter()
 

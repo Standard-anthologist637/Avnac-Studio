@@ -17,6 +17,14 @@ type IOManager struct {
 	appDir string
 }
 
+const (
+	documentMetaFileName      = "meta.json"
+	documentFileName          = "document.json"
+	pagesFileName             = "pages.json"
+	vectorBoardsFileName      = "vector-boards.json"
+	vectorBoardDocsFileName   = "vector-board-docs.json"
+)
+
 // NewIOManager returns an uninitialised IOManager. Call Startup once the
 // Wails context is available.
 func NewIOManager() *IOManager {
@@ -28,6 +36,54 @@ func NewIOManager() *IOManager {
 func (m *IOManager) Startup(ctx context.Context, appDir string) {
 	m.ctx = ctx
 	m.appDir = appDir
+}
+
+func validatePersistID(persistId string) error {
+	if persistId == "" {
+		return fmt.Errorf("persistId is required")
+	}
+	for _, ch := range persistId {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-') {
+			return fmt.Errorf("invalid persistId")
+		}
+	}
+	return nil
+}
+
+func (m *IOManager) documentsRoot() (string, error) {
+	if m.appDir == "" {
+		return "", fmt.Errorf("io manager not initialised")
+	}
+	return filepath.Join(m.appDir, "documents"), nil
+}
+
+func (m *IOManager) workspaceDir(persistId string) (string, error) {
+	if err := validatePersistID(persistId); err != nil {
+		return "", err
+	}
+	root, err := m.documentsRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, persistId), nil
+}
+
+func (m *IOManager) workspaceFilePath(persistId string, fileName string) (string, error) {
+	dir, err := m.workspaceDir(persistId)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, fileName), nil
+}
+
+func writeWorkspaceFile(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create workspace directories: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write workspace file: %w", err)
+	}
+	return nil
 }
 
 // ExportFile opens a native Save File dialog pre-filled with title as the
@@ -95,16 +151,7 @@ func (m *IOManager) ConfirmDialog(title string, message string) (bool, error) {
 
 // pagesPath returns the path for a document's multi-page state file.
 func (m *IOManager) pagesPath(persistId string) (string, error) {
-	if m.appDir == "" {
-		return "", fmt.Errorf("io manager not initialised")
-	}
-	// Restrict persistId to safe characters (UUID format) to avoid path traversal.
-	for _, ch := range persistId {
-		if !((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-') {
-			return "", fmt.Errorf("invalid persistId")
-		}
-	}
-	return filepath.Join(m.appDir, "documents", persistId+".pages.json"), nil
+	return m.workspaceFilePath(persistId, pagesFileName)
 }
 
 // ReadPages reads the stored multi-page JSON for persistId. Returns an empty
@@ -130,7 +177,7 @@ func (m *IOManager) WritePages(persistId string, json string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, []byte(json), 0o644); err != nil {
+	if err := writeWorkspaceFile(path, []byte(json)); err != nil {
 		return fmt.Errorf("write pages: %w", err)
 	}
 	return nil
@@ -168,7 +215,7 @@ func (m *IOManager) DuplicatePages(sourceId string, targetId string) error {
 	if err != nil {
 		return fmt.Errorf("duplicate pages read: %w", err)
 	}
-	if err := os.WriteFile(dst, data, 0o644); err != nil {
+	if err := writeWorkspaceFile(dst, data); err != nil {
 		return fmt.Errorf("duplicate pages write: %w", err)
 	}
 	return nil

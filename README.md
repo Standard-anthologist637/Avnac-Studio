@@ -1,8 +1,8 @@
 # Avnac
 
-Avnac is an open browser-based canvas for layouts, posters, and graphics.
+Avnac is a desktop-first canvas for layouts, posters, and graphics.
 
-It is built around a fast local workflow: open a file, design directly on the canvas, let the browser autosave your work, then export a PNG when you are ready.
+It is built around a fast local workflow: open a file, design directly on the canvas, autosave into native app storage, then export a PNG or workspace file when you are ready.
 
 ## What It Does
 
@@ -11,13 +11,14 @@ It is built around a fast local workflow: open a file, design directly on the ca
 - Organize work with layers, selection tools, alignment controls, crop, blur, corner radius, and shadows
 - Use vector boards for nested editable drawing areas
 - Generate QR codes inside the editor
-- Save files locally in the browser with a files view for reopening, duplicating, deleting, and JSON download
+- Save files into native app storage with a files view for reopening, duplicating, deleting, importing, and JSON download
 - Export PNGs with scale and transparency options
 - Use the Magic panel for prompt-based edits
 
 ## Stack
 
 - Frontend: React, Vite, TypeScript, Tailwind CSS, TanStack Router
+- Desktop shell/runtime: Wails + Go
 - Canvas/rendering: Fabric.js
 - AI UI/runtime: `@tambo-ai/react`
 - Analytics: PostHog
@@ -26,20 +27,24 @@ It is built around a fast local workflow: open a file, design directly on the ca
 ## Project Layout
 
 ```text
-frontend/   React app, editor UI, local file storage, export flow
+frontend/   React app, editor UI, native workspace client, export flow
 backend/    Optional API used mainly for image and Unsplash proxy routes
+avnac-system/ Native Wails services for config, export dialogs, and workspace storage
 ```
 
 ## How Persistence Works
 
-Avnac currently treats the browser as the primary workspace.
+Avnac now treats the desktop app data directory as the primary workspace store.
 
-- Documents autosave into IndexedDB
-- The `/files` page lists saved browser files
-- Opening a file returns you to the editor with the same document id
-- JSON download is available for local export of the document payload
+- Each file gets its own workspace directory under the app config data path
+- Lightweight `meta.json` files power the `/files` list without loading whole canvases
+- Full editor state lives in separate files such as `document.json`, `pages.json`, `vector-boards.json`, and `vector-board-docs.json`
+- Opening a file loads only that workspace into memory
+- Legacy browser document storage is cleared on startup so the desktop runtime starts from a clean slate
 
-If you are working on editor UX, canvas behavior, local files, or export, the frontend is the main place to look.
+This keeps large documents and embedded assets out of IndexedDB and localStorage, reduces browser pressure, and matches the desktop-native workflow more closely.
+
+If you are working on editor UX, canvas behavior, workspace storage, or export, the frontend and `avnac-system` are the main places to look.
 
 ## Local Development
 
@@ -54,6 +59,8 @@ npm run dev
 ```
 
 The app runs on `http://localhost:3300`.
+
+The plain frontend is still useful for UI work, but native workspace storage, native export dialogs, and desktop settings require the Wails app runtime.
 
 ### Frontend + Proxy Backend
 
@@ -121,12 +128,12 @@ bun run check
 
 The repo is strongest today around:
 
-- Browser-first design editing
-- Local file persistence
+- Desktop-first design editing
+- Native workspace persistence
 - PNG export
 - Prompt-based canvas editing
 
-The backend document/auth layer exists, but the main product experience is still centered on the frontend editor and browser-local files.
+The backend document/auth layer exists, but the main product experience is centered on the frontend editor plus the native Wails storage/runtime layer.
 
 ## Recent Changes (Studio Branch)
 
@@ -141,6 +148,11 @@ This branch adds desktop-first workspace features for the Wails app while preser
 - File list updates:
   - Added Import workspace action
   - Removed Open in new tab flow to keep interactions native to the desktop app
+- Native workspace persistence:
+  - Removed IndexedDB/localStorage document storage for files, pages, and vector-board state
+  - Moved workspace state into per-file directories under the app config path
+  - Files list now reads lightweight metadata while full workspace payloads load only when opened
+  - Legacy browser document storage is wiped on startup to avoid stale duplicate state
 - Editor create shell updates:
   - Page tabs with horizontal overflow support
   - Unified editor header in container (home, title, workspace/page actions)

@@ -30,7 +30,6 @@ import { createPortal } from "react-dom";
 import { useViewportAwarePopoverPlacement } from "../hooks/use-viewport-aware-popover";
 import {
   AVNAC_DOC_VERSION,
-  AVNAC_STORAGE_KEY,
   parseAvnacDocument,
   type AvnacDocumentV1,
 } from "../lib/avnac-document";
@@ -358,9 +357,9 @@ export type FabricEditorHandle = {
 
 type FabricEditorProps = {
   onReadyChange?: (ready: boolean) => void;
-  /** When set, document is restored from and autosaved to IndexedDB under this id. */
+  /** When set, document is restored from and autosaved to the native workspace store under this id. */
   persistId?: string;
-  /** Stored with each IndexedDB save (file name in the editor header). */
+  /** Stored with each native workspace save (file name in the editor header). */
   persistDisplayName?: string;
   /** When there is no saved document yet, seed artboard size (e.g. from /create?w=&h=). */
   initialArtboardWidth?: number;
@@ -483,9 +482,11 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     );
 
     const historySnapshotsRef = useRef<AvnacDocumentV1[]>([]);
+    const historySerializedRef = useRef<string[]>([]);
     const historyIndexRef = useRef(0);
     const applyingHistoryRef = useRef(false);
     const historyInitRef = useRef(false);
+    const pendingPersistedDocRef = useRef<AvnacDocumentV1 | null>(null);
 
     const persistAfterMutation = useCallback(
       (canvas: Canvas | null | undefined, target?: FabricObject | null) => {
@@ -558,6 +559,12 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const [vectorWorkspaceId, setVectorWorkspaceId] = useState<string | null>(
       null,
     );
+    const vectorBoardsSaveTimerRef = useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null);
+    const vectorBoardDocsSaveTimerRef = useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const [exportError, setExportError] = useState<string | null>(null);
     const [contextMenu, setContextMenu] =
@@ -2987,10 +2994,13 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         clearTimeout(idbAutosaveTimerRef.current);
       idbAutosaveTimerRef.current = setTimeout(() => {
         idbAutosaveTimerRef.current = null;
-        void idbPutDocument(pid, captureDocRef.current(), {
+        const nextDoc =
+          pendingPersistedDocRef.current ?? captureDocRef.current();
+        pendingPersistedDocRef.current = nextDoc;
+        void idbPutDocument(pid, nextDoc, {
           name: persistDisplayNameRef.current,
         }).catch((err) => {
-          console.error("FabricEditor: IndexedDB autosave failed", err);
+          console.error("FabricEditor: workspace autosave failed", err);
         });
       }, 500);
     }, []);
@@ -3000,21 +3010,19 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       const snap = captureDoc();
       const ser = JSON.stringify(snap);
       const past = historySnapshotsRef.current;
+      const pastSerialized = historySerializedRef.current;
       const idx = historyIndexRef.current;
-      if (past[idx] && JSON.stringify(past[idx]) === ser) return;
+      if (past[idx] && pastSerialized[idx] === ser) return;
       past.splice(idx + 1);
+      pastSerialized.splice(idx + 1);
       past.push(snap);
+      pastSerialized.push(ser);
       historyIndexRef.current = past.length - 1;
+      pendingPersistedDocRef.current = snap;
       if (past.length > 50) {
         past.shift();
+        pastSerialized.shift();
         historyIndexRef.current--;
-      }
-      try {
-        if (!persistIdRef.current) {
-          localStorage.setItem(AVNAC_STORAGE_KEY, ser);
-        }
-      } catch {
-        /* ignore */
       }
       scheduleIdbAutosave();
     }, [ready, captureDoc, scheduleIdbAutosave]);
@@ -3027,6 +3035,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       idx -= 1;
       historyIndexRef.current = idx;
       await applyDoc(past[idx]!);
+      pendingPersistedDocRef.current = past[idx]!;
       scheduleIdbAutosave();
     }, [applyDoc, scheduleIdbAutosave]);
 
@@ -3038,6 +3047,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       idx += 1;
       historyIndexRef.current = idx;
       await applyDoc(past[idx]!);
+      pendingPersistedDocRef.current = past[idx]!;
       scheduleIdbAutosave();
     }, [applyDoc, scheduleIdbAutosave]);
 
@@ -3278,9 +3288,12 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
 
       if (!persistId) {
         if (!historyInitRef.current) {
+          const initial = captureDocRef.current();
           historyInitRef.current = true;
-          historySnapshotsRef.current = [captureDocRef.current()];
+          historySnapshotsRef.current = [initial];
+          historySerializedRef.current = [JSON.stringify(initial)];
           historyIndexRef.current = 0;
+          pendingPersistedDocRef.current = initial;
         }
         return;
       }
@@ -3351,9 +3364,24 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           applyingHistoryRef.current = false;
         }
         if (cancelled) return;
-        historySnapshotsRef.current = [captureDocRef.current()];
+        const initial = captureDocRef.current();
+        historySnapshotsRef.current = [initial];
+        historySerializedRef.current = [JSON.stringify(initial)];
         historyIndexRef.current = 0;
         historyInitRef.current = true;
+        pendingPersistedDocRef.current = initial;
+        if (!doc) {
+          // New document — save immediately so it appears in the files list
+          // even if the user navigates away before the debounced autosave fires.
+          void idbPutDocument(persistId, initial, {
+            name: persistDisplayNameRef.current,
+          }).catch((err) => {
+            console.error(
+              "FabricEditor: new document initial save failed",
+              err,
+            );
+          });
+        }
         scheduleIdbAutosave();
       })();
 
@@ -3372,29 +3400,69 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     useEffect(() => {
       setVectorWorkspaceId(null);
       setVectorBoardListReady(false);
+      let cancelled = false;
       if (!persistId) {
         setVectorBoards([]);
         setVectorBoardDocs({});
         setVectorBoardListReady(true);
         return;
       }
-      const boards = loadVectorBoards(persistId);
-      const docs = loadVectorBoardDocs(persistId);
-      const merged = mergeVectorBoardDocsForMeta(boards, docs);
-      vectorBoardDocsRef.current = merged;
-      setVectorBoards(boards);
-      setVectorBoardDocs(merged);
-      setVectorBoardListReady(true);
+      void (async () => {
+        const [boards, docs] = await Promise.all([
+          loadVectorBoards(persistId),
+          loadVectorBoardDocs(persistId),
+        ]);
+        if (cancelled) return;
+        const merged = mergeVectorBoardDocsForMeta(boards, docs);
+        vectorBoardDocsRef.current = merged;
+        setVectorBoards(boards);
+        setVectorBoardDocs(merged);
+        setVectorBoardListReady(true);
+      })();
+
+      return () => {
+        cancelled = true;
+      };
     }, [persistId]);
 
     useEffect(() => {
       if (!persistId || !vectorBoardListReady) return;
-      saveVectorBoards(persistId, vectorBoards);
+      if (vectorBoardsSaveTimerRef.current) {
+        clearTimeout(vectorBoardsSaveTimerRef.current);
+      }
+      vectorBoardsSaveTimerRef.current = setTimeout(() => {
+        vectorBoardsSaveTimerRef.current = null;
+        void saveVectorBoards(persistId, vectorBoards).catch((err) => {
+          console.error("FabricEditor: vector board save failed", err);
+        });
+      }, 300);
+
+      return () => {
+        if (vectorBoardsSaveTimerRef.current) {
+          clearTimeout(vectorBoardsSaveTimerRef.current);
+          vectorBoardsSaveTimerRef.current = null;
+        }
+      };
     }, [persistId, vectorBoards, vectorBoardListReady]);
 
     useEffect(() => {
       if (!persistId || !vectorBoardListReady) return;
-      saveVectorBoardDocs(persistId, vectorBoardDocs);
+      if (vectorBoardDocsSaveTimerRef.current) {
+        clearTimeout(vectorBoardDocsSaveTimerRef.current);
+      }
+      vectorBoardDocsSaveTimerRef.current = setTimeout(() => {
+        vectorBoardDocsSaveTimerRef.current = null;
+        void saveVectorBoardDocs(persistId, vectorBoardDocs).catch((err) => {
+          console.error("FabricEditor: vector board document save failed", err);
+        });
+      }, 300);
+
+      return () => {
+        if (vectorBoardDocsSaveTimerRef.current) {
+          clearTimeout(vectorBoardDocsSaveTimerRef.current);
+          vectorBoardDocsSaveTimerRef.current = null;
+        }
+      };
     }, [persistId, vectorBoardDocs, vectorBoardListReady]);
 
     useEffect(() => {
@@ -3402,6 +3470,27 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (idbAutosaveTimerRef.current) {
           clearTimeout(idbAutosaveTimerRef.current);
           idbAutosaveTimerRef.current = null;
+        }
+        // Flush any pending document save when the editor unmounts.
+        // This ensures that even a brand-new file that was never interacted
+        // with still gets written before the user sees the files list.
+        const pid = persistIdRef.current;
+        const pendingDoc = pendingPersistedDocRef.current;
+        if (pid && pendingDoc) {
+          pendingPersistedDocRef.current = null;
+          void idbPutDocument(pid, pendingDoc, {
+            name: persistDisplayNameRef.current,
+          }).catch((err) => {
+            console.error("FabricEditor: flush on unmount failed", err);
+          });
+        }
+        if (vectorBoardsSaveTimerRef.current) {
+          clearTimeout(vectorBoardsSaveTimerRef.current);
+          vectorBoardsSaveTimerRef.current = null;
+        }
+        if (vectorBoardDocsSaveTimerRef.current) {
+          clearTimeout(vectorBoardDocsSaveTimerRef.current);
+          vectorBoardDocsSaveTimerRef.current = null;
         }
       };
     }, []);
@@ -3692,14 +3781,16 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           }
           const next = captureDoc();
           historySnapshotsRef.current = [next];
+          historySerializedRef.current = [JSON.stringify(next)];
           historyIndexRef.current = 0;
+          pendingPersistedDocRef.current = next;
           const pid = persistIdRef.current;
           if (pid) {
             void idbPutDocument(pid, next, {
               name: persistDisplayNameRef.current,
             }).catch((err) => {
               console.error(
-                "FabricEditor: IndexedDB save after open failed",
+                "FabricEditor: workspace save after open failed",
                 err,
               );
             });

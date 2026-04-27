@@ -125,7 +125,7 @@ function FilesPage() {
         setLoadError(null);
       })
       .catch(() => {
-        setLoadError("Could not load files.");
+        setLoadError("Could not load files, or no files found !");
         setItems([]);
       });
   }, []);
@@ -212,8 +212,8 @@ function FilesPage() {
       title: n === 1 ? "Remove this file?" : "Remove these files?",
       message:
         n === 1
-          ? "This will permanently remove the file from this browser. This cannot be undone."
-          : `This will permanently remove ${n} files from this browser. This cannot be undone.`,
+          ? "This will permanently remove the file from app storage. This cannot be undone."
+          : `This will permanently remove ${n} files from app storage. This cannot be undone.`,
     });
   }, [selectedIds]);
 
@@ -242,7 +242,7 @@ function FilesPage() {
       ids: [id],
       title: "Remove this file?",
       message:
-        "This will permanently remove the file from this browser. This cannot be undone.",
+        "This will permanently remove the file from app storage. This cannot be undone.",
     });
   }, []);
 
@@ -333,7 +333,7 @@ function FilesPage() {
             );
             const currentDoc = imported.document.pages[index]!;
             await idbPutDocument(id, currentDoc, { name: baseName });
-            saveStoredPages(id, imported.document.pages, index);
+            await saveStoredPages(id, imported.document.pages, index);
           }
 
           posthog.capture("workspace_imported_from_files", {
@@ -410,7 +410,7 @@ function FilesPage() {
               Files
             </h1>
             <p className="mb-12 max-w-xl text-lg leading-[1.6] text-[var(--text-muted)] sm:text-xl sm:leading-[1.55]">
-              Designs saved in this browser. Open one to keep editing.
+              Files saved in native app storage. Open one to keep editing.
             </p>
 
             {loadError ? (
@@ -423,15 +423,18 @@ function FilesPage() {
               <p className="text-lg text-[var(--text-muted)]">Loading…</p>
             ) : items.length === 0 ? (
               <div className="max-w-xl">
-                <p className="m-0 text-lg leading-[1.6] text-[var(--text-muted)]">
-                  Nothing here yet. Start a canvas — it autosaves as you work.
+                <h2 className="m-0 text-2xl font-semibold text-[var(--text)] sm:text-3xl">
+                  Get started
+                </h2>
+                <p className="mt-3 text-lg leading-[1.6] text-[var(--text-muted)]">
+                  Create your first canvas. Everything autosaves as you work.
                 </p>
                 <button
                   type="button"
                   className="mt-8 inline-flex min-h-12 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-10 py-3.5 text-base font-medium text-white hover:bg-[#262626] sm:min-h-14 sm:px-12 sm:py-4 sm:text-[1.0625rem]"
                   onClick={() => setNewCanvasOpen(true)}
                 >
-                  Open editor
+                  New canvas
                 </button>
               </div>
             ) : (
