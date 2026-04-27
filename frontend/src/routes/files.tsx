@@ -39,10 +39,10 @@ function formatUpdatedAt(ts: number): string {
 }
 
 type WailsBridge = {
-  main?: {
-    App?: {
-      GetConfig?: () => Promise<avnacconfig.AppConfig>;
-      SaveConfig?: (cfg: avnacconfig.AppConfig) => Promise<void>;
+  avnacconfig?: {
+    ConfigManager?: {
+      Get?: () => Promise<avnacconfig.AppConfig>;
+      Save?: (cfg: avnacconfig.AppConfig) => Promise<void>;
     };
   };
   avnacserver?: {
@@ -60,7 +60,7 @@ function getWailsBridge(): WailsBridge | null {
 
 function isMissingConfigBridgeError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /GetConfig|SaveConfig|undefined|not a function|unknown method/i.test(
+  return /ConfigManager|Get|Save|undefined|not a function|unknown method/i.test(
     message,
   );
 }
@@ -138,11 +138,11 @@ function FilesPage() {
     let cancelled = false;
     void (async () => {
       try {
-        const bridge = getWailsBridge()?.main?.App;
-        if (!bridge?.GetConfig) {
-          throw new Error("GetConfig bridge unavailable");
+        const bridge = getWailsBridge()?.avnacconfig?.ConfigManager;
+        if (!bridge?.Get) {
+          throw new Error("ConfigManager.Get bridge unavailable");
         }
-        const cfg = await bridge.GetConfig();
+        const cfg = await bridge.Get();
         if (cancelled) return;
         setUnsplashKey((cfg?.unsplash_access_key ?? "").trim());
         setUnsplashError(null);
@@ -264,8 +264,8 @@ function FilesPage() {
     void (async () => {
       try {
         const bridge = getWailsBridge();
-        const appBridge = bridge?.main?.App;
-        if (!appBridge?.SaveConfig) {
+        const configBridge = bridge?.avnacconfig?.ConfigManager;
+        if (!configBridge?.Save) {
           const unsplashBridge = bridge?.avnacserver?.UnsplashService;
           if (unsplashBridge?.UpdateConfig) {
             await unsplashBridge.UpdateConfig(nextConfig);
@@ -279,10 +279,10 @@ function FilesPage() {
             });
             return;
           }
-          throw new Error("SaveConfig bridge unavailable");
+          throw new Error("ConfigManager.Save bridge unavailable");
         }
 
-        await appBridge.SaveConfig(nextConfig);
+        await configBridge.Save(nextConfig);
         setUnsplashKey(nextKey);
         setUnsplashNotice(
           nextKey

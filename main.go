@@ -20,6 +20,8 @@ func main() {
 		Title:  "Avnac",
 		Width:  1024,
 		Height: 768,
+		MinWidth: 600,
+		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.MediaProxyMiddleware(),
@@ -30,6 +32,7 @@ func main() {
 			app,
 			app.ioManager,
 			app.Unsplash,
+			app.Config,
 		},
 	})
 
