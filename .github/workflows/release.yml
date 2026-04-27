@@ -61,16 +61,18 @@ jobs:
       - name: Build
         run: wails build -clean
 
-      - name: Package macOS binary
+      - name: Build macOS (DMG enabled)
+        run: wails build -clean -platform darwin/universal
+
+      - name: Move DMG
         run: |
-          mkdir -p build/bin/renamed
-          cd build/bin
-          zip -r renamed/Avnac-macos-amd64.zip Avnac.app
+            mkdir -p build/bin/renamed
+            find build/bin -name "*.dmg" -exec mv {} build/bin/renamed/ \;
 
       - uses: actions/upload-artifact@v4
         with:
           name: binaries-macos
-          path: build/bin/renamed/*
+          path: build/bin/renamed/*.dmg
 
 
   build-windows-amd64:
