@@ -1,96 +1,100 @@
-import type { AvnacDocumentV1 } from './avnac-document'
-import type { VectorBoardDocument } from './avnac-vector-board-document'
+import type { AvnacDocumentV1 } from "./avnac-document";
+import type { VectorBoardDocument } from "./avnac-vector-board-document";
 import {
   clearAvnacVectorBoardStorage,
   loadVectorBoardDocs,
   loadVectorBoards,
   saveVectorBoardDocs,
   saveVectorBoards,
-} from './avnac-vector-boards-storage'
+} from "./avnac-vector-boards-storage";
+import {
+  clearStoredPages,
+  duplicateStoredPages,
+} from "../extensions/editor-pages/multi-page-storage";
 
-const DB_NAME = 'avnac-editor'
-const DB_VERSION = 1
-const STORE = 'documents'
+const DB_NAME = "avnac-editor";
+const DB_VERSION = 1;
+const STORE = "documents";
 
 export type AvnacEditorIdbRecord = {
-  id: string
-  updatedAt: number
-  document: AvnacDocumentV1
+  id: string;
+  updatedAt: number;
+  document: AvnacDocumentV1;
   /** User-visible file name (optional on legacy rows). */
-  name?: string
-}
+  name?: string;
+};
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onerror = () => reject(req.error ?? new Error('indexedDB open failed'))
-    req.onsuccess = () => resolve(req.result)
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onerror = () => reject(req.error ?? new Error("indexedDB open failed"));
+    req.onsuccess = () => resolve(req.result);
     req.onupgradeneeded = () => {
-      const db = req.result
+      const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'id' })
+        db.createObjectStore(STORE, { keyPath: "id" });
       }
-    }
-  })
+    };
+  });
 }
 
 export async function idbGetEditorRecord(
   id: string,
 ): Promise<AvnacEditorIdbRecord | null> {
-  const db = await openDb()
+  const db = await openDb();
   try {
     return await new Promise<AvnacEditorIdbRecord | null>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readonly')
-      tx.onerror = () => reject(tx.error ?? new Error('idb read failed'))
-      const r = tx.objectStore(STORE).get(id)
-      r.onerror = () => reject(r.error ?? new Error('idb get failed'))
+      const tx = db.transaction(STORE, "readonly");
+      tx.onerror = () => reject(tx.error ?? new Error("idb read failed"));
+      const r = tx.objectStore(STORE).get(id);
+      r.onerror = () => reject(r.error ?? new Error("idb get failed"));
       r.onsuccess = () => {
-        resolve((r.result as AvnacEditorIdbRecord | undefined) ?? null)
-      }
-    })
+        resolve((r.result as AvnacEditorIdbRecord | undefined) ?? null);
+      };
+    });
   } finally {
-    db.close()
+    db.close();
   }
 }
 
 export async function idbGetDocument(
   id: string,
 ): Promise<AvnacDocumentV1 | null> {
-  const row = await idbGetEditorRecord(id)
-  return row?.document ?? null
+  const row = await idbGetEditorRecord(id);
+  return row?.document ?? null;
 }
 
 export type AvnacEditorIdbListItem = {
-  id: string
-  name: string
-  updatedAt: number
-  artboardWidth: number
-  artboardHeight: number
-}
+  id: string;
+  name: string;
+  updatedAt: number;
+  artboardWidth: number;
+  artboardHeight: number;
+};
 
 export async function idbListDocuments(): Promise<AvnacEditorIdbListItem[]> {
-  const db = await openDb()
+  const db = await openDb();
   try {
     return await new Promise<AvnacEditorIdbListItem[]>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readonly')
-      tx.onerror = () => reject(tx.error ?? new Error('idb list failed'))
-      const r = tx.objectStore(STORE).getAll()
-      r.onerror = () => reject(r.error ?? new Error('idb getAll failed'))
+      const tx = db.transaction(STORE, "readonly");
+      tx.onerror = () => reject(tx.error ?? new Error("idb list failed"));
+      const r = tx.objectStore(STORE).getAll();
+      r.onerror = () => reject(r.error ?? new Error("idb getAll failed"));
       r.onsuccess = () => {
-        const rows = r.result as AvnacEditorIdbRecord[]
+        const rows = r.result as AvnacEditorIdbRecord[];
         const items: AvnacEditorIdbListItem[] = rows.map((row) => ({
           id: row.id,
-          name: row.name?.trim() || 'Untitled',
+          name: row.name?.trim() || "Untitled",
           updatedAt: row.updatedAt,
           artboardWidth: row.document.artboard.width,
           artboardHeight: row.document.artboard.height,
-        }))
-        items.sort((a, b) => b.updatedAt - a.updatedAt)
-        resolve(items)
-      }
-    })
+        }));
+        items.sort((a, b) => b.updatedAt - a.updatedAt);
+        resolve(items);
+      };
+    });
   } finally {
-    db.close()
+    db.close();
   }
 }
 
@@ -99,26 +103,26 @@ export async function idbPutDocument(
   document: AvnacDocumentV1,
   opts?: { name?: string },
 ): Promise<void> {
-  const prev = await idbGetEditorRecord(id)
+  const prev = await idbGetEditorRecord(id);
   const name =
     opts && opts.name !== undefined
-      ? opts.name.trim() || 'Untitled'
-      : prev?.name?.trim() || 'Untitled'
-  const db = await openDb()
+      ? opts.name.trim() || "Untitled"
+      : prev?.name?.trim() || "Untitled";
+  const db = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite')
-      tx.onerror = () => reject(tx.error ?? new Error('idb write failed'))
-      tx.oncomplete = () => resolve()
+      const tx = db.transaction(STORE, "readwrite");
+      tx.onerror = () => reject(tx.error ?? new Error("idb write failed"));
+      tx.oncomplete = () => resolve();
       tx.objectStore(STORE).put({
         id,
         updatedAt: Date.now(),
         document,
         name,
-      } satisfies AvnacEditorIdbRecord)
-    })
+      } satisfies AvnacEditorIdbRecord);
+    });
   } finally {
-    db.close()
+    db.close();
   }
 }
 
@@ -126,48 +130,55 @@ export async function idbSetDocumentName(
   id: string,
   name: string,
 ): Promise<void> {
-  const row = await idbGetEditorRecord(id)
-  if (!row) return
-  await idbPutDocument(id, row.document, { name })
+  const row = await idbGetEditorRecord(id);
+  if (!row) return;
+  await idbPutDocument(id, row.document, { name });
 }
 
 export async function idbDeleteDocument(id: string): Promise<void> {
-  const db = await openDb()
+  const db = await openDb();
   try {
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(STORE, 'readwrite')
-      tx.onerror = () => reject(tx.error ?? new Error('idb delete failed'))
-      tx.oncomplete = () => resolve()
-      tx.objectStore(STORE).delete(id)
-    })
+      const tx = db.transaction(STORE, "readwrite");
+      tx.onerror = () => reject(tx.error ?? new Error("idb delete failed"));
+      tx.oncomplete = () => resolve();
+      tx.objectStore(STORE).delete(id);
+    });
   } finally {
-    db.close()
+    db.close();
   }
-  clearAvnacVectorBoardStorage(id)
+  clearAvnacVectorBoardStorage(id);
+  clearStoredPages(id);
 }
 
-export async function idbDuplicateDocument(sourceId: string): Promise<string | null> {
-  const row = await idbGetEditorRecord(sourceId)
-  if (!row) return null
-  const newId = crypto.randomUUID()
-  const baseName = row.name?.trim() || 'Untitled'
-  const name = `${baseName} copy`
+export async function idbDuplicateDocument(
+  sourceId: string,
+): Promise<string | null> {
+  const row = await idbGetEditorRecord(sourceId);
+  if (!row) return null;
+  const newId = crypto.randomUUID();
+  const baseName = row.name?.trim() || "Untitled";
+  const name = `${baseName} copy`;
   const docClone: AvnacDocumentV1 =
-    typeof structuredClone === 'function'
+    typeof structuredClone === "function"
       ? structuredClone(row.document)
-      : (JSON.parse(JSON.stringify(row.document)) as AvnacDocumentV1)
-  await idbPutDocument(newId, docClone, { name })
+      : (JSON.parse(JSON.stringify(row.document)) as AvnacDocumentV1);
+  await idbPutDocument(newId, docClone, { name });
 
-  const boards = loadVectorBoards(sourceId)
-  const docs = loadVectorBoardDocs(sourceId)
+  const boards = loadVectorBoards(sourceId);
+  const docs = loadVectorBoardDocs(sourceId);
   if (boards.length > 0) {
-    saveVectorBoards(newId, JSON.parse(JSON.stringify(boards)) as typeof boards)
+    saveVectorBoards(
+      newId,
+      JSON.parse(JSON.stringify(boards)) as typeof boards,
+    );
   }
   if (Object.keys(docs).length > 0) {
     saveVectorBoardDocs(
       newId,
       JSON.parse(JSON.stringify(docs)) as Record<string, VectorBoardDocument>,
-    )
+    );
   }
-  return newId
+  duplicateStoredPages(sourceId, newId);
+  return newId;
 }
