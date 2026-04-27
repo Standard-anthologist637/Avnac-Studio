@@ -129,6 +129,23 @@ The repo is strongest today around:
 
 The backend document/auth layer exists, but the main product experience is still centered on the frontend editor and browser-local files.
 
+## Recent Changes (Studio Branch)
+
+This branch adds desktop-first workspace features for the Wails app while preserving existing editor behavior.
+
+- Multi-page editor support via isolated wrapper architecture (`frontend/src/extensions/editor-pages/*`)
+- Workspace/page import-export split:
+  - Workspace files: `.workspace.avnac`
+  - Single page files: `.page.avnac`
+  - Legacy JSON imports remain supported for compatibility
+- Native download flow in desktop mode using Wails IO manager (`ExportFile`) with browser fallback
+- File list updates:
+  - Added Import workspace action
+  - Removed Open in new tab flow to keep interactions native to the desktop app
+- Editor create shell updates:
+  - Page tabs with horizontal overflow support
+  - Unified editor header in container (home, title, workspace/page actions)
+
 ## Notes
 
 - If you change backend proxy behavior, restart the backend server before testing from the frontend

@@ -4,6 +4,8 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Delete02Icon,
+  Download01Icon,
+  FileExportIcon,
   FileImportIcon,
   Home05Icon,
 } from "@hugeicons/core-free-icons";
@@ -17,10 +19,12 @@ import EditorExportMenu from "../../components/editor-export-menu";
 import { idbGetDocument } from "../../lib/avnac-editor-idb";
 import type { AvnacDocumentV1 } from "../../lib/avnac-document";
 import { safeAvnacFileBaseName } from "../../lib/avnac-files-export";
+import { exportJsonFile } from "../../lib/avnac-native-export";
 import {
   buildMultiPageDocument,
   clampPageIndex,
   createEmptyPage,
+  parseMultiPageDocument,
   parseAvnacImport,
 } from "./multi-page-document";
 import { loadStoredPages, saveStoredPages } from "./multi-page-storage";
@@ -44,18 +48,6 @@ type PageState = {
 function cloneDoc(doc: AvnacDocumentV1): AvnacDocumentV1 {
   if (typeof structuredClone === "function") return structuredClone(doc);
   return JSON.parse(JSON.stringify(doc)) as AvnacDocumentV1;
-}
-
-function downloadJson(filename: string, payload: unknown) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
 }
 
 const pageIconButtonClass = [
@@ -91,7 +83,8 @@ export default function EditorContainer({
   onReadyChange,
 }: Props) {
   const editorRef = useRef<FabricEditorHandle>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const workspaceInputRef = useRef<HTMLInputElement>(null);
+  const pageInputRef = useRef<HTMLInputElement>(null);
   const [editorReady, setEditorReady] = useState(false);
   const [pageState, setPageState] = useState<PageState | null>(null);
   const pageStateRef = useRef<PageState | null>(null);
@@ -199,7 +192,7 @@ export default function EditorContainer({
     posthog.capture("editor_page_deleted", { file_id: persistId });
   }, [persistId, posthog, updatePages]);
 
-  const exportAllPages = useCallback(() => {
+  const exportWorkspace = useCallback(async () => {
     const currentDoc = captureCurrentPage();
     const state = pageStateRef.current;
     if (!currentDoc || !state) return;
@@ -207,17 +200,60 @@ export default function EditorContainer({
       index === state.currentPage ? currentDoc : page,
     );
     const payload = buildMultiPageDocument(pages, state.currentPage);
-    downloadJson(
-      `${safeAvnacFileBaseName(persistDisplayName || "Untitled")}.avnac.json`,
+    await exportJsonFile(
+      `${safeAvnacFileBaseName(persistDisplayName || "Untitled")}.workspace.avnac`,
       payload,
     );
-    posthog.capture("editor_pages_exported", {
+    posthog.capture("editor_workspace_exported", {
       file_id: persistId,
       page_count: payload.pages.length,
     });
   }, [captureCurrentPage, persistDisplayName, persistId, posthog]);
 
-  const importPages = useCallback(
+  const exportCurrentPage = useCallback(async () => {
+    const currentDoc = captureCurrentPage();
+    const state = pageStateRef.current;
+    if (!currentDoc || !state) return;
+    await exportJsonFile(
+      `${safeAvnacFileBaseName(persistDisplayName || "Untitled")}-page-${state.currentPage + 1}.page.avnac`,
+      currentDoc,
+    );
+    posthog.capture("editor_page_exported", {
+      file_id: persistId,
+      page_index: state.currentPage,
+    });
+  }, [captureCurrentPage, persistDisplayName, persistId, posthog]);
+
+  const importWorkspace = useCallback(
+    async (file: File) => {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        return;
+      }
+
+      const imported = parseMultiPageDocument(parsed);
+      if (!imported) return;
+
+      const nextState: PageState = {
+        currentPage: imported.currentPage,
+        pages: imported.pages,
+      };
+
+      persistPages(nextState);
+      setPageState(nextState);
+      await syncCurrentPageToEditor(nextState.pages[nextState.currentPage]!);
+      posthog.capture("editor_workspace_imported", {
+        file_id: persistId,
+        page_count: nextState.pages.length,
+      });
+    },
+    [persistId, persistPages, posthog, syncCurrentPageToEditor],
+  );
+
+  const importPage = useCallback(
     async (file: File) => {
       const text = await file.text();
       let parsed: unknown;
@@ -230,28 +266,44 @@ export default function EditorContainer({
       const imported = parseAvnacImport(parsed);
       if (!imported) return;
 
-      const nextState: PageState =
+      const importedDoc =
         imported.kind === "single"
-          ? { currentPage: 0, pages: [imported.document] }
-          : {
-              currentPage: imported.document.currentPage,
-              pages: imported.document.pages,
-            };
+          ? imported.document
+          : imported.document.pages[
+              clampPageIndex(
+                imported.document.pages.length,
+                imported.document.currentPage,
+              )
+            ];
+      if (!importedDoc) return;
 
-      persistPages(nextState);
-      setPageState(nextState);
-      await syncCurrentPageToEditor(nextState.pages[nextState.currentPage]!);
-      posthog.capture("editor_pages_imported", {
+      await updatePages((prev) => {
+        const insertIndex = prev.currentPage + 1;
+        const pages = [...prev.pages];
+        pages.splice(insertIndex, 0, cloneDoc(importedDoc));
+        return {
+          nextState: {
+            currentPage: insertIndex,
+            pages,
+          },
+          nextDoc: pages[insertIndex]!,
+        };
+      });
+
+      posthog.capture("editor_page_imported", {
         file_id: persistId,
-        page_count: nextState.pages.length,
       });
     },
-    [persistId, persistPages, posthog, syncCurrentPageToEditor],
+    [persistId, posthog, updatePages],
   );
 
   useEffect(() => {
     onReadyChange?.(editorReady);
   }, [editorReady, onReadyChange]);
+
+  useEffect(() => {
+    setPageState(null);
+  }, [persistId]);
 
   useEffect(() => {
     if (!editorReady || pageState) return;
@@ -386,8 +438,8 @@ export default function EditorContainer({
   );
 
   return (
-    <div className="flex h-[100dvh] min-h-0 flex-col bg-(--surface-subtle)">
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 sm:px-4 sm:py-4 [--avnac-editor-top-offset:calc(0.75rem+3.5rem+0.75rem+3rem+0.75rem)] sm:[--avnac-editor-top-offset:calc(1rem+3.5rem+0.75rem+3rem+0.75rem)]">
+    <div className="flex h-dvh min-h-0 flex-col bg-(--surface-subtle)">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 sm:px-4 sm:py-4 [--avnac-editor-top-offset:calc(0.75rem+3.5rem+0.75rem+3rem+1.1rem)] sm:[--avnac-editor-top-offset:calc(1rem+3.5rem+0.75rem+3rem+1.5rem)]">
         <div className="flex min-h-14 flex-wrap items-center gap-3 rounded-2xl border border-(--line) bg-(--surface) px-3 py-2.5 sm:px-4">
           <Link
             to="/files"
@@ -429,28 +481,62 @@ export default function EditorContainer({
             <button
               type="button"
               className={pageActionButtonClass}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => workspaceInputRef.current?.click()}
               disabled={!editorReady}
-              title="Import Avnac JSON"
+              title="Import workspace"
             >
               <HugeiconsIcon
                 icon={FileImportIcon}
                 size={17}
                 strokeWidth={1.75}
               />
-              <span>Import</span>
+              <span className="hidden sm:inline">Import workspace</span>
             </button>
             <button
               type="button"
               className={pageActionButtonClass}
-              onClick={exportAllPages}
+              onClick={() => void exportWorkspace()}
               disabled={!editorReady}
-              title="Download all pages as Avnac JSON"
+              title="Export workspace"
             >
-              <span>Export JSON</span>
+              <HugeiconsIcon
+                icon={FileExportIcon}
+                size={17}
+                strokeWidth={1.75}
+              />
+              <span className="hidden sm:inline">Export workspace</span>
+            </button>
+            <button
+              type="button"
+              className={pageActionButtonClass}
+              onClick={() => pageInputRef.current?.click()}
+              disabled={!editorReady}
+              title="Import page"
+            >
+              <HugeiconsIcon
+                icon={FileImportIcon}
+                size={17}
+                strokeWidth={1.75}
+              />
+              <span className="hidden sm:inline">Import page</span>
+            </button>
+            <button
+              type="button"
+              className={pageActionButtonClass}
+              onClick={() => void exportCurrentPage()}
+              disabled={!editorReady}
+              title="Export current page"
+            >
+              <HugeiconsIcon
+                icon={Download01Icon}
+                size={17}
+                strokeWidth={1.75}
+              />
+              <span className="hidden sm:inline">Export page</span>
             </button>
             <EditorExportMenu
               disabled={!editorReady}
+              label="Download canvas"
               onExport={(opts) => editorRef.current?.exportPng(opts)}
             />
           </div>
@@ -532,18 +618,30 @@ export default function EditorContainer({
         </div>
 
         <input
-          ref={fileInputRef}
+          ref={workspaceInputRef}
           type="file"
-          accept=".json,.avnac.json,application/json"
+          accept=".workspace.avnac,.avnac,.json,.avnac.json,application/json"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) void importPages(file);
+            if (file) void importWorkspace(file);
             event.currentTarget.value = "";
           }}
         />
 
-        <div className="flex min-h-0 flex-1 flex-col">
+        <input
+          ref={pageInputRef}
+          type="file"
+          accept=".page.avnac,.avnac,.json,.avnac.json,application/json"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void importPage(file);
+            event.currentTarget.value = "";
+          }}
+        />
+
+        <div className="flex min-h-0 flex-1 flex-col pt-1.5 sm:pt-2">
           <FabricEditor
             ref={editorRef}
             persistId={persistId}

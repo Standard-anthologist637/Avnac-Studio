@@ -3,7 +3,6 @@ import {
   Copy01Icon,
   Delete02Icon,
   Download01Icon,
-  LinkSquare02Icon,
   MoreVerticalSquare01Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
@@ -54,14 +53,6 @@ export default function FileGridCard({
       document.removeEventListener("keydown", onKey);
     };
   }, [menuOpen]);
-
-  const openInNewTab = () => {
-    setMenuOpen(false);
-    posthog.capture("file_opened", { file_id: row.id, method: "new_tab" });
-    const u = new URL("/create", window.location.origin);
-    u.searchParams.set("id", row.id);
-    window.open(u.toString(), "_blank", "noopener,noreferrer");
-  };
 
   const makeCopy = () => {
     setMenuOpen(false);
@@ -205,20 +196,6 @@ export default function FileGridCard({
                 role="menu"
                 className="absolute right-0 mt-1.5 min-w-[13.5rem] rounded-xl border border-[var(--line)] bg-[var(--surface)] py-1"
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={menuItemClass}
-                  onClick={() => openInNewTab()}
-                >
-                  <HugeiconsIcon
-                    icon={LinkSquare02Icon}
-                    size={18}
-                    strokeWidth={1.65}
-                    className="shrink-0 text-[var(--text-muted)]"
-                  />
-                  Open in new tab
-                </button>
                 <button
                   type="button"
                   role="menuitem"

@@ -121,6 +121,7 @@ function CreatePage() {
 
   return (
     <EditorContainer
+      key={id}
       persistId={id}
       persistDisplayName={documentTitle}
       documentTitle={documentTitle}

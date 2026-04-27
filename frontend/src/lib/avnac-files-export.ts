@@ -1,5 +1,6 @@
 import { idbGetEditorRecord } from "./avnac-editor-idb";
 import { readStoredPagesForExport } from "../extensions/editor-pages/multi-page-storage";
+import { exportJsonFile } from "./avnac-native-export";
 
 export function safeAvnacFileBaseName(name: string): string {
   const t = name.trim() || "untitled";
@@ -15,14 +16,11 @@ export async function downloadAvnacJsonForId(id: string): Promise<boolean> {
   if (!record) return false;
   const exportDoc = readStoredPagesForExport(id, record.document);
   const payload = exportDoc.pages.length > 1 ? exportDoc : record.document;
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const u = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = u;
-  a.download = `${safeAvnacFileBaseName(record.name ?? "Untitled")}.avnac.json`;
-  a.click();
-  URL.revokeObjectURL(u);
+  const suffix =
+    exportDoc.pages.length > 1 ? ".workspace.avnac" : ".page.avnac";
+  await exportJsonFile(
+    `${safeAvnacFileBaseName(record.name ?? "Untitled")}${suffix}`,
+    payload,
+  );
   return true;
 }

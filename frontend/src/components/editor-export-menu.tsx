@@ -34,9 +34,14 @@ const exportTriggerClass = [
 type Props = {
   disabled?: boolean;
   onExport: (opts: ExportPngOptions) => void;
+  label?: string;
 };
 
-export default function EditorExportMenu({ disabled, onExport }: Props) {
+export default function EditorExportMenu({
+  disabled,
+  onExport,
+  label = "Export",
+}: Props) {
   const [open, setOpen] = useState(false);
   const [opts, setOpts] = useState<ExportPngOptions>(DEFAULT_EXPORT);
   const posthog = usePostHog();
@@ -72,7 +77,7 @@ export default function EditorExportMenu({ disabled, onExport }: Props) {
         className={exportTriggerClass}
         aria-expanded={open}
         aria-haspopup="dialog"
-        title="Export"
+        title={label}
         onClick={() => setOpen((o) => !o)}
       >
         <HugeiconsIcon
@@ -81,13 +86,13 @@ export default function EditorExportMenu({ disabled, onExport }: Props) {
           strokeWidth={1.75}
           className="shrink-0 text-neutral-800"
         />
-        <span className="text-[var(--text)]">Export</span>
+        <span className="text-(--text)">{label}</span>
       </button>
       {open ? (
         <div
           ref={panelRef}
           className={[
-            "absolute left-1/2 z-[100] min-w-[16rem] p-3",
+            "absolute left-1/2 z-100 min-w-[16rem] p-3",
             openUpward ? "bottom-full mb-2" : "top-full mt-2",
             floatingToolbarPopoverClass,
           ].join(" ")}
