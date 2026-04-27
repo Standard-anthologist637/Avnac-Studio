@@ -8,6 +8,7 @@ import (
 	avnacio "Avnac/avnac-system/io"
 	avnacserver "Avnac/avnac-system/server"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -54,4 +55,11 @@ func (a *App) startup(ctx context.Context) {
 
 	a.ioManager.Startup(ctx, appDir)
 	a.Config.Startup(appDir)
+}
+
+// domReady is called after the frontend DOM is ready and the Wails IPC
+// channel is fully connected. We emit "avnac:ready" so the frontend knows
+// it is safe to make Go IPC calls. This fires on every page load/reload.
+func (a *App) domReady(ctx context.Context) {
+	runtime.EventsEmit(ctx, "avnac:ready")
 }

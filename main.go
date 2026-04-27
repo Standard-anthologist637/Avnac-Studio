@@ -26,8 +26,10 @@ func main() {
 			Assets:     assets,
 			Middleware: app.MediaProxyMiddleware(),
 		},
-		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
-		OnStartup:        app.startup,
+		BackgroundColour:         &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		EnableDefaultContextMenu: false,
+		OnStartup:                app.startup,
+		OnDomReady:               app.domReady,
 		Bind: []interface{}{
 			app,
 			app.ioManager,

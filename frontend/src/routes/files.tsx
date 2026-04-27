@@ -22,6 +22,7 @@ import {
   parseAvnacImport,
 } from "../extensions/editor-pages/multi-page-document";
 import { saveStoredPages } from "../extensions/editor-pages/multi-page-storage";
+import { onWailsReady } from "../lib/wails-ready";
 
 export const Route = createFileRoute("/files")({
   component: FilesPage,
@@ -125,13 +126,18 @@ function FilesPage() {
         setLoadError(null);
       })
       .catch(() => {
-        setLoadError("Could not load files, or no files found !");
+        setLoadError("Could not load files.");
         setItems([]);
       });
   }, []);
 
+  // Wait for the Wails IPC channel to be ready before the first load.
+  // onWailsReady fires synchronously if the channel is already up, or
+  // waits for the "avnac:ready" event that Go emits from OnDomReady.
+  // This correctly handles page refreshes in wails dev where the bridge
+  // function stubs exist but the IPC connection is still reconnecting.
   useEffect(() => {
-    refreshList();
+    return onWailsReady(() => refreshList());
   }, [refreshList]);
 
   useEffect(() => {
