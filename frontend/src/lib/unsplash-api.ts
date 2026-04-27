@@ -1,4 +1,4 @@
-import { getPublicApiBase } from './public-api-base'
+import { Photos, Search, Download } from '../../wailsjs/go/avnacserver/UnsplashService'
 
 /** Max width or height when placing a photo on the canvas (keeps inserts view-sized). */
 export const UNSPLASH_PLACE_MAX_EDGE_PX = 800
@@ -36,40 +36,15 @@ export type UnsplashPhoto = {
   }
 }
 
-async function readErrorMessage(res: Response): Promise<string> {
-  try {
-    const j = (await res.json()) as { error?: string }
-    if (typeof j.error === 'string') return j.error
-  } catch {
-    /* ignore */
-  }
-  return `Request failed (${res.status}).`
-}
-
-type FeedJson = {
-  data: {
-    photos: UnsplashPhoto[]
-    hasMore: boolean
-  }
-}
-
 export async function fetchUnsplashPopular(
   page: number,
   perPage = 20,
 ): Promise<{ photos: UnsplashPhoto[]; hasMore: boolean; error?: string }> {
-  const url = `${getPublicApiBase()}/unsplash/photos?page=${page}&per_page=${perPage}`
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) {
-    return {
-      photos: [],
-      hasMore: false,
-      error: await readErrorMessage(res),
-    }
-  }
-  const body = (await res.json()) as FeedJson
-  return {
-    photos: body.data.photos,
-    hasMore: body.data.hasMore,
+  try {
+    const result = await Photos(page, perPage)
+    return { photos: result.photos as UnsplashPhoto[], hasMore: result.hasMore }
+  } catch (err) {
+    return { photos: [], hasMore: false, error: String(err) }
   }
 }
 
@@ -79,33 +54,15 @@ export async function fetchUnsplashSearch(
   perPage = 20,
 ): Promise<{ photos: UnsplashPhoto[]; hasMore: boolean; error?: string }> {
   const q = query.trim()
-  if (!q) {
-    return { photos: [], hasMore: false }
-  }
-  const url = `${getPublicApiBase()}/unsplash/search?q=${encodeURIComponent(q)}&page=${page}&per_page=${perPage}`
-  const res = await fetch(url, { credentials: 'include' })
-  if (!res.ok) {
-    return {
-      photos: [],
-      hasMore: false,
-      error: await readErrorMessage(res),
-    }
-  }
-  const body = (await res.json()) as FeedJson
-  return {
-    photos: body.data.photos,
-    hasMore: body.data.hasMore,
+  if (!q) return { photos: [], hasMore: false }
+  try {
+    const result = await Search(q, page, perPage)
+    return { photos: result.photos as UnsplashPhoto[], hasMore: result.hasMore }
+  } catch (err) {
+    return { photos: [], hasMore: false, error: String(err) }
   }
 }
 
 export async function trackUnsplashDownload(downloadLocation: string): Promise<void> {
-  const res = await fetch(`${getPublicApiBase()}/unsplash/download`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ downloadLocation }),
-  })
-  if (!res.ok) {
-    throw new Error(await readErrorMessage(res))
-  }
+  await Download(downloadLocation)
 }

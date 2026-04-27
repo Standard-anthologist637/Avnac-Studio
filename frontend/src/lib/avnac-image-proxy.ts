@@ -1,5 +1,4 @@
 import type { FabricImage } from 'fabric'
-import { getPublicApiBase } from './public-api-base'
 
 type CanvasLike = {
   getObjects: () => unknown[]
@@ -31,7 +30,7 @@ export function getExportSafeImageUrl(raw: string): string {
     return trimmed
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return trimmed
-  return `${getPublicApiBase()}/media/proxy?url=${encodeURIComponent(parsed.toString())}`
+  return `/media/proxy?url=${encodeURIComponent(parsed.toString())}`
 }
 
 export function getFabricImageLoadOptions(url: string): {
