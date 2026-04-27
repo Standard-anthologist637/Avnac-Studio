@@ -36,13 +36,6 @@ const config = defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/ingest/, ""),
         },
-        // Mirrors production: Vercel mounts the backend at /api (vercel.json).
-        // Browser uses same-origin /api; only the dev server proxies to localhost.
-        "/api": {
-          target: "http://localhost:3001",
-          changeOrigin: true,
-          rewrite: (path: string) => path.replace(/^\/api/, ""),
-        },
       },
     },
   };
