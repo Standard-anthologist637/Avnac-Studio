@@ -10,7 +10,6 @@ import { HttpError } from "./lib/http";
 import { authPlugin } from "./plugins/auth";
 import { documentsRoutes } from "./routes/documents";
 import { mediaRoutes } from "./routes/media";
-import { unsplashRoutes } from "./routes/unsplash";
 
 function corsOrigins(value: string): string | string[] {
   const parts = value
@@ -75,7 +74,8 @@ const app = new Elysia({ adapter: node() })
   })
   .use(documentsRoutes)
   .use(mediaRoutes)
-  .use(unsplashRoutes)
   .listen(env.PORT);
 
-console.log(`Avnac backend running at ${app.server?.hostname}:${app.server?.port}`);
+console.log(
+  `Avnac backend running at ${app.server?.hostname}:${app.server?.port}`,
+);

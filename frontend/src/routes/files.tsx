@@ -1,13 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  Add01Icon,
-  FileImportIcon,
-} from "@hugeicons/core-free-icons";
+import { Add01Icon, FileImportIcon } from "@hugeicons/core-free-icons";
 import { usePostHog } from "posthog-js/react";
+import { avnacconfig } from "../../wailsjs/go/models";
 import DeleteConfirmDialog from "../components/delete-confirm-dialog";
 import FileGridCard from "../components/file-grid-card";
+import FilesSettingsSection from "../components/files-settings-section";
 import FilesMultiselectBar from "../components/files-multiselect-bar";
 import NewCanvasDialog from "../components/new-canvas-dialog";
 import { avnacDocumentPreviewEvictPersistId } from "../lib/avnac-document-preview";
@@ -39,10 +38,69 @@ function formatUpdatedAt(ts: number): string {
   }
 }
 
+type WailsBridge = {
+  main?: {
+    App?: {
+      GetConfig?: () => Promise<avnacconfig.AppConfig>;
+      SaveConfig?: (cfg: avnacconfig.AppConfig) => Promise<void>;
+    };
+  };
+  avnacserver?: {
+    UnsplashService?: {
+      UpdateConfig?: (cfg: avnacconfig.AppConfig) => Promise<void>;
+    };
+  };
+};
+
+function getWailsBridge(): WailsBridge | null {
+  if (typeof window === "undefined") return null;
+  return ((window as Window & { go?: WailsBridge }).go ??
+    null) as WailsBridge | null;
+}
+
+function isMissingConfigBridgeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /GetConfig|SaveConfig|undefined|not a function|unknown method/i.test(
+    message,
+  );
+}
+
+function formatConfigBridgeError(
+  error: unknown,
+  action: "load" | "save",
+): string {
+  const message =
+    error instanceof Error ? error.message.trim() : String(error ?? "").trim();
+  if (!message) {
+    return action === "load"
+      ? "Could not load Unsplash settings from the desktop app."
+      : "Could not save the Unsplash API key.";
+  }
+  if (isMissingConfigBridgeError(error)) {
+    return "The desktop runtime does not expose the latest Unsplash config bridge yet. Restart the Wails app and try again.";
+  }
+  if (
+    /window\.go|Cannot read properties of undefined|undefined is not an object/i.test(
+      message,
+    )
+  ) {
+    return "Unsplash settings are only available in the desktop Wails app.";
+  }
+  return action === "load"
+    ? `Could not load Unsplash settings: ${message}`
+    : `Could not save the Unsplash API key: ${message}`;
+}
+
 function FilesPage() {
   const [items, setItems] = useState<AvnacEditorIdbListItem[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [newCanvasOpen, setNewCanvasOpen] = useState(false);
+  const [unsplashPanelOpen, setUnsplashPanelOpen] = useState(false);
+  const [unsplashKey, setUnsplashKey] = useState("");
+  const [unsplashLoading, setUnsplashLoading] = useState(true);
+  const [unsplashSaving, setUnsplashSaving] = useState(false);
+  const [unsplashError, setUnsplashError] = useState<string | null>(null);
+  const [unsplashNotice, setUnsplashNotice] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteDialog, setDeleteDialog] = useState<{
     ids: string[];
@@ -75,6 +133,32 @@ function FilesPage() {
   useEffect(() => {
     refreshList();
   }, [refreshList]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const bridge = getWailsBridge()?.main?.App;
+        if (!bridge?.GetConfig) {
+          throw new Error("GetConfig bridge unavailable");
+        }
+        const cfg = await bridge.GetConfig();
+        if (cancelled) return;
+        setUnsplashKey((cfg?.unsplash_access_key ?? "").trim());
+        setUnsplashError(null);
+      } catch (err) {
+        if (cancelled) return;
+        setUnsplashError(formatConfigBridgeError(err, "load"));
+        posthog.captureException(err);
+      } finally {
+        if (!cancelled) setUnsplashLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [posthog]);
 
   useEffect(() => {
     if (!items) return;
@@ -167,6 +251,57 @@ function FilesPage() {
     if (!input) return;
     input.click();
   }, []);
+
+  const saveUnsplashKey = useCallback(() => {
+    const nextKey = unsplashKey.trim();
+    const nextConfig = new avnacconfig.AppConfig({
+      unsplash_access_key: nextKey || undefined,
+    });
+    setUnsplashSaving(true);
+    setUnsplashError(null);
+    setUnsplashNotice(null);
+
+    void (async () => {
+      try {
+        const bridge = getWailsBridge();
+        const appBridge = bridge?.main?.App;
+        if (!appBridge?.SaveConfig) {
+          const unsplashBridge = bridge?.avnacserver?.UnsplashService;
+          if (unsplashBridge?.UpdateConfig) {
+            await unsplashBridge.UpdateConfig(nextConfig);
+            setUnsplashKey(nextKey);
+            setUnsplashNotice(
+              "Unsplash API key updated for this session. Restart the Wails app to enable persistent saving.",
+            );
+            posthog.capture("unsplash_config_updated", {
+              has_key: nextKey.length > 0,
+              persisted: false,
+            });
+            return;
+          }
+          throw new Error("SaveConfig bridge unavailable");
+        }
+
+        await appBridge.SaveConfig(nextConfig);
+        setUnsplashKey(nextKey);
+        setUnsplashNotice(
+          nextKey
+            ? "Unsplash API key updated for the desktop app."
+            : "Unsplash API key cleared from the desktop app.",
+        );
+        posthog.capture("unsplash_config_updated", {
+          has_key: nextKey.length > 0,
+          persisted: true,
+        });
+      } catch (err) {
+        setUnsplashError(formatConfigBridgeError(err, "save"));
+        posthog.captureException(err);
+        console.error("[avnac] save unsplash config failed", err);
+      } finally {
+        setUnsplashSaving(false);
+      }
+    })();
+  }, [posthog, unsplashKey]);
 
   const onImportWorkspaceChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,6 +449,29 @@ function FilesPage() {
                 ))}
               </ul>
             )}
+
+            <FilesSettingsSection
+              unsplashPanelOpen={unsplashPanelOpen}
+              unsplashKey={unsplashKey}
+              unsplashLoading={unsplashLoading}
+              unsplashSaving={unsplashSaving}
+              unsplashNotice={unsplashNotice}
+              unsplashError={unsplashError}
+              onToggleUnsplashPanel={() =>
+                setUnsplashPanelOpen((open) => !open)
+              }
+              onUnsplashKeyChange={(value) => {
+                setUnsplashKey(value);
+                setUnsplashNotice(null);
+                setUnsplashError(null);
+              }}
+              onSaveUnsplashKey={saveUnsplashKey}
+              onClearUnsplashKey={() => {
+                setUnsplashKey("");
+                setUnsplashNotice(null);
+                setUnsplashError(null);
+              }}
+            />
           </div>
         </div>
       </div>

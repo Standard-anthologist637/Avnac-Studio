@@ -444,6 +444,14 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const artboardClusterRef = useRef<HTMLDivElement>(null);
     const viewportRef = useRef<HTMLDivElement>(null);
     const zoomUserAdjustedRef = useRef(false);
+    const spaceDownRef = useRef(false);
+    const viewportPanDragRef = useRef<{
+      pointerId: number;
+      startX: number;
+      startY: number;
+      scrollLeft: number;
+      scrollTop: number;
+    } | null>(null);
     const selectionToolsRef = useRef<HTMLDivElement>(null);
     const shapeToolSplitRef = useRef<HTMLDivElement>(null);
     const bottomToolbarRef = useRef<HTMLDivElement>(null);
@@ -1316,6 +1324,28 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const applyCanvasZoomRef = useRef(applyCanvasZoom);
     applyCanvasZoomRef.current = applyCanvasZoom;
 
+    const syncViewportPanCursor = useCallback(() => {
+      const cursor = viewportPanDragRef.current
+        ? "grabbing"
+        : spaceDownRef.current
+          ? "grab"
+          : "";
+
+      const viewport = viewportRef.current;
+      if (viewport) viewport.style.cursor = cursor;
+
+      const frame = artboardFrameRef.current;
+      if (frame) frame.style.cursor = cursor;
+
+      const canvasEl = canvasElRef.current;
+      if (canvasEl) canvasEl.style.cursor = cursor;
+
+      const canvas = fabricCanvasRef.current;
+      if (canvas?.upperCanvasEl) {
+        canvas.upperCanvasEl.style.cursor = cursor;
+      }
+    }, []);
+
     useEffect(() => {
       if (!ready) return;
       const vp = viewportRef.current;
@@ -1335,6 +1365,112 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       vp.addEventListener("wheel", onWheel, { passive: false });
       return () => vp.removeEventListener("wheel", onWheel);
     }, [ready]);
+
+    useEffect(() => {
+      if (!ready) return;
+
+      const onKeyDown = (e: KeyboardEvent) => {
+        const t = e.target as HTMLElement;
+        if (t.closest('input, textarea, [contenteditable="true"]')) return;
+        if (t.closest("[data-avnac-chrome]")) return;
+
+        const c = fabricCanvasRef.current;
+        const mod = fabricModRef.current;
+        const a = c?.getActiveObject();
+        if (a && mod?.IText && a instanceof mod.IText && a.isEditing) {
+          return;
+        }
+
+        if (e.key !== " " && e.code !== "Space") return;
+
+        if (!spaceDownRef.current) {
+          spaceDownRef.current = true;
+          syncViewportPanCursor();
+        }
+        e.preventDefault();
+      };
+
+      const onKeyUp = (e: KeyboardEvent) => {
+        if (e.key !== " " && e.code !== "Space") return;
+        spaceDownRef.current = false;
+        syncViewportPanCursor();
+      };
+
+      const onBlur = () => {
+        spaceDownRef.current = false;
+        viewportPanDragRef.current = null;
+        syncViewportPanCursor();
+      };
+
+      window.addEventListener("keydown", onKeyDown, true);
+      window.addEventListener("keyup", onKeyUp, true);
+      window.addEventListener("blur", onBlur);
+      return () => {
+        window.removeEventListener("keydown", onKeyDown, true);
+        window.removeEventListener("keyup", onKeyUp, true);
+        window.removeEventListener("blur", onBlur);
+      };
+    }, [ready, syncViewportPanCursor]);
+
+    useEffect(() => {
+      if (!ready) return;
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+
+      const stopPan = (event?: PointerEvent) => {
+        const pan = viewportPanDragRef.current;
+        if (!pan) return;
+        if (event && event.pointerId !== pan.pointerId) return;
+        viewportPanDragRef.current = null;
+        if (event) viewport.releasePointerCapture?.(event.pointerId);
+        syncViewportPanCursor();
+      };
+
+      const onPointerDown = (event: PointerEvent) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (target.closest('input, textarea, [contenteditable="true"]')) return;
+        if (target.closest("[data-avnac-chrome]")) return;
+        if (event.pointerType && event.pointerType !== "mouse") return;
+
+        const shouldPan =
+          event.button === 1 || (event.button === 0 && spaceDownRef.current);
+        if (!shouldPan) return;
+
+        viewportPanDragRef.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          scrollLeft: viewport.scrollLeft,
+          scrollTop: viewport.scrollTop,
+        };
+        viewport.setPointerCapture?.(event.pointerId);
+        syncViewportPanCursor();
+        event.preventDefault();
+        event.stopPropagation();
+      };
+
+      const onPointerMove = (event: PointerEvent) => {
+        const pan = viewportPanDragRef.current;
+        if (!pan || event.pointerId !== pan.pointerId) return;
+        viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+        viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+        event.preventDefault();
+      };
+
+      viewport.addEventListener("pointerdown", onPointerDown, true);
+      window.addEventListener("pointermove", onPointerMove, true);
+      window.addEventListener("pointerup", stopPan, true);
+      window.addEventListener("pointercancel", stopPan, true);
+
+      return () => {
+        stopPan();
+        viewport.removeEventListener("pointerdown", onPointerDown, true);
+        window.removeEventListener("pointermove", onPointerMove, true);
+        window.removeEventListener("pointerup", stopPan, true);
+        window.removeEventListener("pointercancel", stopPan, true);
+      };
+    }, [ready, syncViewportPanCursor]);
 
     const fitArtboardToViewport = useCallback(() => {
       const canvas = fabricCanvasRef.current;
@@ -3301,15 +3437,17 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       const onKey = (e: KeyboardEvent) => {
         const t = e.target as HTMLElement;
         if (t.closest('input, textarea, [contenteditable="true"]')) return;
-        const c = fabricCanvasRef.current;
-        const mod = fabricModRef.current;
-        const a = c?.getActiveObject();
-        if (a && mod?.IText && a instanceof mod.IText && a.isEditing) {
-          return;
-        }
+        if (t.closest("[data-avnac-chrome]")) return;
         if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
           e.preventDefault();
           setShortcutsOpen(true);
+          return;
+        }
+        const c = fabricCanvasRef.current;
+        const mod = fabricModRef.current;
+        if (!c || !mod) return;
+        const a = c?.getActiveObject();
+        if (a && mod?.IText && a instanceof mod.IText && a.isEditing) {
           return;
         }
         if (e.metaKey || e.ctrlKey) {

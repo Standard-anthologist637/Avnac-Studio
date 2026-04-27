@@ -21,6 +21,11 @@ const ROWS: ShortcutRow[] = [
   { keys: "Delete / Backspace", action: "Delete selection" },
   { keys: "Option/Alt + drag", action: "Duplicate while dragging (canvas)" },
   {
+    keys: "Canvas — view",
+    action:
+      "Space+drag or middle-click drag to pan; Cmd/Ctrl+wheel zooms; Cmd/Ctrl+0 resets; Cmd/Ctrl+1 fits the page",
+  },
+  {
     keys: "Vector board — tools",
     action: "V = Move, P = Pen, Shift+P = Pencil, R = Rectangle, O = Ellipse",
   },

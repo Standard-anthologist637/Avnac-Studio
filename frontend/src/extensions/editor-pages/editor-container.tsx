@@ -487,20 +487,6 @@ export default function EditorContainer({
             <button
               type="button"
               className={pageActionButtonClass}
-              onClick={() => workspaceInputRef.current?.click()}
-              disabled={!editorReady}
-              title="Import workspace"
-            >
-              <HugeiconsIcon
-                icon={FileImportIcon}
-                size={17}
-                strokeWidth={1.75}
-              />
-              <span className="hidden sm:inline">Import workspace</span>
-            </button>
-            <button
-              type="button"
-              className={pageActionButtonClass}
               onClick={() => void exportWorkspace()}
               disabled={!editorReady}
               title="Export workspace"
@@ -511,20 +497,6 @@ export default function EditorContainer({
                 strokeWidth={1.75}
               />
               <span className="hidden sm:inline">Export workspace</span>
-            </button>
-            <button
-              type="button"
-              className={pageActionButtonClass}
-              onClick={() => pageInputRef.current?.click()}
-              disabled={!editorReady}
-              title="Import page"
-            >
-              <HugeiconsIcon
-                icon={FileImportIcon}
-                size={17}
-                strokeWidth={1.75}
-              />
-              <span className="hidden sm:inline">Import page</span>
             </button>
             <button
               type="button"
@@ -598,6 +570,16 @@ export default function EditorContainer({
             />
           </button>
 
+          <button
+            type="button"
+            className={pageActionButtonClass}
+            onClick={() => pageInputRef.current?.click()}
+            disabled={!editorReady}
+            title="Import page"
+          >
+            <HugeiconsIcon icon={FileImportIcon} size={17} strokeWidth={1.75} />
+            <span className="hidden sm:inline">Import page</span>
+          </button>
           <button
             type="button"
             className={pageActionButtonClass}

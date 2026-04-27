@@ -8,7 +8,7 @@
  * **Local dev:** Either:
  * - Leave `VITE_PUBLIC_API_URL` unset and use Vite `server.proxy` in
  *   `vite.config.ts` to forward `/api` → `http://localhost:3001` with the path
- *   rewritten so the backend sees `/unsplash`, `/documents`, etc., or
+ *   rewritten so the backend sees `/documents`, `/media`, etc., or
  * - Set `VITE_PUBLIC_API_URL=http://localhost:3001` and call the backend
  *   directly (ensure backend `CORS_ORIGIN` includes your Vite dev origin).
  */

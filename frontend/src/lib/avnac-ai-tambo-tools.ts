@@ -201,7 +201,7 @@ export function buildAvnacTamboTools(
   const searchUnsplash: TamboTool = {
     name: 'search_unsplash',
     description:
-      'Search Unsplash for stock photos (Avnac backend must have UNSPLASH_ACCESS_KEY). Returns candidates with image_url, download_location, width, height — pick one best match, then call add_unsplash_photo with those fields. If query is omitted or empty, returns popular photos.',
+      'Search Unsplash for stock photos using the desktop app\'s native Go Unsplash service. Returns candidates with image_url, download_location, width, height — pick one best match, then call add_unsplash_photo with those fields. If query is omitted or empty, returns popular photos.',
     tool: async (args: {
       query?: string
       page?: number

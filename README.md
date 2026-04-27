@@ -86,7 +86,6 @@ The backend runs on `http://localhost:3001`.
 
 The backend is intentionally small in the day-to-day frontend workflow. Its most important job right now is proxying external resources so the editor can safely use them in-browser.
 
-- `/unsplash/*` handles Unsplash discovery and download tracking
 - `/media/proxy` fetches remote images through the app so exported canvases do not fail from cross-origin image tainting
 
 In local development, the frontend dev server proxies `/api/*` to `http://localhost:3001`, so the browser can keep using same-origin `/api` calls.
@@ -97,7 +96,7 @@ In production, Vercel mounts the backend at `/api`.
 
 If you run the proxy backend locally, start from `backend/.env.example`.
 
-The only variable you usually need to think about for editor features is `UNSPLASH_ACCESS_KEY`, and only if you want the Unsplash-powered image flow.
+Unsplash configuration for the desktop editor now lives in the Wails app config, not the Bun backend env. Update it from the Files screen inside the desktop app.
 
 ## Common Scripts
 
