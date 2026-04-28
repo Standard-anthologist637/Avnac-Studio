@@ -58,16 +58,20 @@ jobs:
         run: npm install
         working-directory: frontend
 
-      - name: Build
-        run: wails build -clean
+      - name: Build macOS Intel (amd64)
+        run: wails build -clean -platform darwin/amd64
 
-      - name: Build macOS (DMG enabled)
+      - name: Move Intel DMG
+        run: |
+          mkdir -p build/bin/renamed
+          find build/bin -name "*.dmg" -exec mv {} build/bin/renamed/Avnac-macos-intel.dmg \;
+
+      - name: Build macOS Universal (arm64 + amd64)
         run: wails build -clean -platform darwin/universal
 
-      - name: Move DMG
+      - name: Move Universal DMG
         run: |
-            mkdir -p build/bin/renamed
-            find build/bin -name "*.dmg" -exec mv {} build/bin/renamed/ \;
+          find build/bin -name "*.dmg" -exec mv {} build/bin/renamed/Avnac-macos-universal.dmg \;
 
       - uses: actions/upload-artifact@v4
         with:

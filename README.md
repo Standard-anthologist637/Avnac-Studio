@@ -34,11 +34,13 @@ Designed on the browser, openly—now built for desktop.
 
 ### 🪟 Windows
 
-[![Download for Windows](https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-amd64-installer.exe)
+[![Download for Windows](https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-windows-installer.exe)
 
 ### 🍎 macOS
 
-[![Download for macOS](https://img.shields.io/badge/macOS_Binary-Universal_binary-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos)
+[![Download for macOS — Universal](https://img.shields.io/badge/macOS_Universal-Apple_Silicon_%2B_Intel-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos-universal.dmg)
+
+[![Download for macOS — Intel](https://img.shields.io/badge/macOS_Intel-x86__64-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos-intel.dmg)
 
 ### 🐧 Linux
 
