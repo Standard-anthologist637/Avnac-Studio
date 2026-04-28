@@ -24,6 +24,7 @@ import {
   parseAvnacImport,
 } from "../extensions/editor-pages/multi-page-document";
 import { saveStoredPages } from "../extensions/editor-pages/multi-page-storage";
+import { useUpdateCheck } from "../lib/use-update-check";
 
 export const Route = createFileRoute("/files")({
   component: FilesPage,
@@ -124,6 +125,7 @@ function FilesPage() {
   } | null>(null);
   const posthog = usePostHog();
   const importInputRef = useRef<HTMLInputElement>(null);
+  const { updateAvailable, dismiss: dismissUpdate } = useUpdateCheck();
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
@@ -300,7 +302,7 @@ function FilesPage() {
           <div className="mx-auto flex w-full max-w-6xl items-center justify-end gap-3 px-5 pointer-events-auto sm:px-8">
             <Link
               to="/settings"
-              className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-black/[0.12] bg-white/86 px-6 py-2.5 text-[15px] font-medium text-[var(--text)] transition hover:border-black/[0.2] hover:bg-white sm:min-h-12 sm:px-8 sm:py-3 sm:text-[1.0625rem]"
+              className="relative inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-black/[0.12] bg-white/86 px-6 py-2.5 text-[15px] font-medium text-[var(--text)] transition hover:border-black/[0.2] hover:bg-white sm:min-h-12 sm:px-8 sm:py-3 sm:text-[1.0625rem]"
             >
               <HugeiconsIcon
                 icon={Settings01Icon}
@@ -309,6 +311,9 @@ function FilesPage() {
                 className="shrink-0"
               />
               Settings
+              {updateAvailable ? (
+                <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-red-500" aria-label="Update available" />
+              ) : null}
             </Link>
           </div>
         </div>
@@ -418,6 +423,47 @@ function FilesPage() {
         onClose={() => setDeleteDialog(null)}
         onConfirm={confirmDelete}
       />
+
+      {/* Update toast */}
+      {updateAvailable ? (
+        <div className="fixed bottom-5 right-5 z-[300] flex max-w-sm items-start gap-3 rounded-2xl border border-black/[0.1] bg-white p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-[var(--text)]">
+              Update available — {updateAvailable.latestVersion}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
+              A new version of Avnac is ready to download.
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <a
+                href={updateAvailable.downloadUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-4 text-xs font-medium text-white transition hover:bg-[#262626]"
+              >
+                Download
+              </a>
+              <button
+                type="button"
+                onClick={dismissUpdate}
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border border-black/[0.12] bg-transparent px-4 text-xs font-medium text-[var(--text)] transition hover:bg-black/[0.04]"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss update notification"
+            onClick={dismissUpdate}
+            className="mt-0.5 shrink-0 cursor-pointer rounded-full p-1 text-[var(--text-muted)] transition hover:bg-black/[0.06]"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+      ) : null}
     </main>
   );
 }

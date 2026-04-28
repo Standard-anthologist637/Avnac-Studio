@@ -63,3 +63,8 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) domReady(ctx context.Context) {
 	runtime.EventsEmit(ctx, "avnac:ready")
 }
+
+// GetVersion returns the current application version string.
+func (a *App) GetVersion() string {
+	return appVersion
+}
