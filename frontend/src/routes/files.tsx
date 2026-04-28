@@ -7,6 +7,7 @@ import {
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
 import { usePostHog } from "posthog-js/react";
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import DeleteConfirmDialog from "../components/delete-confirm-dialog";
 import FileGridCard from "../components/file-grid-card";
 import FilesMultiselectBar from "../components/files-multiselect-bar";
@@ -426,14 +427,13 @@ function FilesPage() {
 
       {/* Version badge */}
       {currentVersion ? (
-        <a
-          href="https://github.com/striker561/Avnac-Studio#readme"
-          target="_blank"
-          rel="noreferrer"
-          className="fixed bottom-4 left-5 z-[200] text-[11px] font-medium text-[var(--text-muted)] opacity-50 transition hover:opacity-100"
+        <button
+          type="button"
+          onClick={() => BrowserOpenURL("https://github.com/striker561/Avnac-Studio#readme")}
+          className="fixed bottom-4 left-5 z-[200] cursor-pointer text-[11px] font-medium text-[var(--text-muted)] opacity-50 transition hover:opacity-100"
         >
           v{currentVersion}
-        </a>
+        </button>
       ) : null}
 
       {/* Update toast */}
