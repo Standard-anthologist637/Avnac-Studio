@@ -47,7 +47,8 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 - Autosave to native app storage on every change — no manual saving required
 
 <!-- screenshot: files screen showing file grid and management actions -->
-![Files screen](./screenshots/files-screen.png)
+<img width="1406" height="934" alt="image" src="https://github.com/user-attachments/assets/6a939a56-014a-4758-9699-bfbd16ecfbab" />
+
 
 ---
 
@@ -59,7 +60,8 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 - Resize, rotate, and position elements with precision controls
 
 <!-- screenshot: canvas editor with a poster layout open -->
-![Canvas editor](./screenshots/canvas-editor.png)
+<img width="1904" height="1108" alt="image" src="https://github.com/user-attachments/assets/be9bde71-3e87-47df-8c2d-596e12bf6717" />
+
 
 ---
 
@@ -72,7 +74,8 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 - Text formatting: font family (including Google Fonts), size, weight, alignment
 
 <!-- screenshot: layer panel and element styling controls -->
-![Layers and styling](./screenshots/layers-styling.png)
+<img width="982" height="634" alt="image" src="https://github.com/user-attachments/assets/f3c5b70b-88a7-451f-874a-cbe6c8981e58" />
+
 
 ---
 
@@ -83,7 +86,8 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 - Import and export individual pages or entire workspaces as portable files
 
 <!-- screenshot: multi-page workspace with page tabs -->
-![Multi-page workspace](./screenshots/multi-page.png)
+<img width="1897" height="150" alt="image" src="https://github.com/user-attachments/assets/f1fd0130-9ac9-4d4a-b4a4-aaae92362540" />
+
 
 ---
 
@@ -94,7 +98,8 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 - Useful for components, reusable elements, or isolated drawing zones
 
 <!-- screenshot: vector board panel and embedded vector board on canvas -->
-![Vector boards](./screenshots/vector-boards.png)
+<img width="386" height="301" alt="image" src="https://github.com/user-attachments/assets/deb95a46-c025-47d9-b827-37cd790990db" />
+
 
 ---
 
@@ -104,18 +109,7 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 - No external service — generated locally
 
 <!-- screenshot: QR code element placed on a canvas -->
-![QR code generation](./screenshots/qr-code.png)
-
----
-
-### Magic panel (AI editing)
-
-- Prompt-based editing actions through the Magic panel
-- Powered by `@tambo-ai/react`
-- Describe what you want to change and the panel drives the editor for you
-
-<!-- screenshot: magic panel open with a prompt entered -->
-![Magic panel](./screenshots/magic-panel.png)
+<img width="450" height="533" alt="image" src="https://github.com/user-attachments/assets/1c51c439-48d6-45aa-a3ef-733df625f1f6" />
 
 ---
 
@@ -124,9 +118,6 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 - Export canvases as PNG with scale and transparency options
 - Native file save dialog — exports go directly to your filesystem
 - Export workspace or page data as portable JSON files
-
-<!-- screenshot: export menu with scale and transparency options -->
-![Export](./screenshots/export.png)
 
 ---
 
