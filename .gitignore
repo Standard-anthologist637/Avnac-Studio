@@ -1,3 +1,6 @@
-build/bin
-node_modules
-frontend/dist
+.DS_Store
+node_modules/
+build/bin/
+build/windows/installer/tmp/
+frontend/dist/
+frontend/package.json.md5
