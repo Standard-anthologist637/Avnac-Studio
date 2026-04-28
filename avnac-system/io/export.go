@@ -77,11 +77,30 @@ func (m *IOManager) workspaceFilePath(persistId string, fileName string) (string
 }
 
 func writeWorkspaceFile(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create workspace directories: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	// Write to a temp file in the same directory then rename so that a crash
+	// mid-write never leaves a partially-written (corrupt) file behind.
+	// os.Rename on the same filesystem is O(1) — it is a single metadata op.
+	tmp, err := os.CreateTemp(dir, ".avnac-write-*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("write workspace file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("close temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename workspace file: %w", err)
 	}
 	return nil
 }

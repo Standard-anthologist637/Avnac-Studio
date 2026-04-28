@@ -126,7 +126,11 @@ function FilesPage() {
   } | null>(null);
   const posthog = usePostHog();
   const importInputRef = useRef<HTMLInputElement>(null);
-  const { currentVersion, updateAvailable, dismiss: dismissUpdate } = useUpdateCheck();
+  const {
+    currentVersion,
+    updateAvailable,
+    dismiss: dismissUpdate,
+  } = useUpdateCheck();
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
@@ -291,6 +295,7 @@ function FilesPage() {
   );
 
   const selectionCount = selectedIds.length;
+  const isEmptyState = items !== null && items.length === 0;
 
   return (
     <main className="hero-page relative flex min-h-[100dvh] flex-col overflow-hidden">
@@ -313,7 +318,10 @@ function FilesPage() {
               />
               Settings
               {updateAvailable ? (
-                <span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-red-500" aria-label="Update available" />
+                <span
+                  className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-white bg-red-500"
+                  aria-label="Update available"
+                />
               ) : null}
             </Link>
           </div>
@@ -335,12 +343,16 @@ function FilesPage() {
           className={`mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14 lg:py-16 ${selectionCount > 0 ? "pb-28 sm:pb-32" : ""}`}
         >
           <div className="rise-in">
-            <h1 className="display-title mb-4 text-[clamp(2rem,5vw,3.25rem)] font-medium leading-[1.06] tracking-[-0.03em] text-[var(--text)]">
-              Files
-            </h1>
-            <p className="mb-12 max-w-xl text-lg leading-[1.6] text-[var(--text-muted)] sm:text-xl sm:leading-[1.55]">
-              Your files live here. Open one to keep editing.
-            </p>
+            {!isEmptyState ? (
+              <>
+                <h1 className="display-title mb-4 text-[clamp(2rem,5vw,3.25rem)] font-medium leading-[1.06] tracking-[-0.03em] text-[var(--text)]">
+                  Files
+                </h1>
+                <p className="mb-12 max-w-xl text-lg leading-[1.6] text-[var(--text-muted)] sm:text-xl sm:leading-[1.55]">
+                  Your files live here. Open one to keep editing.
+                </p>
+              </>
+            ) : null}
 
             {loadError ? (
               <p className="text-base leading-relaxed text-red-600">
@@ -352,9 +364,9 @@ function FilesPage() {
               <p className="text-lg text-[var(--text-muted)]">Loading…</p>
             ) : items.length === 0 ? (
               <div className="max-w-xl">
-                <h2 className="m-0 text-2xl font-semibold text-[var(--text)] sm:text-3xl">
+                <h1 className="display-title m-0 text-[clamp(2rem,5vw,3.25rem)] font-medium leading-[1.06] tracking-[-0.03em] text-[var(--text)]">
                   Get started
-                </h2>
+                </h1>
                 <p className="mt-3 text-lg leading-[1.6] text-[var(--text-muted)]">
                   Create your first canvas. Everything autosaves as you work.
                 </p>
@@ -429,7 +441,9 @@ function FilesPage() {
       {currentVersion ? (
         <button
           type="button"
-          onClick={() => BrowserOpenURL("https://github.com/striker561/Avnac-Studio#readme")}
+          onClick={() =>
+            BrowserOpenURL("https://github.com/striker561/Avnac-Studio#readme")
+          }
           className="fixed bottom-4 left-5 z-[200] cursor-pointer text-[11px] font-medium text-[var(--text-muted)] opacity-50 transition hover:opacity-100"
         >
           v{currentVersion}
@@ -471,7 +485,12 @@ function FilesPage() {
             className="mt-0.5 shrink-0 cursor-pointer rounded-full p-1 text-[var(--text-muted)] transition hover:bg-black/[0.06]"
           >
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+              <path
+                d="M1 1l12 12M13 1L1 13"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
             </svg>
           </button>
         </div>
