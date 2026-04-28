@@ -5,4 +5,3 @@ import {assetserver} from '../models';
 export function GetVersion():Promise<string>;
 
 export function MediaProxyMiddleware():Promise<assetserver.Middleware>;
-export function GetVersion():Promise<string>;

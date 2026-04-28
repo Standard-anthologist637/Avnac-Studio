@@ -9,7 +9,3 @@ export function GetVersion() {
 export function MediaProxyMiddleware() {
   return window['go']['main']['App']['MediaProxyMiddleware']();
 }
-
-export function GetVersion() {
-  return window['go']['main']['App']['GetVersion']();
-}

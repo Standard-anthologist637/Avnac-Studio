@@ -429,7 +429,7 @@ function FilesPage() {
         <div className="fixed bottom-5 right-5 z-[300] flex max-w-sm items-start gap-3 rounded-2xl border border-black/[0.1] bg-white p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-[var(--text)]">
-              Update available — {updateAvailable.latestVersion}
+              Update available - {updateAvailable.latestVersion}
             </p>
             <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
               A new version of Avnac is ready to download.
