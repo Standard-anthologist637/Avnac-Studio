@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  Desktop port maintained by <a href="https://github.com/striker561">striker561</a> &amp; <a href="https://github.com/d3uceY">d3uceY</a>
+</p>
+
+<p align="center">
   <a href="./LICENSE">MIT License</a>
 </p>
 
