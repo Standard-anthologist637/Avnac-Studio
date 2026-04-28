@@ -61,22 +61,30 @@ jobs:
       - name: Build macOS Intel (amd64)
         run: wails build -clean -platform darwin/amd64
 
-      - name: Move Intel DMG
+      - name: Package Intel DMG
         run: |
-          mkdir -p build/bin/renamed
-          find build/bin -name "*.dmg" -exec mv {} build/bin/renamed/Avnac-macos-intel.dmg \;
+          mkdir -p artifacts
+          hdiutil create \
+            -volname "Avnac" \
+            -srcfolder build/bin/Avnac.app \
+            -ov -format UDZO \
+            artifacts/Avnac-macos-intel.dmg
 
       - name: Build macOS Universal (arm64 + amd64)
         run: wails build -clean -platform darwin/universal
 
-      - name: Move Universal DMG
+      - name: Package Universal DMG
         run: |
-          find build/bin -name "*.dmg" -exec mv {} build/bin/renamed/Avnac-macos-universal.dmg \;
+          hdiutil create \
+            -volname "Avnac" \
+            -srcfolder build/bin/Avnac.app \
+            -ov -format UDZO \
+            artifacts/Avnac-macos-universal.dmg
 
       - uses: actions/upload-artifact@v4
         with:
           name: binaries-macos
-          path: build/bin/renamed/*.dmg
+          path: artifacts/*.dmg
 
 
   build-windows-amd64:
