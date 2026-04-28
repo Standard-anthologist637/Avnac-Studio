@@ -238,6 +238,14 @@ npm run dev
 
 Vite runs at `http://localhost:3300`. Native features (file storage, export dialogs, Unsplash config) require the full Wails runtime.
 
+### Contributor Note: Dependency Installs
+
+- Day-to-day setup and CI/CD use `npm ci`, not `npm install`.
+- `npm ci` installs exactly what is in `frontend/package-lock.json` and fails if the lockfile and `frontend/package.json` are out of sync.
+- Use `npm install` only when you are intentionally adding, removing, or updating dependencies.
+- If dependency metadata changes, commit `frontend/package.json` and `frontend/package-lock.json` together in the same commit.
+- If `frontend/package-lock.json` changed accidentally, revert it before pushing. CI and release builds rely on it being clean and deterministic.
+
 ### Production Build
 
 ```bash
