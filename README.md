@@ -5,7 +5,7 @@
 <h1 align="center">Avnac Studio</h1>
 
 <p align="center">
-  The native desktop version of <a href="https://github.com/akinloluwami/avnac">Avnac</a> — a design canvas for layouts, posters, social graphics, and visual documents.
+  The native desktop version of <a href="https://github.com/akinloluwami/avnac">Avnac</a>, a design canvas for layouts, posters, social graphics, and visual documents.
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
   <a href="./LICENSE">MIT License</a>
 </p>
 
-Designed on the browser, openly—now built for desktop.
+Designed on the browser, openly now built for desktop.
 
 <img width="1593" height="910" alt="Image" src="https://github.com/user-attachments/assets/7a14bc5f-cfd7-48b7-af99-8c0625fac8ed" />
 
@@ -34,17 +34,17 @@ Designed on the browser, openly—now built for desktop.
 
 ### 🪟 Windows
 
-[![Download for Windows](https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-windows-installer.exe)
+[![Download for Windows](https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/avnac-studio-windows-amd64-installer.exe)
 
 ### 🍎 macOS
 
-[![Download for macOS — Universal](https://img.shields.io/badge/macOS_Universal-Apple_Silicon_%2B_Intel-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos-universal.dmg)
+[![Download for macOS - Apple Silicon](https://img.shields.io/badge/macOS_Apple_Silicon-arm64-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/avnac-studio-macos-arm64.dmg)
 
-[![Download for macOS — Intel](https://img.shields.io/badge/macOS_Intel-x86__64-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos-intel.dmg)
+[![Download for macOS - Intel](https://img.shields.io/badge/macOS_Intel-x86__64-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/avnac-studio-macos-amd64.dmg)
 
 ### 🐧 Linux
 
-[![Download for Linux](https://img.shields.io/badge/Linux_Binary-amd64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-linux-amd64)
+[![Download for Linux](https://img.shields.io/badge/Linux_Binary-amd64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/striker561/Avnac-Studio/releases/latest/download/avnac-studio-linux-amd64)
 
 ---
 
@@ -56,19 +56,19 @@ Designed on the browser, openly—now built for desktop.
 
 Avnac Studio is a native desktop app built with [Wails](https://wails.io/) + Go. It is not a browser tab, and it is not Electron.
 
-| | Avnac Studio (desktop) | Avnac (web) |
-|---|---|---|
-| **Runtime** | Native Wails + Go binary | Browser / Node backend |
-| **Memory usage** | Very low — no Chromium process overhead | Browser-dependent |
-| **Executable size** | Lightweight single binary | N/A (web app) |
-| **File storage** | Native OS app data directory | IndexedDB (browser storage) |
-| **Media proxy** | Built directly into the app binary | Separate backend service |
-| **HTTP backend** | None required | Elysia backend for media, Unsplash, auth |
-| **Startup time** | Fast — no cold boot of a server | Depends on backend startup |
-| **Offline use** | Fully offline after install | Partial |
-| **Export** | Native file save dialogs | Browser download |
+|                     | Avnac Studio (desktop)                  | Avnac (web)                              |
+| ------------------- | --------------------------------------- | ---------------------------------------- |
+| **Runtime**         | Native Wails + Go binary                | Browser / Node backend                   |
+| **Memory usage**    | Very low - no Chromium process overhead | Browser-dependent                        |
+| **Executable size** | Lightweight single binary               | N/A (web app)                            |
+| **File storage**    | Native OS app data directory            | IndexedDB (browser storage)              |
+| **Media proxy**     | Built directly into the app binary      | Separate backend service                 |
+| **HTTP backend**    | None required                           | Elysia backend for media, Unsplash, auth |
+| **Startup time**    | Fast - no cold boot of a server         | Depends on backend startup               |
+| **Offline use**     | Fully offline after install             | Partial                                  |
+| **Export**          | Native file save dialogs                | Browser download                         |
 
-In short: Avnac Studio starts fast, uses very little memory, ships as a light executable, needs no running HTTP backend, and persists your files to the OS natively — not to your browser.
+In short: Avnac Studio starts fast, uses very little memory, ships as a light executable, needs no running HTTP backend, and persists your files to the OS natively - not to your browser.
 
 ---
 
@@ -77,12 +77,11 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 ### Create and manage files
 
 - Create canvases from presets or custom dimensions
-- Manage files from the Files screen — open, duplicate, rename, delete, import, and download workspace data
-- Autosave to native app storage on every change — no manual saving required
+- Manage files from the Files screen - open, duplicate, rename, delete, import, and download workspace data
+- Autosave to native app storage on every change - no manual saving required
 
 <!-- screenshot: files screen showing file grid and management actions -->
 <img width="1406" height="934" alt="image" src="https://github.com/user-attachments/assets/6a939a56-014a-4758-9699-bfbd16ecfbab" />
-
 
 ---
 
@@ -96,20 +95,18 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 <!-- screenshot: canvas editor with a poster layout open -->
 <img width="1904" height="1108" alt="image" src="https://github.com/user-attachments/assets/be9bde71-3e87-47df-8c2d-596e12bf6717" />
 
-
 ---
 
 ### Layers, styling, and effects
 
 - Full layer panel with visibility and ordering controls
-- Background fill — solid, gradient, or image
+- Background fill - solid, gradient, or image
 - Blur, opacity, corner radius, and shadow controls per element
 - Stroke and paint popover controls
 - Text formatting: font family (including Google Fonts), size, weight, alignment
 
 <!-- screenshot: layer panel and element styling controls -->
 <img width="982" height="634" alt="image" src="https://github.com/user-attachments/assets/f3c5b70b-88a7-451f-874a-cbe6c8981e58" />
-
 
 ---
 
@@ -122,7 +119,6 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 <!-- screenshot: multi-page workspace with page tabs -->
 <img width="1897" height="150" alt="image" src="https://github.com/user-attachments/assets/f1fd0130-9ac9-4d4a-b4a4-aaae92362540" />
 
-
 ---
 
 ### Vector boards
@@ -134,13 +130,12 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 <!-- screenshot: vector board panel and embedded vector board on canvas -->
 <img width="386" height="301" alt="image" src="https://github.com/user-attachments/assets/deb95a46-c025-47d9-b827-37cd790990db" />
 
-
 ---
 
 ### QR code generation
 
 - Generate QR codes directly in the editor and place them on the canvas like any other element
-- No external service — generated locally
+- No external service - generated locally
 
 <!-- screenshot: QR code element placed on a canvas -->
 <img width="450" height="533" alt="image" src="https://github.com/user-attachments/assets/1c51c439-48d6-45aa-a3ef-733df625f1f6" />
@@ -150,7 +145,7 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 ### Export
 
 - Export canvases as PNG with scale and transparency options
-- Native file save dialog — exports go directly to your filesystem
+- Native file save dialog - exports go directly to your filesystem
 - Export workspace or page data as portable JSON files
 
 ---
@@ -159,7 +154,7 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 
 The original [Avnac web app](https://github.com/akinloluwami/avnac) is a browser-first editor. Avnac Studio is a ground-up desktop port of that product. Here is what changed:
 
-- **No separate backend.** The web app uses an Elysia/TypeScript backend for media proxying, Unsplash, and documents. In Avnac Studio, all of that is handled inside the Go runtime — the media proxy, Unsplash integration, and file IO are part of the app binary itself.
+- **No separate backend.** The web app uses an Elysia/TypeScript backend for media proxying, Unsplash, and documents. In Avnac Studio, all of that is handled inside the Go runtime - the media proxy, Unsplash integration, and file IO are part of the app binary itself.
 - **Native file storage.** The web app stores documents in IndexedDB. Avnac Studio writes to the OS app data directory using a structured per-workspace folder layout. Files survive browser resets and profile wipes.
 - **One-time browser storage migration.** On first run after switching to native storage, the app migrates any existing browser-local documents so nothing is lost.
 - **Native export dialogs.** Exporting in the web app triggers a browser download. Avnac Studio opens a native OS save dialog.
@@ -273,12 +268,12 @@ go build ./...
 
 ## Where To Work
 
-| Area | Path |
-|---|---|
-| Editor UI and behavior | `frontend/src/components/` |
-| Routes and navigation | `frontend/src/routes/` |
-| Frontend storage and document logic | `frontend/src/lib/` |
-| Native IO, config, and workspace services | `avnac-system/` |
+| Area                                      | Path                       |
+| ----------------------------------------- | -------------------------- |
+| Editor UI and behavior                    | `frontend/src/components/` |
+| Routes and navigation                     | `frontend/src/routes/`     |
+| Frontend storage and document logic       | `frontend/src/lib/`        |
+| Native IO, config, and workspace services | `avnac-system/`            |
 
 ---
 
