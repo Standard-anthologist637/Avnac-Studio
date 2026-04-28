@@ -85,7 +85,7 @@ func (s *UnsplashService) UpdateConfig(cfg *avnacconfig.AppConfig) {
 
 func (s *UnsplashService) accessKey() (string, error) {
 	if s.cfg.UnsplashAccessKey == "" {
-		return "", fmt.Errorf("unsplash_access_key is not set in the app config")
+		return "", fmt.Errorf("no Unsplash API key found — add one in Settings to enable image search")
 	}
 	return s.cfg.UnsplashAccessKey, nil
 }
@@ -104,11 +104,11 @@ func unsplashGet(endpoint, key string) (*http.Response, error) {
 	}
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("unsplash rejected the access key — check unsplash_access_key in app config")
+		return nil, fmt.Errorf("invalid Unsplash API key — update it in Settings and try again")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_ = resp.Body.Close()
-		return nil, fmt.Errorf("unsplash returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("Unsplash is temporarily unavailable (status %d) — try again in a moment", resp.StatusCode)
 	}
 	return resp, nil
 }
