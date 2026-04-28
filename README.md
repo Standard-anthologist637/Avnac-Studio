@@ -9,38 +9,40 @@
 </p>
 
 <p align="center">
-  Desktop port maintained by <a href="https://github.com/striker561">striker561</a> &amp; <a href="https://github.com/d3uceY">d3uceY</a>
+  <a href="https://github.com/striker561">
+    <img src="https://github.com/striker561.png" width="56" height="56" style="border-radius:100%;" alt="striker561" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/d3uceY">
+    <img src="https://github.com/d3uceY.png" width="56" height="56" style="border-radius:100%;" alt="d3uceY" />
+  </a>
+  <br />
+  <sub><b>Desktop port maintained by <a href="https://github.com/striker561">striker561</a> &amp; <a href="https://github.com/d3uceY">d3uceY</a></b></sub>
 </p>
 
 <p align="center">
   <a href="./LICENSE">MIT License</a>
 </p>
 
-<p align="center">⬇️ Download Avnac Studio</p>
-
-<p align="center">
-  <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-amd64-installer.exe">
-    <img src="https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows Installer (.exe, amd64)" />
-  </a>
-  &nbsp;
-  <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos">
-    <img src="https://img.shields.io/badge/macOS_Binary-Universal_binary-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download macOS binary" />
-  </a>
-  &nbsp;
-  <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-linux-amd64">
-    <img src="https://img.shields.io/badge/Linux_Binary-amd64-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download Linux binary (amd64)" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/striker561/Avnac-Studio/releases/latest">
-    <img src="https://img.shields.io/github/v/release/striker561/Avnac-Studio?style=flat-square&label=latest%20release&color=brightgreen" alt="Latest Release" />
-  </a>
-</p>
-
 Designed on the browser, openly—now built for desktop.
 
 <img width="1593" height="910" alt="Image" src="https://github.com/user-attachments/assets/7a14bc5f-cfd7-48b7-af99-8c0625fac8ed" />
+
+## ⬇️ Download
+
+<a href="https://github.com/striker561/Avnac-Studio/releases/latest"><img src="https://img.shields.io/github/v/release/striker561/Avnac-Studio?style=flat-square&label=latest%20release&color=brightgreen" alt="Latest Release" /></a>
+
+### 🪟 Windows
+
+[![Download for Windows](https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-amd64-installer.exe)
+
+### 🍎 macOS
+
+[![Download for macOS](https://img.shields.io/badge/macOS_Binary-Universal_binary-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos)
+
+### 🐧 Linux
+
+[![Download for Linux](https://img.shields.io/badge/Linux_Binary-amd64-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-linux-amd64)
 
 ---
 
