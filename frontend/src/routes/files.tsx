@@ -125,7 +125,7 @@ function FilesPage() {
   } | null>(null);
   const posthog = usePostHog();
   const importInputRef = useRef<HTMLInputElement>(null);
-  const { updateAvailable, dismiss: dismissUpdate } = useUpdateCheck();
+  const { currentVersion, updateAvailable, dismiss: dismissUpdate } = useUpdateCheck();
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
@@ -423,6 +423,18 @@ function FilesPage() {
         onClose={() => setDeleteDialog(null)}
         onConfirm={confirmDelete}
       />
+
+      {/* Version badge */}
+      {currentVersion ? (
+        <a
+          href="https://github.com/striker561/Avnac-Studio#readme"
+          target="_blank"
+          rel="noreferrer"
+          className="fixed bottom-4 left-5 z-[200] text-[11px] font-medium text-[var(--text-muted)] opacity-50 transition hover:opacity-100"
+        >
+          v{currentVersion}
+        </a>
+      ) : null}
 
       {/* Update toast */}
       {updateAvailable ? (
