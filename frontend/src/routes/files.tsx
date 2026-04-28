@@ -84,7 +84,7 @@ function FilesActionCard({
         </div>
 
         {/* Content */}
-        <div className="relative flex flex-1 flex-col items-center text-center">
+        <div className="relative flex flex-1 flex-col items-center justify-center text-center">
           <span
             className={[
               "mb-5 inline-flex size-16 items-center justify-center rounded-[1.35rem] border transition",
