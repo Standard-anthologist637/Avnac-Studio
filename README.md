@@ -209,8 +209,10 @@ Each file gets a dedicated folder in the OS app config directory:
 ### Prerequisites
 
 - Go (compatible with this repo's `go.mod`)
-- Node.js + npm
+- Node.js 22 + npm 10
 - Wails CLI v2
+
+If you use `nvm`, this repo includes `.nvmrc`, so run `nvm use` before installing frontend dependencies.
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -221,7 +223,7 @@ wails doctor
 
 ```bash
 cd frontend
-npm install
+npm ci
 cd ..
 wails dev
 ```
@@ -230,7 +232,7 @@ wails dev
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
