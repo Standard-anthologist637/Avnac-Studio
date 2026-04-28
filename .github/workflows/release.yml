@@ -127,19 +127,58 @@ jobs:
           fetch-depth: 0
 
       - name: Generate commit log
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CURR_TAG="${GITHUB_REF#refs/tags/}"
           PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v' | sed -n '2p')
-          echo "## Commits" > commit_log.md
+
+          echo "## What's Changed" > commit_log.md
           echo "" >> commit_log.md
           if [ -n "$PREV_TAG" ]; then
             echo "Changes since \`${PREV_TAG}\`:" >> commit_log.md
             echo "" >> commit_log.md
-            git log "${PREV_TAG}..${CURR_TAG}" --pretty=format:"- %s (%h)" --no-merges >> commit_log.md
+            RANGE="${PREV_TAG}..${CURR_TAG}"
           else
-            git log "${CURR_TAG}" --pretty=format:"- %s (%h)" --no-merges >> commit_log.md
+            RANGE="${CURR_TAG}"
           fi
+
+          USERS_FILE=$(mktemp)
+
+          while IFS= read -r HASH; do
+            [ -z "$HASH" ] && continue
+            MSG=$(git log -1 --pretty=format:"%s" "$HASH")
+            SHORT="${HASH:0:7}"
+            GH_LOGIN=$(curl -sf \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/commits/${HASH}" \
+              | jq -r '.author.login // empty' 2>/dev/null || echo "")
+            if [ -n "$GH_LOGIN" ]; then
+              echo "- ${MSG} — @${GH_LOGIN} (\`${SHORT}\`)" >> commit_log.md
+              echo "$GH_LOGIN" >> "$USERS_FILE"
+            else
+              echo "- ${MSG} (\`${SHORT}\`)" >> commit_log.md
+            fi
+          done < <(git log "$RANGE" --pretty=format:"%H" --no-merges)
+
           echo "" >> commit_log.md
+
+          if [ -s "$USERS_FILE" ]; then
+            echo "---" >> commit_log.md
+            echo "" >> commit_log.md
+            echo "### Contributors" >> commit_log.md
+            echo "" >> commit_log.md
+            echo "<table><tr>" >> commit_log.md
+            for USER in $(sort -u "$USERS_FILE"); do
+              printf '  <td align="center"><a href="https://github.com/%s"><img src="https://github.com/%s.png?size=72" width="72" height="72" style="border-radius:50%%" /><br /><b>@%s</b></a></td>\n' \
+                "$USER" "$USER" "$USER" >> commit_log.md
+            done
+            echo "</tr></table>" >> commit_log.md
+            echo "" >> commit_log.md
+          fi
+
+          rm -f "$USERS_FILE"
 
       - uses: actions/download-artifact@v4
         with:
