@@ -11,6 +11,4 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
-build/bin
-node_modules
-frontend/dist
+package.json.md5
