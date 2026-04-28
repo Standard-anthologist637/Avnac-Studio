@@ -201,8 +201,8 @@ function FilesPage() {
       title: n === 1 ? "Remove this file?" : "Remove these files?",
       message:
         n === 1
-          ? "This will permanently remove the file from app storage. This cannot be undone."
-          : `This will permanently remove ${n} files from app storage. This cannot be undone.`,
+          ? "This will permanently remove the file. This cannot be undone."
+          : `This will permanently remove ${n} files. This cannot be undone.`,
     });
   }, [selectedIds]);
 
@@ -230,8 +230,7 @@ function FilesPage() {
     setDeleteDialog({
       ids: [id],
       title: "Remove this file?",
-      message:
-        "This will permanently remove the file from app storage. This cannot be undone.",
+      message: "This will permanently remove the file. This cannot be undone.",
     });
   }, []);
 
@@ -334,7 +333,7 @@ function FilesPage() {
               Files
             </h1>
             <p className="mb-12 max-w-xl text-lg leading-[1.6] text-[var(--text-muted)] sm:text-xl sm:leading-[1.55]">
-              Files saved in native app storage. Open one to keep editing.
+              Your files live here. Open one to keep editing.
             </p>
 
             {loadError ? (
@@ -364,7 +363,7 @@ function FilesPage() {
                   <FilesActionCard
                     icon={FileImportIcon}
                     title="Import workspace"
-                    description="Bring an existing .workspace.avnac or .json file into app storage."
+                    description="Bring in an existing .workspace.avnac or .json file."
                     tone="light"
                     onClick={importWorkspace}
                   />
@@ -382,7 +381,7 @@ function FilesPage() {
                 <FilesActionCard
                   icon={FileImportIcon}
                   title="Import workspace"
-                  description="Import and continue editing from app storage."
+                  description="Import a file and keep working."
                   tone="light"
                   onClick={importWorkspace}
                 />

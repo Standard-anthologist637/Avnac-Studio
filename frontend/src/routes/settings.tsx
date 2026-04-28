@@ -40,18 +40,18 @@ function formatConfigBridgeError(
     error instanceof Error ? error.message.trim() : String(error ?? "").trim();
   if (!message) {
     return action === "load"
-      ? "Could not load Unsplash settings from the desktop app."
+      ? "Could not load Unsplash settings."
       : "Could not save the Unsplash API key.";
   }
   if (isMissingConfigBridgeError(error)) {
-    return "The desktop runtime does not expose the latest Unsplash config bridge yet. Restart the Wails app and try again.";
+    return "The latest Unsplash settings bridge is not available yet. Restart the app and try again.";
   }
   if (
     /window\.go|Cannot read properties of undefined|undefined is not an object/i.test(
       message,
     )
   ) {
-    return "Unsplash settings are only available in the desktop Wails app.";
+    return "Unsplash settings are only available in the app.";
   }
   return action === "load"
     ? `Could not load Unsplash settings: ${message}`
@@ -127,8 +127,8 @@ export const Route = createFileRoute("/settings")({
         setUnsplashKey(nextKey);
         setUnsplashNotice(
           nextKey
-            ? "Unsplash API key updated for the desktop app."
-            : "Unsplash API key cleared from the desktop app.",
+            ? "Unsplash API key updated."
+            : "Unsplash API key cleared.",
         );
         posthog.capture("unsplash_config_updated", {
           has_key: nextKey.length > 0,
@@ -178,7 +178,7 @@ export const Route = createFileRoute("/settings")({
               Settings
             </h1>
             <p className="mb-12 max-w-xl text-lg leading-[1.6] text-[var(--text-muted)] sm:text-xl sm:leading-[1.55]">
-              Configure integrations and desktop app preferences.
+              Configure integrations and preferences.
             </p>
 
             <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">
@@ -197,8 +197,7 @@ export const Route = createFileRoute("/settings")({
                     Unsplash API key
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-                    Stored in the desktop app config and used by the native Go
-                    Unsplash service.
+                    Used for image search inside the app.
                   </p>
                 </div>
               </div>

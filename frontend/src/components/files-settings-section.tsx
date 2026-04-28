@@ -44,8 +44,7 @@ export default function FilesSettingsSection({
               Unsplash API key
             </h2>
             <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
-              Stored in the desktop app config and used by the native Go
-              Unsplash service.
+              Used for image search inside the app.
             </p>
           </div>
           <button
