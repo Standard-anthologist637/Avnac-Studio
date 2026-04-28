@@ -12,6 +12,10 @@
   <a href="./LICENSE">MIT License</a>
 </p>
 
+Designed on the browser, openly—now built for desktop.
+
+<img width="1593" height="910" alt="Image" src="https://github.com/user-attachments/assets/7a14bc5f-cfd7-48b7-af99-8c0625fac8ed" />
+
 ---
 
 > **Upstream Notice:** The `main` branch of this repository is a mirror of the original web app by [@akinloluwami](https://github.com/akinloluwami) at [akinloluwami/avnac](https://github.com/akinloluwami/avnac). All desktop-specific work lives on the **`studio`** branch, which is the default branch of this fork.
