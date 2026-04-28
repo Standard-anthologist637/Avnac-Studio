@@ -171,6 +171,7 @@ import ShadowToolbarPopover from "./shadow-toolbar-popover";
 import StrokeToolbarPopover from "./stroke-toolbar-popover";
 import CornerRadiusToolbarControl from "./corner-radius-toolbar-control";
 import CanvasZoomSlider from "./canvas-zoom-slider";
+import EditorFloatingCanvasControls from "./editor-floating-canvas-controls";
 import CanvasElementToolbar, {
   type CanvasAlignKind,
 } from "./canvas-element-toolbar";
@@ -566,6 +567,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       typeof setTimeout
     > | null>(null);
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
+    const [focusMode, setFocusMode] = useState(false);
     const [exportError, setExportError] = useState<string | null>(null);
     const [contextMenu, setContextMenu] =
       useState<EditorContextMenuState | null>(null);
@@ -4383,6 +4385,11 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const contextMenuButtonClass =
       "flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-neutral-800 outline-none hover:bg-black/[0.05] focus:bg-black/[0.05]";
 
+    const toggleFocusMode = useCallback(() => {
+      if (!focusMode) setEditorSidebarPanel(null);
+      setFocusMode((value) => !value);
+    }, [focusMode]);
+
     return (
       <div className="relative flex min-h-0 flex-1 flex-col">
         <input
@@ -4397,7 +4404,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         />
         <div
           ref={selectionToolsRef}
-          className="pointer-events-auto relative z-30 flex h-14 w-full shrink-0 items-center justify-center px-1 sm:px-2"
+          className={`pointer-events-auto relative z-30 flex h-14 w-full shrink-0 items-center justify-center px-1 sm:px-2 transition-opacity duration-150 ${focusMode ? "pointer-events-none opacity-0" : ""}`}
         >
           {ready && textToolbarValues ? (
             <TextFormatToolbar
@@ -4712,116 +4719,107 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           </div>
         ) : null}
 
-        <div
-          ref={canvasZoomRef}
-          className="pointer-events-auto absolute bottom-[max(0.5rem,env(safe-area-inset-bottom,0px))] right-3 z-30 sm:right-4"
-        >
-          {ready && zoomPercent !== null ? (
-            <CanvasZoomSlider
-              value={zoomPercent}
-              min={ZOOM_MIN_PCT}
-              max={ZOOM_MAX_PCT}
-              onChange={onZoomSliderChange}
-              onFitRequest={onZoomFitRequest}
-            />
-          ) : null}
-        </div>
-
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center pb-2 pt-24">
-          <div
-            ref={bottomToolbarRef}
-            className="pointer-events-auto flex items-center gap-1 rounded-full border border-black/[0.08] bg-white/85 px-2 py-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl"
-            role="toolbar"
-            aria-label="Editor tools"
-          >
-            <div
-              ref={shapeToolSplitRef}
-              className="relative flex items-stretch rounded-lg border border-black/[0.06] bg-black/[0.02]"
-            >
-              <button
-                type="button"
-                disabled={!ready}
-                className={`${toolbarIconBtn(!ready)} rounded-l-lg rounded-r-none border-0`}
-                onClick={addQuickShape}
-                aria-label={QUICK_SHAPE_TITLE[shapesQuickAddKind]}
-                title={QUICK_SHAPE_TITLE[shapesQuickAddKind]}
-              >
-                <HugeiconsIcon
-                  icon={iconForShapesQuickAdd(shapesQuickAddKind)}
-                  size={20}
-                  strokeWidth={1.75}
-                />
-              </button>
-              <button
-                type="button"
-                disabled={!ready}
-                className={`${toolbarIconBtn(!ready)} rounded-l-none rounded-r-lg border-0 border-l border-black/[0.06]`}
-                onClick={() => setShapesPopoverOpen((o) => !o)}
-                aria-expanded={shapesPopoverOpen}
-                aria-haspopup="menu"
-                aria-label="More shapes"
-                title="More shapes"
-              >
-                <HugeiconsIcon
-                  icon={ArrowDown01Icon}
-                  size={16}
-                  strokeWidth={1.75}
-                />
-              </button>
-              <ShapesPopover
-                open={shapesPopoverOpen}
-                disabled={!ready}
-                anchorRef={shapeToolSplitRef}
-                onClose={() => setShapesPopoverOpen(false)}
-                onPick={(k) => {
-                  setShapesQuickAddKind(k);
-                  addShapeFromPopover(k);
-                  setShapesPopoverOpen(false);
-                }}
+        <EditorFloatingCanvasControls
+          ready={ready}
+          focusMode={focusMode}
+          onToggleFocusMode={toggleFocusMode}
+          zoomRef={canvasZoomRef}
+          toolbarRef={bottomToolbarRef}
+          zoomControl={
+            ready && zoomPercent !== null ? (
+              <CanvasZoomSlider
+                value={zoomPercent}
+                min={ZOOM_MIN_PCT}
+                max={ZOOM_MAX_PCT}
+                onChange={onZoomSliderChange}
+                onFitRequest={onZoomFitRequest}
               />
-            </div>
+            ) : null
+          }
+        >
+          <div
+            ref={shapeToolSplitRef}
+            className="relative flex items-stretch rounded-lg border border-black/[0.06] bg-black/[0.02]"
+          >
             <button
               type="button"
               disabled={!ready}
-              className={toolbarIconBtn(!ready)}
-              onClick={addText}
-              aria-label="Add text"
-              title="Add text"
-            >
-              <HugeiconsIcon icon={TextFontIcon} size={20} strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              disabled={!ready}
-              className={toolbarIconBtn(!ready)}
-              onClick={() => imageInputRef.current?.click()}
-              aria-label="Add image"
-              title="Add image"
-            >
-              <HugeiconsIcon icon={Image01Icon} size={20} strokeWidth={1.75} />
-            </button>
-            <button
-              type="button"
-              disabled={!ready}
-              className={toolbarIconBtn(!ready)}
-              onClick={() => setShortcutsOpen(true)}
-              aria-label="Keyboard shortcuts"
-              title="Shortcuts (?)"
+              className={`${toolbarIconBtn(!ready)} rounded-l-lg rounded-r-none border-0`}
+              onClick={addQuickShape}
+              aria-label={QUICK_SHAPE_TITLE[shapesQuickAddKind]}
+              title={QUICK_SHAPE_TITLE[shapesQuickAddKind]}
             >
               <HugeiconsIcon
-                icon={HelpCircleIcon}
+                icon={iconForShapesQuickAdd(shapesQuickAddKind)}
                 size={20}
                 strokeWidth={1.75}
               />
             </button>
-
-            {!ready ? (
-              <span className="px-3 text-xs text-[var(--text-muted)]">
-                Loading…
-              </span>
-            ) : null}
+            <button
+              type="button"
+              disabled={!ready}
+              className={`${toolbarIconBtn(!ready)} rounded-l-none rounded-r-lg border-0 border-l border-black/[0.06]`}
+              onClick={() => setShapesPopoverOpen((o) => !o)}
+              aria-expanded={shapesPopoverOpen}
+              aria-haspopup="menu"
+              aria-label="More shapes"
+              title="More shapes"
+            >
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                size={16}
+                strokeWidth={1.75}
+              />
+            </button>
+            <ShapesPopover
+              open={shapesPopoverOpen}
+              disabled={!ready}
+              anchorRef={shapeToolSplitRef}
+              onClose={() => setShapesPopoverOpen(false)}
+              onPick={(k) => {
+                setShapesQuickAddKind(k);
+                addShapeFromPopover(k);
+                setShapesPopoverOpen(false);
+              }}
+            />
           </div>
-        </div>
+          <button
+            type="button"
+            disabled={!ready}
+            className={toolbarIconBtn(!ready)}
+            onClick={addText}
+            aria-label="Add text"
+            title="Add text"
+          >
+            <HugeiconsIcon icon={TextFontIcon} size={20} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            disabled={!ready}
+            className={toolbarIconBtn(!ready)}
+            onClick={() => imageInputRef.current?.click()}
+            aria-label="Add image"
+            title="Add image"
+          >
+            <HugeiconsIcon icon={Image01Icon} size={20} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            disabled={!ready}
+            className={toolbarIconBtn(!ready)}
+            onClick={() => setShortcutsOpen(true)}
+            aria-label="Keyboard shortcuts"
+            title="Shortcuts (?)"
+          >
+            <HugeiconsIcon icon={HelpCircleIcon} size={20} strokeWidth={1.75} />
+          </button>
+
+          {!ready ? (
+            <span className="px-3 text-xs text-[var(--text-muted)]">
+              Loading…
+            </span>
+          ) : null}
+        </EditorFloatingCanvasControls>
 
         {!ready ? (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -4836,6 +4834,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             onSelectPanel={(id) =>
               setEditorSidebarPanel((p) => (p === id ? null : id))
             }
+            hidden={focusMode}
           />
         ) : null}
         <EditorLayersPanel

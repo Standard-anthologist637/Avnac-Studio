@@ -1,10 +1,10 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Add01Icon,
+  ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Delete02Icon,
-  Download01Icon,
   FileExportIcon,
   FileImportIcon,
   Home05Icon,
@@ -15,7 +15,9 @@ import { usePostHog } from "posthog-js/react";
 import FabricEditor, {
   type FabricEditorHandle,
 } from "../../components/fabric-editor";
-import EditorExportMenu from "../../components/editor-export-menu";
+import EditorRangeSlider from "../../components/editor-range-slider";
+import { floatingToolbarPopoverMenuClass } from "../../components/floating-toolbar-shell";
+import type { ExportPngOptions } from "../../components/editor-export-menu";
 import { idbGetDocument } from "../../lib/avnac-editor-idb";
 import type { AvnacDocumentV1 } from "../../lib/avnac-document";
 import { safeAvnacFileBaseName } from "../../lib/avnac-files-export";
@@ -51,18 +53,74 @@ function cloneDoc(doc: AvnacDocumentV1): AvnacDocumentV1 {
   return JSON.parse(JSON.stringify(doc)) as AvnacDocumentV1;
 }
 
+const topBarShellClass = [
+  "relative z-[70] flex min-h-14 items-center gap-2 overflow-visible rounded-[1.75rem] border border-black/[0.08] bg-white/92 px-2.5 py-2",
+  "shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl",
+].join(" ");
+
+const topBarGroupClass = [
+  "flex items-center gap-1 rounded-full border border-black/[0.06] bg-black/[0.02] p-1",
+  "shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]",
+].join(" ");
+
 const pageIconButtonClass = [
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/8 bg-(--surface) text-(--text-muted) transition-colors",
-  "hover:bg-(--hover) hover:text-(--text) disabled:pointer-events-none disabled:opacity-40",
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors",
+  "hover:bg-black/[0.08] hover:text-neutral-900 disabled:pointer-events-none disabled:opacity-40",
   "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface-subtle)",
 ].join(" ");
 
 const pageActionButtonClass = [
-  "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border border-black/8 px-4 text-sm font-medium",
-  "bg-(--surface) text-(--text) transition-colors hover:bg-(--hover)",
-  "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface-subtle)",
+  "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium",
+  "text-neutral-800 transition-colors hover:bg-black/[0.08]",
+  "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
   "disabled:pointer-events-none disabled:opacity-40",
 ].join(" ");
+
+const destructiveIconButtonClass = [
+  pageIconButtonClass,
+  "text-neutral-500 hover:bg-red-500/[0.08] hover:text-red-600",
+].join(" ");
+
+const pageTabButtonClass = [
+  "inline-flex h-8 shrink-0 items-center rounded-full px-3 text-[13px] font-medium transition-[background,color,box-shadow]",
+  "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+  "disabled:pointer-events-none disabled:opacity-40",
+].join(" ");
+
+const topBarDividerClass = "h-6 w-px shrink-0 bg-black/[0.06]";
+
+const tabRailFadeClass =
+  "pointer-events-none absolute inset-y-0 z-10 w-5 bg-gradient-to-r from-white via-white/90 to-transparent";
+
+const titleFieldClass = [
+  "min-w-0 rounded-full bg-white/85 px-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+  "transition-shadow focus-within:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08),0_0_0_3px_rgba(24,119,242,0.08)]",
+].join(" ");
+
+const tabRailClass = [
+  "flex min-w-max items-center gap-1 rounded-full bg-white/72 px-1 py-0.5",
+  "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+].join(" ");
+
+const actionMenuButtonClass = [
+  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-neutral-800",
+  "hover:bg-black/[0.06] disabled:pointer-events-none disabled:opacity-40",
+].join(" ");
+
+const actionMenuSeparatorClass = "my-1 border-t border-black/[0.06]";
+
+const pngCardClass =
+  "mx-1 mb-1 rounded-xl bg-(--surface-subtle) px-3 pb-3 pt-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.03)]";
+
+function tabButtonStateClass(active: boolean) {
+  return active
+    ? "bg-white text-(--text) shadow-[0_4px_14px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)]"
+    : "text-neutral-700 hover:bg-white/72 hover:text-neutral-900";
+}
+
+function actionChevronClass(open: boolean) {
+  return open ? "rotate-180 transition-transform" : "transition-transform";
+}
 
 function shouldIgnoreShortcutTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -90,6 +148,11 @@ export default function EditorContainer({
   const [pageState, setPageState] = useState<PageState | null>(null);
   const pageStateRef = useRef<PageState | null>(null);
   pageStateRef.current = pageState;
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [pngExpanded, setPngExpanded] = useState(false);
+  const [pngMult, setPngMult] = useState(2);
+  const [pngTransparent, setPngTransparent] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const posthog = usePostHog();
 
   const persistPages = useCallback(
@@ -422,16 +485,26 @@ export default function EditorContainer({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [addPage, deletePage, editorReady, goToPage]);
 
+  useEffect(() => {
+    if (!actionsOpen) return;
+    function onOutside(e: MouseEvent) {
+      if (
+        actionsRef.current &&
+        !actionsRef.current.contains(e.target as Node)
+      ) {
+        setActionsOpen(false);
+        setPngExpanded(false);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [actionsOpen]);
+
   const currentPage = pageState?.currentPage ?? 0;
   const pageCount = pageState?.pages.length ?? 1;
   const canGoPrev = currentPage > 0;
   const canGoNext = currentPage < pageCount - 1;
   const canDelete = pageCount > 1;
-
-  const pageLabel = useMemo(
-    () => `Page ${currentPage + 1} of ${pageCount}`,
-    [currentPage, pageCount],
-  );
 
   const pageTabs = useMemo(
     () =>
@@ -445,163 +518,322 @@ export default function EditorContainer({
 
   return (
     <div className="flex h-dvh min-h-0 flex-col bg-(--surface-subtle)">
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 sm:px-4 sm:py-4 [--avnac-editor-top-offset:calc(0.75rem+3.5rem+0.75rem+3rem+1.1rem)] sm:[--avnac-editor-top-offset:calc(1rem+3.5rem+0.75rem+3rem+1.5rem)]">
-        <div className="flex min-h-14 flex-wrap items-center gap-3 rounded-2xl border border-(--line) bg-(--surface) px-3 py-2.5 sm:px-4">
-          <Link
-            to="/files"
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-(--text-muted) no-underline transition-colors hover:bg-(--hover) hover:text-(--text)"
-            aria-label="All files"
-            title="All files"
-          >
-            <HugeiconsIcon
-              icon={Home05Icon}
-              size={18}
-              strokeWidth={1.65}
-              className="shrink-0"
-            />
-          </Link>
-
-          <div className="min-w-0 flex-1">
-            <label htmlFor="avnac-doc-title" className="sr-only">
-              Document name
-            </label>
-            <input
-              id="avnac-doc-title"
-              type="text"
-              value={documentTitle}
-              onChange={(event) => onDocumentTitleChange(event.target.value)}
-              onBlur={onDocumentTitleCommit}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  (event.target as HTMLInputElement).blur();
-                }
-              }}
-              className="m-0 w-full min-w-0 truncate border-0 bg-transparent text-sm font-medium leading-snug text-(--text) outline-none focus:ring-0"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </div>
-
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className={pageActionButtonClass}
-              onClick={() => void exportWorkspace()}
-              disabled={!editorReady}
-              title="Export workspace"
+      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 py-3 sm:px-4 sm:py-4 [--avnac-editor-top-offset:calc(0.75rem+3.5rem+0.75rem+0.5rem)] sm:[--avnac-editor-top-offset:calc(1rem+3.5rem+1rem+0.5rem)]">
+        {/* Single toolbar row */}
+        <div className={topBarShellClass}>
+          <div className={`${topBarGroupClass} shrink-0`}>
+            <Link
+              to="/files"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-neutral-700 no-underline transition-colors hover:bg-black/[0.08] hover:text-neutral-900"
+              aria-label="All files"
+              title="All files"
             >
               <HugeiconsIcon
-                icon={FileExportIcon}
-                size={17}
-                strokeWidth={1.75}
+                icon={Home05Icon}
+                size={18}
+                strokeWidth={1.65}
+                className="shrink-0"
               />
-              <span className="hidden sm:inline">Export workspace</span>
-            </button>
-            <button
-              type="button"
-              className={pageActionButtonClass}
-              onClick={() => void exportCurrentPage()}
-              disabled={!editorReady}
-              title="Export current page"
-            >
-              <HugeiconsIcon
-                icon={Download01Icon}
-                size={17}
-                strokeWidth={1.75}
+            </Link>
+
+            <span className={topBarDividerClass} aria-hidden />
+
+            <div className={`${titleFieldClass} min-w-0 w-28 sm:w-44`}>
+              <label htmlFor="avnac-doc-title" className="sr-only">
+                Document name
+              </label>
+              <input
+                id="avnac-doc-title"
+                type="text"
+                value={documentTitle}
+                onChange={(event) => onDocumentTitleChange(event.target.value)}
+                onBlur={onDocumentTitleCommit}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    (event.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="m-0 h-9 w-full min-w-0 truncate border-0 bg-transparent text-sm font-medium leading-snug text-(--text) outline-none focus:ring-0"
+                autoComplete="off"
+                spellCheck={false}
               />
-              <span className="hidden sm:inline">Export page</span>
-            </button>
-            <EditorExportMenu
-              disabled={!editorReady}
-              label="Download canvas"
-              onExport={(opts) => editorRef.current?.exportPng(opts)}
-            />
-          </div>
-        </div>
-
-        <div className="flex min-h-12 items-center gap-2 rounded-2xl border border-(--line) bg-(--surface) px-2 py-2 sm:px-3">
-          <button
-            type="button"
-            className={pageIconButtonClass}
-            onClick={() => void goToPage(currentPage - 1)}
-            disabled={!editorReady || !canGoPrev}
-            aria-label="Previous page"
-            title="Previous page (ArrowLeft)"
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={18} strokeWidth={1.8} />
-          </button>
-
-          <div className="min-w-0 flex-1 overflow-x-auto">
-            <div className="flex min-w-max items-center gap-2 pr-2">
-              {pageTabs.map((tab) => (
-                <button
-                  key={tab.index}
-                  type="button"
-                  className={[
-                    "inline-flex h-9 shrink-0 items-center rounded-full border px-4 text-sm font-medium transition-colors",
-                    tab.active
-                      ? "border-(--line) bg-(--surface-subtle) text-(--text)"
-                      : "border-transparent bg-transparent text-(--text-muted) hover:border-(--line) hover:bg-(--hover) hover:text-(--text)",
-                  ].join(" ")}
-                  onClick={() => void goToPage(tab.index)}
-                  disabled={!editorReady}
-                  aria-current={tab.active ? "page" : undefined}
-                  title={tab.label}
-                >
-                  {tab.label}
-                </button>
-              ))}
             </div>
           </div>
 
-          <button
-            type="button"
-            className={pageIconButtonClass}
-            onClick={() => void goToPage(currentPage + 1)}
-            disabled={!editorReady || !canGoNext}
-            aria-label="Next page"
-            title="Next page (ArrowRight)"
-          >
-            <HugeiconsIcon
-              icon={ArrowRight01Icon}
-              size={18}
-              strokeWidth={1.8}
-            />
-          </button>
+          <div className={`${topBarGroupClass} min-w-0 flex-1`}>
+            <button
+              type="button"
+              className={pageIconButtonClass}
+              onClick={() => void goToPage(currentPage - 1)}
+              disabled={!editorReady || !canGoPrev}
+              aria-label="Previous page"
+              title="Previous page (ArrowLeft)"
+            >
+              <HugeiconsIcon
+                icon={ArrowLeft01Icon}
+                size={18}
+                strokeWidth={1.8}
+              />
+            </button>
 
-          <button
-            type="button"
-            className={pageActionButtonClass}
-            onClick={() => pageInputRef.current?.click()}
-            disabled={!editorReady}
-            title="Import page"
-          >
-            <HugeiconsIcon icon={FileImportIcon} size={17} strokeWidth={1.75} />
-            <span className="hidden sm:inline">Import page</span>
-          </button>
-          <button
-            type="button"
-            className={pageActionButtonClass}
-            onClick={() => void addPage()}
-            disabled={!editorReady}
-            title="New page (Cmd/Ctrl+N)"
-          >
-            <HugeiconsIcon icon={Add01Icon} size={17} strokeWidth={1.75} />
-            <span className="hidden sm:inline">New page</span>
-          </button>
-          <button
-            type="button"
-            className={pageActionButtonClass}
-            onClick={() => void deletePage()}
-            disabled={!editorReady || !canDelete}
-            title="Delete page (Cmd/Ctrl+Delete)"
-          >
-            <HugeiconsIcon icon={Delete02Icon} size={17} strokeWidth={1.75} />
-            <span className="hidden sm:inline">Delete page</span>
-          </button>
-          <div className="min-w-28 rounded-full border border-(--line) bg-(--surface-subtle) px-3 py-1.5 text-center text-sm font-medium text-(--text)">
-            {pageLabel}
+            <div className="relative min-w-0 flex-1">
+              <div className={`${tabRailFadeClass} left-0 rounded-l-full`} />
+              <div
+                className={`${tabRailFadeClass} right-0 rotate-180 rounded-r-full`}
+              />
+              <div className="overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className={tabRailClass}>
+                  {pageTabs.map((tab) => (
+                    <button
+                      key={tab.index}
+                      type="button"
+                      className={[
+                        pageTabButtonClass,
+                        tabButtonStateClass(tab.active),
+                      ].join(" ")}
+                      onClick={() => void goToPage(tab.index)}
+                      disabled={!editorReady}
+                      aria-current={tab.active ? "page" : undefined}
+                      title={tab.label}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className={pageIconButtonClass}
+              onClick={() => void goToPage(currentPage + 1)}
+              disabled={!editorReady || !canGoNext}
+              aria-label="Next page"
+              title="Next page (ArrowRight)"
+            >
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={18}
+                strokeWidth={1.8}
+              />
+            </button>
+
+            <button
+              type="button"
+              className={pageIconButtonClass}
+              onClick={() => void addPage()}
+              disabled={!editorReady}
+              aria-label="New page"
+              title="New page (Cmd/Ctrl+N)"
+            >
+              <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={1.75} />
+            </button>
+          </div>
+
+          <div className={`${topBarGroupClass} shrink-0`}>
+            <div
+              ref={actionsRef}
+              className="relative shrink-0"
+              data-avnac-chrome
+            >
+              <button
+                type="button"
+                className={[
+                  pageActionButtonClass,
+                  actionsOpen ? "bg-black/[0.05]" : "",
+                ].join(" ")}
+                onClick={() => {
+                  setActionsOpen((v) => !v);
+                  if (actionsOpen) setPngExpanded(false);
+                }}
+                disabled={!editorReady}
+                aria-label="File actions"
+                title="File actions"
+              >
+                <HugeiconsIcon
+                  icon={FileExportIcon}
+                  size={17}
+                  strokeWidth={1.75}
+                />
+                <span className="hidden sm:inline">File</span>
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  size={14}
+                  strokeWidth={2}
+                  className={actionChevronClass(actionsOpen)}
+                />
+              </button>
+
+              {actionsOpen && (
+                <div
+                  className={[
+                    floatingToolbarPopoverMenuClass,
+                    "absolute right-0 top-full z-[140] mt-2 w-56 p-1.5",
+                  ].join(" ")}
+                >
+                  {/* Export workspace */}
+                  <button
+                    type="button"
+                    className={actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void exportWorkspace();
+                    }}
+                    disabled={!editorReady}
+                  >
+                    <HugeiconsIcon
+                      icon={FileExportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Export workspace
+                  </button>
+
+                  {/* Export current page */}
+                  <button
+                    type="button"
+                    className={actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void exportCurrentPage();
+                    }}
+                    disabled={!editorReady}
+                  >
+                    <HugeiconsIcon
+                      icon={FileExportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Export page
+                  </button>
+
+                  <div className={actionMenuSeparatorClass} />
+
+                  {/* Download canvas — expandable PNG export */}
+                  <button
+                    type="button"
+                    className={actionMenuButtonClass}
+                    onClick={() => setPngExpanded((v) => !v)}
+                    disabled={!editorReady}
+                  >
+                    <HugeiconsIcon
+                      icon={FileExportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    <span className="flex-1 text-left">Download canvas</span>
+                    <HugeiconsIcon
+                      icon={ArrowDown01Icon}
+                      size={13}
+                      strokeWidth={2}
+                      className={actionChevronClass(pngExpanded)}
+                    />
+                  </button>
+
+                  {pngExpanded && (
+                    <div className={pngCardClass}>
+                      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-(--text-muted)">
+                        Scale {pngMult}×
+                      </p>
+                      <EditorRangeSlider
+                        min={1}
+                        max={3}
+                        step={1}
+                        value={pngMult}
+                        onChange={setPngMult}
+                        aria-label="PNG export scale"
+                        aria-valuemin={1}
+                        aria-valuemax={3}
+                        aria-valuenow={pngMult}
+                        trackClassName="mb-3 w-full"
+                      />
+                      <label className="mb-3 flex cursor-pointer items-center gap-2 text-[12px] text-(--text)">
+                        <input
+                          type="checkbox"
+                          checked={pngTransparent}
+                          onChange={(e) => setPngTransparent(e.target.checked)}
+                          className="size-3.5 shrink-0 rounded border border-black/20"
+                          style={{ accentColor: "var(--accent)" }}
+                        />
+                        Transparent background
+                      </label>
+                      <button
+                        type="button"
+                        className="w-full rounded-lg bg-neutral-900 py-2 text-[12px] font-medium text-white transition-colors hover:bg-neutral-800"
+                        onClick={() => {
+                          const opts: ExportPngOptions = {
+                            multiplier: pngMult,
+                            transparent: pngTransparent,
+                          };
+                          editorRef.current?.exportPng(opts);
+                          setActionsOpen(false);
+                          setPngExpanded(false);
+                        }}
+                      >
+                        Download PNG
+                      </button>
+                    </div>
+                  )}
+
+                  <div className={actionMenuSeparatorClass} />
+
+                  {/* Import workspace */}
+                  <button
+                    type="button"
+                    className={actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      workspaceInputRef.current?.click();
+                    }}
+                    disabled={!editorReady}
+                  >
+                    <HugeiconsIcon
+                      icon={FileImportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Import workspace
+                  </button>
+
+                  {/* Import page */}
+                  <button
+                    type="button"
+                    className={actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      pageInputRef.current?.click();
+                    }}
+                    disabled={!editorReady}
+                  >
+                    <HugeiconsIcon
+                      icon={FileImportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Import page
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <span className={topBarDividerClass} aria-hidden />
+
+            <button
+              type="button"
+              className={destructiveIconButtonClass}
+              onClick={() => void deletePage()}
+              disabled={!editorReady || !canDelete}
+              aria-label="Delete page"
+              title="Delete page (Cmd/Ctrl+Delete)"
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={17} strokeWidth={1.75} />
+            </button>
           </div>
         </div>
 

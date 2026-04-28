@@ -1,13 +1,13 @@
-import EditorRangeSlider from './editor-range-slider'
+import EditorRangeSlider from "./editor-range-slider";
 
 type CanvasZoomSliderProps = {
-  value: number
-  min?: number
-  max?: number
-  onChange: (value: number) => void
-  onFitRequest?: () => void
-  disabled?: boolean
-}
+  value: number;
+  min?: number;
+  max?: number;
+  onChange: (value: number) => void;
+  onFitRequest?: () => void;
+  disabled?: boolean;
+};
 
 export default function CanvasZoomSlider({
   value,
@@ -19,7 +19,7 @@ export default function CanvasZoomSlider({
 }: CanvasZoomSliderProps) {
   return (
     <div
-      className="flex items-center gap-3 rounded-xl bg-[var(--surface-subtle)] px-3 py-2 sm:bg-white/90 sm:shadow-[0_2px_12px_rgba(0,0,0,0.06)]"
+      className="flex items-center gap-3 rounded-full border border-black/[0.08] bg-white/90 px-3 py-2 shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl"
       title="Drag to zoom. Click the percentage to fit the page in view."
     >
       <EditorRangeSlider
@@ -47,5 +47,5 @@ export default function CanvasZoomSlider({
         </span>
       )}
     </div>
-  )
+  );
 }
