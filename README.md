@@ -12,6 +12,26 @@
   <a href="./LICENSE">MIT License</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-amd64-installer.exe">
+    <img src="https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos">
+    <img src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-linux-amd64">
+    <img src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/striker561/Avnac-Studio/releases/latest">
+    <img src="https://img.shields.io/github/v/release/striker561/Avnac-Studio?style=flat-square&label=latest%20release&color=brightgreen" alt="Latest Release" />
+  </a>
+</p>
+
 Designed on the browser, openly—now built for desktop.
 
 <img width="1593" height="910" alt="Image" src="https://github.com/user-attachments/assets/7a14bc5f-cfd7-48b7-af99-8c0625fac8ed" />
