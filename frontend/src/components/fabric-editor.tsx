@@ -3004,7 +3004,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         }).catch((err) => {
           console.error("FabricEditor: workspace autosave failed", err);
         });
-      }, 500);
+      }, 1500);
     }, []);
 
     const commitHistory = useCallback(() => {
@@ -3437,7 +3437,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         void saveVectorBoards(persistId, vectorBoards).catch((err) => {
           console.error("FabricEditor: vector board save failed", err);
         });
-      }, 300);
+      }, 800);
 
       return () => {
         if (vectorBoardsSaveTimerRef.current) {
@@ -3457,7 +3457,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         void saveVectorBoardDocs(persistId, vectorBoardDocs).catch((err) => {
           console.error("FabricEditor: vector board document save failed", err);
         });
-      }, 300);
+      }, 800);
 
       return () => {
         if (vectorBoardDocsSaveTimerRef.current) {
