@@ -159,7 +159,7 @@ jobs:
         run: |
           $candidates = @(
             "$env:ChocolateyInstall\bin",
-            "$env:ProgramFiles(x86)\NSIS",
+            "${env:ProgramFiles(x86)}\NSIS",
             "$env:ProgramFiles\NSIS"
           )
           foreach ($candidate in $candidates) {
