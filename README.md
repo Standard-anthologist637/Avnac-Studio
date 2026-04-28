@@ -18,15 +18,15 @@
 
 <p align="center">
   <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-amd64-installer.exe">
-    <img src="https://img.shields.io/badge/Download-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows" />
+    <img src="https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows Installer (.exe, amd64)" />
   </a>
   &nbsp;
   <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-macos">
-    <img src="https://img.shields.io/badge/Download-macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" />
+    <img src="https://img.shields.io/badge/macOS_Binary-Universal_binary-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download macOS binary" />
   </a>
   &nbsp;
   <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-linux-amd64">
-    <img src="https://img.shields.io/badge/Download-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux" />
+    <img src="https://img.shields.io/badge/Linux_Binary-amd64-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download Linux binary (amd64)" />
   </a>
 </p>
 
