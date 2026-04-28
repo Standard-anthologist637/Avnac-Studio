@@ -16,6 +16,8 @@
   <a href="./LICENSE">MIT License</a>
 </p>
 
+<p align="center">⬇️ Download Avnac Studio</p>
+
 <p align="center">
   <a href="https://github.com/striker561/Avnac-Studio/releases/latest/download/Avnac-amd64-installer.exe">
     <img src="https://img.shields.io/badge/Windows_Installer-.exe_%E2%80%94_amd64-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Windows Installer (.exe, amd64)" />
