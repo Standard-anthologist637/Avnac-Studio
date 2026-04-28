@@ -1,7 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Add01Icon, FileImportIcon, Settings01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  FileImportIcon,
+  Settings01Icon,
+} from "@hugeicons/core-free-icons";
 import { usePostHog } from "posthog-js/react";
 import DeleteConfirmDialog from "../components/delete-confirm-dialog";
 import FileGridCard from "../components/file-grid-card";
@@ -34,6 +38,78 @@ function formatUpdatedAt(ts: number): string {
   } catch {
     return new Date(ts).toLocaleString();
   }
+}
+
+type ActionCardProps = {
+  icon: typeof Add01Icon;
+  title: string;
+  description: string;
+  tone: "dark" | "light";
+  onClick: () => void;
+};
+
+function FilesActionCard({
+  icon,
+  title,
+  description,
+  tone,
+  onClick,
+}: ActionCardProps) {
+  const dark = tone === "dark";
+
+  return (
+    <li className="min-w-0">
+      <button
+        type="button"
+        onClick={onClick}
+        className={[
+          "group relative flex h-full w-full flex-col overflow-hidden rounded-[28px] border p-5 text-left transition duration-300",
+          "hover:-translate-y-1",
+          dark
+            ? "border-white/10 bg-[#0e0e0e] text-white"
+            : "border-black/10 bg-white text-[var(--text)]",
+        ].join(" ")}
+      >
+        {/* Animated light layer */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div
+            className={[
+              "absolute -inset-[40%] opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-100",
+              dark
+                ? "bg-[conic-gradient(from_0deg_at_50%_50%,transparent,rgba(255,255,255,0.12),transparent)]"
+                : "bg-[conic-gradient(from_0deg_at_50%_50%,transparent,rgba(0,0,0,0.06),transparent)]",
+              "animate-[spin_6s_linear_infinite]",
+            ].join(" ")}
+          />
+        </div>
+
+        {/* Content */}
+        <div className="relative flex flex-1 flex-col items-center text-center">
+          <span
+            className={[
+              "mb-5 inline-flex size-16 items-center justify-center rounded-[1.35rem] border transition",
+              dark
+                ? "border-white/10 bg-white/5"
+                : "border-black/10 bg-black/[0.03]",
+            ].join(" ")}
+          >
+            <HugeiconsIcon icon={icon} size={26} strokeWidth={1.75} />
+          </span>
+
+          <span className="text-lg font-semibold leading-tight">{title}</span>
+
+          <span
+            className={[
+              "mt-2 max-w-[28ch] text-sm leading-6",
+              dark ? "text-white/70" : "text-[var(--text-muted)]",
+            ].join(" ")}
+          >
+            {description}
+          </span>
+        </div>
+      </button>
+    </li>
+  );
 }
 
 function FilesPage() {
@@ -222,10 +298,10 @@ function FilesPage() {
 
       <div className="relative z-[1] flex flex-1 flex-col">
         <div className="pointer-events-none fixed inset-x-0 top-0 z-[200] pt-4 sm:pt-5">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-end gap-3 px-5 sm:px-8 pointer-events-auto">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-end gap-3 px-5 pointer-events-auto sm:px-8">
             <Link
               to="/settings"
-              className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-black/[0.12] bg-white/85 px-6 py-2.5 text-[15px] font-medium text-[var(--text)] transition hover:border-black/[0.2] hover:bg-white sm:min-h-12 sm:px-8 sm:py-3 sm:text-[1.0625rem]"
+              className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-black/[0.12] bg-white/86 px-6 py-2.5 text-[15px] font-medium text-[var(--text)] transition hover:border-black/[0.2] hover:bg-white sm:min-h-12 sm:px-8 sm:py-3 sm:text-[1.0625rem]"
             >
               <HugeiconsIcon
                 icon={Settings01Icon}
@@ -235,32 +311,6 @@ function FilesPage() {
               />
               Settings
             </Link>
-            <button
-              type="button"
-              className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-black/[0.12] bg-white/85 px-6 py-2.5 text-[15px] font-medium text-[var(--text)] transition hover:border-black/[0.2] hover:bg-white sm:min-h-12 sm:px-8 sm:py-3 sm:text-[1.0625rem]"
-              onClick={importWorkspace}
-            >
-              <HugeiconsIcon
-                icon={FileImportIcon}
-                size={18}
-                strokeWidth={1.75}
-                className="shrink-0"
-              />
-              Import workspace
-            </button>
-            <button
-              type="button"
-              className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-[var(--text)] px-6 py-2.5 text-[15px] font-medium text-white transition hover:bg-[#262626] sm:min-h-12 sm:px-8 sm:py-3 sm:text-[1.0625rem]"
-              onClick={() => setNewCanvasOpen(true)}
-            >
-              <HugeiconsIcon
-                icon={Add01Icon}
-                size={18}
-                strokeWidth={1.75}
-                className="shrink-0"
-              />
-              New file
-            </button>
           </div>
         </div>
 
@@ -277,7 +327,7 @@ function FilesPage() {
         </div>
 
         <div
-          className={`mx-auto w-full max-w-6xl flex-1 px-5 py-12 sm:px-8 sm:py-16 lg:py-20 ${selectionCount > 0 ? "pb-28 sm:pb-32" : ""}`}
+          className={`mx-auto w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14 lg:py-16 ${selectionCount > 0 ? "pb-28 sm:pb-32" : ""}`}
         >
           <div className="rise-in">
             <h1 className="display-title mb-4 text-[clamp(2rem,5vw,3.25rem)] font-medium leading-[1.06] tracking-[-0.03em] text-[var(--text)]">
@@ -303,16 +353,39 @@ function FilesPage() {
                 <p className="mt-3 text-lg leading-[1.6] text-[var(--text-muted)]">
                   Create your first canvas. Everything autosaves as you work.
                 </p>
-                <button
-                  type="button"
-                  className="mt-8 inline-flex min-h-12 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-10 py-3.5 text-base font-medium text-white hover:bg-[#262626] sm:min-h-14 sm:px-12 sm:py-4 sm:text-[1.0625rem]"
-                  onClick={() => setNewCanvasOpen(true)}
-                >
-                  New canvas
-                </button>
+                <ul className="mt-8 m-0 grid list-none grid-cols-1 gap-5 sm:grid-cols-2">
+                  <FilesActionCard
+                    icon={Add01Icon}
+                    title="New file"
+                    description="Start from a blank canvas with autosave enabled."
+                    tone="dark"
+                    onClick={() => setNewCanvasOpen(true)}
+                  />
+                  <FilesActionCard
+                    icon={FileImportIcon}
+                    title="Import workspace"
+                    description="Bring an existing .workspace.avnac or .json file into app storage."
+                    tone="light"
+                    onClick={importWorkspace}
+                  />
+                </ul>
               </div>
             ) : (
               <ul className="m-0 grid list-none grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 sm:gap-7">
+                <FilesActionCard
+                  icon={Add01Icon}
+                  title="New file"
+                  description="Create a fresh canvas."
+                  tone="dark"
+                  onClick={() => setNewCanvasOpen(true)}
+                />
+                <FilesActionCard
+                  icon={FileImportIcon}
+                  title="Import workspace"
+                  description="Import and continue editing from app storage."
+                  tone="light"
+                  onClick={importWorkspace}
+                />
                 {items.map((row) => (
                   <FileGridCard
                     key={row.id}
@@ -326,7 +399,6 @@ function FilesPage() {
                 ))}
               </ul>
             )}
-
           </div>
         </div>
       </div>
