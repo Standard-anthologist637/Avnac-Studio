@@ -305,7 +305,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     );
 
     // Canvas history is snapshot-based so local undo/redo stays independent
-    // from the multi-page history managed by the editor-pages container.
+    // from the multi-page history managed by the multi-page editor feature.
     const historySnapshotsRef = useRef<AvnacDocumentV1[]>([]);
     const historySerializedRef = useRef<string[]>([]);
     const historyIndexRef = useRef(0);
