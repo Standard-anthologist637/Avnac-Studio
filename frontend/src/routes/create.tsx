@@ -1,12 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Suspense, lazy, useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { usePostHog } from "posthog-js/react";
+import MultiPageEditorShell from "@/features/multi-page-editor/multi-page-editor-shell";
 import { useEditorUnsupportedOnThisDevice } from "@/hooks/use-editor-device-support";
 import { idbGetEditorRecord, idbSetDocumentName } from "@/lib/avnac-editor-idb";
-
-const MultiPageEditorShell = lazy(
-  () => import("@/features/multi-page-editor/multi-page-editor-shell"),
-);
 
 type CreateSearch = {
   id?: string;
@@ -120,23 +117,15 @@ function CreatePage() {
   }
 
   return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-dvh items-center justify-center bg-(--surface-subtle) px-5 py-12 text-(--text-muted)">
-          Loading editor...
-        </main>
-      }
-    >
-      <MultiPageEditorShell
-        key={id}
-        persistId={id}
-        persistDisplayName={documentTitle}
-        documentTitle={documentTitle}
-        onDocumentTitleChange={setDocumentTitle}
-        onDocumentTitleCommit={commitDocumentTitle}
-        initialArtboardWidth={initialW}
-        initialArtboardHeight={initialH}
-      />
-    </Suspense>
+    <MultiPageEditorShell
+      key={id}
+      persistId={id}
+      persistDisplayName={documentTitle}
+      documentTitle={documentTitle}
+      onDocumentTitleChange={setDocumentTitle}
+      onDocumentTitleCommit={commitDocumentTitle}
+      initialArtboardWidth={initialW}
+      initialArtboardHeight={initialH}
+    />
   );
 }
