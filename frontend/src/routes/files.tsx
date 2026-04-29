@@ -8,10 +8,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { usePostHog } from "posthog-js/react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import DeleteConfirmDialog from "../components/delete-confirm-dialog";
+import DeleteConfirmDialog from "../components/dialogs/delete-confirm-dialog";
 import FileGridCard from "../components/file-grid-card";
 import FilesMultiselectBar from "../components/files-multiselect-bar";
-import NewCanvasDialog from "../components/new-canvas-dialog";
+import NewCanvasDialog from "../components/dialogs/new-canvas-dialog";
 import { avnacDocumentPreviewEvictPersistId } from "../lib/avnac-document-preview";
 import {
   idbDeleteDocument,

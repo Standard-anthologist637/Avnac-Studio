@@ -1,4 +1,4 @@
-import type { GradientStop } from '../components/background-popover'
+import type { GradientStop } from '@/components/editor/color/types'
 
 /**
  * Fabric's linear gradient coords in `pixels` units for a w×h box (object or artboard).

@@ -1,4 +1,4 @@
-import type { BgValue } from '../components/background-popover'
+import type { BgValue } from '@/components/editor/color/types'
 
 export const AVNAC_DOC_VERSION = 1 as const
 export const AVNAC_STORAGE_KEY = 'avnac-editor-document'

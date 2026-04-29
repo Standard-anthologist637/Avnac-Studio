@@ -14,14 +14,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import FabricEditor, {
   type FabricEditorHandle,
-} from "../../components/fabric-editor";
-import EditorRangeSlider from "../../components/editor-range-slider";
-import { floatingToolbarPopoverMenuClass } from "../../components/floating-toolbar-shell";
-import type { ExportPngOptions } from "../../components/editor-export-menu";
-import { idbGetDocument } from "../../lib/avnac-editor-idb";
-import type { AvnacDocumentV1 } from "../../lib/avnac-document";
-import { safeAvnacFileBaseName } from "../../lib/avnac-files-export";
-import { exportJsonFile } from "../../lib/avnac-native-export";
+} from "@/components/fabric-editor/index";
+import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
+import { floatingToolbarPopoverMenuClass } from "@/components/editor/shared/floating-toolbar-shell";
+import type { ExportPngOptions } from "@/components/editor/export/types";
+import { idbGetDocument } from "@/lib/avnac-editor-idb";
+import type { AvnacDocumentV1 } from "@/lib/avnac-document";
+import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";
+import { exportJsonFile } from "@/lib/avnac-native-export";
 import { ConfirmDialog } from "../../../wailsjs/go/avnacio/IOManager";
 import {
   buildMultiPageDocument,
@@ -30,6 +30,7 @@ import {
   parseMultiPageDocument,
   parseAvnacImport,
 } from "./multi-page-document";
+import { readJsonFromFile } from "./json-file";
 import {
   createPageHistory,
   getPageRedoState,
@@ -39,7 +40,35 @@ import {
   type IndexedPagesState,
   type PageHistory,
 } from "./page-history";
+import { clonePageDoc, withCurrentDocInPages } from "./page-state";
+import {
+  buildAddPageResult,
+  buildDeletePageResult,
+  buildGoToPageResult,
+  buildInsertImportedPageResult,
+} from "./page-recipes";
 import { loadStoredPages, saveStoredPages } from "./multi-page-storage";
+import {
+  actionMenuPopoverClass,
+  actionChevronClass,
+  actionMenuButtonClass,
+  actionMenuSeparatorClass,
+  buildPageTabs,
+  destructiveIconButtonClass,
+  pageActionButtonClass,
+  pageIconButtonClass,
+  pageTabButtonClass,
+  pngCardClass,
+  shouldIgnoreShortcutTarget,
+  tabButtonStateClass,
+  tabRailClass,
+  tabRailFadeClass,
+  titleFieldClass,
+  topBarHomeLinkClass,
+  topBarDividerClass,
+  topBarGroupClass,
+  topBarShellClass,
+} from "./presentation";
 
 type Props = {
   persistId: string;
@@ -55,89 +84,6 @@ type Props = {
 type PageState = IndexedPagesState<AvnacDocumentV1>;
 
 const PAGE_HISTORY_LIMIT = 20;
-
-function cloneDoc(doc: AvnacDocumentV1): AvnacDocumentV1 {
-  if (typeof structuredClone === "function") return structuredClone(doc);
-  return JSON.parse(JSON.stringify(doc)) as AvnacDocumentV1;
-}
-
-const topBarShellClass = [
-  "relative z-[70] flex min-h-14 items-center gap-2 overflow-visible rounded-[1.75rem] border border-black/[0.08] bg-white/92 px-2.5 py-2",
-  "shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl",
-].join(" ");
-
-const topBarGroupClass = [
-  "flex items-center gap-1 rounded-full border border-black/[0.06] bg-black/[0.02] p-1",
-  "shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]",
-].join(" ");
-
-const pageIconButtonClass = [
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors",
-  "hover:bg-black/[0.08] hover:text-neutral-900 disabled:pointer-events-none disabled:opacity-40",
-  "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-(--surface-subtle)",
-].join(" ");
-
-const pageActionButtonClass = [
-  "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium",
-  "text-neutral-800 transition-colors hover:bg-black/[0.08]",
-  "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-  "disabled:pointer-events-none disabled:opacity-40",
-].join(" ");
-
-const destructiveIconButtonClass = [
-  pageIconButtonClass,
-  "text-neutral-500 hover:bg-red-500/[0.08] hover:text-red-600",
-].join(" ");
-
-const pageTabButtonClass = [
-  "inline-flex h-8 shrink-0 items-center rounded-full px-3 text-[13px] font-medium transition-[background,color,box-shadow]",
-  "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
-  "disabled:pointer-events-none disabled:opacity-40",
-].join(" ");
-
-const topBarDividerClass = "h-6 w-px shrink-0 bg-black/[0.06]";
-
-const tabRailFadeClass =
-  "pointer-events-none absolute inset-y-0 z-10 w-5 bg-gradient-to-r from-white via-white/90 to-transparent";
-
-const titleFieldClass = [
-  "min-w-0 rounded-full bg-white/85 px-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
-  "transition-shadow focus-within:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08),0_0_0_3px_rgba(24,119,242,0.08)]",
-].join(" ");
-
-const tabRailClass = [
-  "flex min-w-max items-center gap-1 rounded-full bg-white/72 px-1 py-0.5",
-  "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
-].join(" ");
-
-const actionMenuButtonClass = [
-  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-neutral-800",
-  "hover:bg-black/[0.06] disabled:pointer-events-none disabled:opacity-40",
-].join(" ");
-
-const actionMenuSeparatorClass = "my-1 border-t border-black/[0.06]";
-
-const pngCardClass =
-  "mx-1 mb-1 rounded-xl bg-(--surface-subtle) px-3 pb-3 pt-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.03)]";
-
-function tabButtonStateClass(active: boolean) {
-  return active
-    ? "bg-white text-(--text) shadow-[0_4px_14px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)]"
-    : "text-neutral-700 hover:bg-white/72 hover:text-neutral-900";
-}
-
-function actionChevronClass(open: boolean) {
-  return open ? "rotate-180 transition-transform" : "transition-transform";
-}
-
-function shouldIgnoreShortcutTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return Boolean(
-    target.closest(
-      'input, textarea, [contenteditable="true"], [data-avnac-chrome]',
-    ),
-  );
-}
 
 export default function EditorContainer({
   persistId,
@@ -199,9 +145,7 @@ export default function EditorContainer({
 
       const withCurrent: PageState = {
         currentPage: prev.currentPage,
-        pages: prev.pages.map((page, index) =>
-          index === prev.currentPage ? currentDoc : cloneDoc(page),
-        ),
+        pages: withCurrentDocInPages(prev.currentPage, prev.pages, currentDoc),
       };
 
       const { nextState, nextDoc } = recipe(withCurrent, currentDoc);
@@ -209,7 +153,7 @@ export default function EditorContainer({
         pageHistoryRef.current = pushPageHistory(
           pageHistoryRef.current,
           nextState,
-          cloneDoc,
+          clonePageDoc,
           PAGE_HISTORY_LIMIT,
         );
       }
@@ -233,14 +177,14 @@ export default function EditorContainer({
   );
 
   const undoPage = useCallback(async (): Promise<boolean> => {
-    const nextState = getPageUndoState(pageHistoryRef.current, cloneDoc);
+    const nextState = getPageUndoState(pageHistoryRef.current, clonePageDoc);
     if (!nextState) return false;
     pageHistoryRef.current = movePageHistoryIndex(pageHistoryRef.current, -1);
     return applyHistoryState(nextState);
   }, [applyHistoryState]);
 
   const redoPage = useCallback(async (): Promise<boolean> => {
-    const nextState = getPageRedoState(pageHistoryRef.current, cloneDoc);
+    const nextState = getPageRedoState(pageHistoryRef.current, clonePageDoc);
     if (!nextState) return false;
     pageHistoryRef.current = movePageHistoryIndex(pageHistoryRef.current, 1);
     return applyHistoryState(nextState);
@@ -258,34 +202,15 @@ export default function EditorContainer({
 
   const goToPage = useCallback(
     async (targetIndex: number) => {
-      await updatePages((prev) => {
-        const nextIndex = clampPageIndex(prev.pages.length, targetIndex);
-        return {
-          nextState: {
-            currentPage: nextIndex,
-            pages: prev.pages,
-          },
-          nextDoc: prev.pages[nextIndex]!,
-        };
-      });
+      await updatePages((prev) => buildGoToPageResult(prev, targetIndex));
     },
     [updatePages],
   );
 
   const addPage = useCallback(async () => {
-    await updatePages((prev, currentDoc) => {
-      const nextPage = createEmptyPage(currentDoc);
-      const nextIndex = prev.currentPage + 1;
-      const pages = [...prev.pages];
-      pages.splice(nextIndex, 0, nextPage);
-      return {
-        nextState: {
-          currentPage: nextIndex,
-          pages,
-        },
-        nextDoc: nextPage,
-      };
-    });
+    await updatePages((prev, currentDoc) =>
+      buildAddPageResult(prev, currentDoc),
+    );
     posthog.capture("editor_page_added", { file_id: persistId });
   }, [persistId, posthog, updatePages]);
 
@@ -295,23 +220,7 @@ export default function EditorContainer({
       "Delete this page? This cannot be undone.",
     ).catch(() => false);
     if (!confirmed) return;
-    await updatePages((prev) => {
-      if (prev.pages.length <= 1) {
-        return {
-          nextState: prev,
-          nextDoc: prev.pages[prev.currentPage]!,
-        };
-      }
-      const pages = prev.pages.filter((_, index) => index !== prev.currentPage);
-      const nextIndex = Math.min(prev.currentPage, pages.length - 1);
-      return {
-        nextState: {
-          currentPage: nextIndex,
-          pages,
-        },
-        nextDoc: pages[nextIndex]!,
-      };
-    });
+    await updatePages((prev) => buildDeletePageResult(prev));
     posthog.capture("editor_page_deleted", { file_id: persistId });
   }, [persistId, posthog, updatePages]);
 
@@ -349,13 +258,8 @@ export default function EditorContainer({
 
   const importWorkspace = useCallback(
     async (file: File) => {
-      const text = await file.text();
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        return;
-      }
+      const parsed = await readJsonFromFile(file);
+      if (!parsed) return;
 
       const imported = parseMultiPageDocument(parsed);
       if (!imported) return;
@@ -365,7 +269,7 @@ export default function EditorContainer({
         pages: imported.pages,
       };
 
-      pageHistoryRef.current = createPageHistory(nextState, cloneDoc);
+      pageHistoryRef.current = createPageHistory(nextState, clonePageDoc);
       void persistPages(nextState);
       setPageState(nextState);
       await syncCurrentPageToEditor(nextState.pages[nextState.currentPage]!);
@@ -379,13 +283,8 @@ export default function EditorContainer({
 
   const importPage = useCallback(
     async (file: File) => {
-      const text = await file.text();
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        return;
-      }
+      const parsed = await readJsonFromFile(file);
+      if (!parsed) return;
 
       const imported = parseAvnacImport(parsed);
       if (!imported) return;
@@ -401,18 +300,9 @@ export default function EditorContainer({
             ];
       if (!importedDoc) return;
 
-      await updatePages((prev) => {
-        const insertIndex = prev.currentPage + 1;
-        const pages = [...prev.pages];
-        pages.splice(insertIndex, 0, cloneDoc(importedDoc));
-        return {
-          nextState: {
-            currentPage: insertIndex,
-            pages,
-          },
-          nextDoc: pages[insertIndex]!,
-        };
-      });
+      await updatePages((prev) =>
+        buildInsertImportedPageResult(prev, importedDoc),
+      );
 
       posthog.capture("editor_page_imported", {
         file_id: persistId,
@@ -466,7 +356,7 @@ export default function EditorContainer({
         currentPage: stored.currentPage,
         pages: stored.pages,
       };
-      pageHistoryRef.current = createPageHistory(nextState, cloneDoc);
+      pageHistoryRef.current = createPageHistory(nextState, clonePageDoc);
       setPageState(nextState);
     })();
 
@@ -490,8 +380,10 @@ export default function EditorContainer({
       if (!state || !currentDoc) return;
       const nextState = {
         currentPage: state.currentPage,
-        pages: state.pages.map((page, index) =>
-          index === state.currentPage ? currentDoc : page,
+        pages: withCurrentDocInPages(
+          state.currentPage,
+          state.pages,
+          currentDoc,
         ),
       };
       void persistPages(nextState);
@@ -580,12 +472,7 @@ export default function EditorContainer({
   const canDelete = pageCount > 1;
 
   const pageTabs = useMemo(
-    () =>
-      Array.from({ length: pageCount }, (_, index) => ({
-        index,
-        label: `Page ${index + 1}`,
-        active: index === currentPage,
-      })),
+    () => buildPageTabs(pageCount, currentPage),
     [currentPage, pageCount],
   );
 
@@ -597,7 +484,7 @@ export default function EditorContainer({
           <div className={`${topBarGroupClass} shrink-0`}>
             <Link
               to="/files"
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-neutral-700 no-underline transition-colors hover:bg-black/[0.08] hover:text-neutral-900"
+              className={topBarHomeLinkClass}
               aria-label="All files"
               title="All files"
             >
@@ -742,7 +629,7 @@ export default function EditorContainer({
                 <div
                   className={[
                     floatingToolbarPopoverMenuClass,
-                    "absolute right-0 top-full z-[140] mt-2 w-56 p-1.5",
+                    actionMenuPopoverClass,
                   ].join(" ")}
                 >
                   {/* Export workspace */}
