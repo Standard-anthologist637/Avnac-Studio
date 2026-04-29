@@ -4249,7 +4249,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         />
         <div
           ref={selectionToolsRef}
-          className={`pointer-events-auto relative z-30 flex h-14 w-full shrink-0 items-center justify-center px-1 sm:px-2 transition-opacity duration-150 ${focusMode ? "pointer-events-none opacity-0" : ""}`}
+          className={`pointer-events-auto relative z-[80] flex h-14 w-full shrink-0 items-center justify-center px-1 sm:px-2 transition-opacity duration-150 ${focusMode ? "pointer-events-none opacity-0" : ""}`}
         >
           {ready && textToolbarValues ? (
             <TextFormatToolbar

@@ -213,7 +213,7 @@ export default function EditorFloatingCanvasControls({
   return (
     <div
       ref={rootRef}
-      className="pointer-events-none absolute inset-0 z-30 overflow-hidden"
+      className="pointer-events-none absolute inset-0 z-[80]"
     >
       <div
         ref={zoomRef}
