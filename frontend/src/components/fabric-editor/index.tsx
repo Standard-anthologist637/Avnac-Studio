@@ -11,6 +11,8 @@ import {
   SquareLock01Icon,
   SquareUnlock01Icon,
   TextFontIcon,
+  UndoIcon,
+  RedoIcon,
 } from "@hugeicons/core-free-icons";
 import type { Canvas, FabricImage, FabricObject, IText } from "fabric";
 import {
@@ -312,6 +314,15 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const applyingHistoryRef = useRef(false);
     const historyInitRef = useRef(false);
     const pendingPersistedDocRef = useRef<AvnacDocumentV1 | null>(null);
+    const [canUndo, setCanUndo] = useState(false);
+    const [canRedo, setCanRedo] = useState(false);
+
+    const syncHistoryAvailability = useCallback(() => {
+      setCanUndo(historyIndexRef.current > 0);
+      setCanRedo(
+        historyIndexRef.current < historySnapshotsRef.current.length - 1,
+      );
+    }, []);
 
     const persistAfterMutation = useCallback(
       (canvas: Canvas | null | undefined, target?: FabricObject | null) => {
@@ -2857,7 +2868,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       historyIndexRef.current = nextHistory.index;
       pendingPersistedDocRef.current = snap;
       scheduleIdbAutosave();
-    }, [ready, captureDoc, scheduleIdbAutosave]);
+      syncHistoryAvailability();
+    }, [ready, captureDoc, scheduleIdbAutosave, syncHistoryAvailability]);
 
     const undo = useCallback(async (): Promise<boolean> => {
       if (applyingHistoryRef.current) return false;
@@ -2871,8 +2883,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       await applyDoc(entry.snapshot);
       pendingPersistedDocRef.current = entry.snapshot;
       scheduleIdbAutosave();
+      syncHistoryAvailability();
       return true;
-    }, [applyDoc, scheduleIdbAutosave]);
+    }, [applyDoc, scheduleIdbAutosave, syncHistoryAvailability]);
 
     const redo = useCallback(async (): Promise<boolean> => {
       if (applyingHistoryRef.current) return false;
@@ -2886,8 +2899,9 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       await applyDoc(entry.snapshot);
       pendingPersistedDocRef.current = entry.snapshot;
       scheduleIdbAutosave();
+      syncHistoryAvailability();
       return true;
-    }, [applyDoc, scheduleIdbAutosave]);
+    }, [applyDoc, scheduleIdbAutosave, syncHistoryAvailability]);
 
     const createVectorBoard = useCallback(() => {
       const id = crypto.randomUUID();
@@ -4582,6 +4596,27 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             ) : null
           }
         >
+          <button
+            type="button"
+            disabled={!ready || !canUndo}
+            className={toolbarIconBtn(!ready || !canUndo)}
+            onClick={() => void undo()}
+            aria-label="Undo"
+            title="Undo (Cmd/Ctrl+Z)"
+          >
+            <HugeiconsIcon icon={UndoIcon} size={20} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            disabled={!ready || !canRedo}
+            className={toolbarIconBtn(!ready || !canRedo)}
+            onClick={() => void redo()}
+            aria-label="Redo"
+            title="Redo (Cmd/Ctrl+Shift+Z)"
+          >
+            <HugeiconsIcon icon={RedoIcon} size={20} strokeWidth={1.75} />
+          </button>
+          <div className="mx-0.5 h-5 w-px shrink-0 self-center bg-black/10" aria-hidden />
           <div
             ref={shapeToolSplitRef}
             className="relative flex items-stretch rounded-lg border border-black/[0.06] bg-black/[0.02]"

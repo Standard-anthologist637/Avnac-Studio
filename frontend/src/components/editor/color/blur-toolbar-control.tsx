@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { BlurIcon } from "@hugeicons/core-free-icons";
+import { BlurIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
@@ -75,9 +75,22 @@ export default function BlurToolbarControl({ blurPct, onChange }: Props) {
             <span className="text-[13px] font-medium text-neutral-800">
               Blur
             </span>
-            <span className="text-[13px] tabular-nums text-neutral-600">
-              {rounded}%
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-[13px] tabular-nums text-neutral-600">
+                {rounded}%
+              </span>
+              {rounded > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onChange(0)}
+                  aria-label="Reset blur"
+                  title="Reset blur"
+                  className="flex size-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-black/[0.06] hover:text-neutral-700"
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2} />
+                </button>
+              ) : null}
+            </div>
           </div>
           <EditorRangeSlider
             min={0}

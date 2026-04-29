@@ -123,7 +123,7 @@ export default function EditorAppsPanel({ open, onClose, controller }: Props) {
     <div
       data-avnac-chrome
       className={[
-        "pointer-events-auto fixed z-40 flex w-[min(100vw-1.5rem,340px)] max-h-[min(92dvh,720px)] flex-col overflow-hidden rounded-3xl border border-black/[0.08] bg-white/95 backdrop-blur-md",
+        "pointer-events-auto fixed z-[90] flex w-[min(100vw-1.5rem,340px)] max-h-[min(92dvh,720px)] flex-col overflow-hidden rounded-3xl border border-black/[0.08] bg-white/95 backdrop-blur-md",
         editorSidebarPanelLeftClass,
         editorSidebarPanelTopClass,
       ].join(" ")}

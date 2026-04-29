@@ -208,7 +208,7 @@ export default function EditorFloatingSidebar({
       data-avnac-chrome
       aria-label="Editor tools"
       className={[
-        "pointer-events-auto fixed left-3 z-45 flex flex-col gap-1 rounded-[1.75rem] border border-black/[0.08] bg-white/90 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl transition-[top,opacity] duration-150",
+        "pointer-events-auto fixed left-3 z-[95] flex flex-col gap-1 rounded-[1.75rem] border border-black/[0.08] bg-white/90 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl transition-[top,opacity] duration-150",
         disabled ? "pointer-events-none opacity-40" : "",
         hidden ? "pointer-events-none opacity-0" : "",
       ]

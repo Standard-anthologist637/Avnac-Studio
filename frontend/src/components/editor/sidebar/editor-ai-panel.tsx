@@ -85,7 +85,7 @@ export default function EditorAiPanel({ open, onClose, controller }: Props) {
     <div
       data-avnac-chrome
       className={[
-        "pointer-events-auto fixed z-40 flex w-[min(100vw-1.5rem,400px)] flex-col overflow-hidden rounded-3xl border border-black/[0.08] bg-white/95 backdrop-blur-md",
+        "pointer-events-auto fixed z-[90] flex w-[min(100vw-1.5rem,400px)] flex-col overflow-hidden rounded-3xl border border-black/[0.08] bg-white/95 backdrop-blur-md",
         "bottom-3",
         editorSidebarPanelLeftClass,
         editorSidebarPanelTopClass,

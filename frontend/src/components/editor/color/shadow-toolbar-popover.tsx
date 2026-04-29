@@ -1,7 +1,8 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { BackgroundIcon } from "@hugeicons/core-free-icons";
+import { BackgroundIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FabricShadowUi } from "@/lib/avnac-fabric-shadow";
+import { DEFAULT_FABRIC_SHADOW_UI } from "@/lib/avnac-fabric-shadow";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import {
@@ -92,9 +93,24 @@ export default function ShadowToolbarPopover({
           }}
         >
           <div className="mb-3 flex items-center justify-between gap-2">
-            <span className="text-[13px] font-medium text-neutral-800">
-              Shadow
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-[13px] font-medium text-neutral-800">
+                Shadow
+              </span>
+              {shadowActive ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onChange({ ...DEFAULT_FABRIC_SHADOW_UI, opacityPct: 0 })
+                  }
+                  aria-label="Reset shadow"
+                  title="Reset shadow"
+                  className="flex size-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-black/[0.06] hover:text-neutral-700"
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2} />
+                </button>
+              ) : null}
+            </div>
             <label className="flex cursor-pointer items-center gap-1.5 text-[12px] text-neutral-600">
               <span className="text-neutral-500">Color</span>
               <input

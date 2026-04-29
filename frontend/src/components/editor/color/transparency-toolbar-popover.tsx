@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
-import { TransparencyIcon } from "@hugeicons/core-free-icons";
+import { TransparencyIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
@@ -76,9 +76,22 @@ export default function TransparencyToolbarPopover({
             <span className="text-[13px] font-medium text-neutral-800">
               Opacity
             </span>
-            <span className="text-[13px] tabular-nums text-neutral-600">
-              {opacityPct}%
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-[13px] tabular-nums text-neutral-600">
+                {opacityPct}%
+              </span>
+              {opacityPct < 100 ? (
+                <button
+                  type="button"
+                  onClick={() => onChange(100)}
+                  aria-label="Reset opacity"
+                  title="Reset opacity"
+                  className="flex size-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-black/[0.06] hover:text-neutral-700"
+                >
+                  <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2} />
+                </button>
+              ) : null}
+            </div>
           </div>
           <EditorRangeSlider
             min={0}
