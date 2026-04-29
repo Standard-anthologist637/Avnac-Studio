@@ -1,12 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { usePostHog } from "posthog-js/react";
-import EditorContainer from "../extensions/editor-pages/editor-container";
-import { useEditorUnsupportedOnThisDevice } from "../hooks/use-editor-device-support";
-import {
-  idbGetEditorRecord,
-  idbSetDocumentName,
-} from "../lib/avnac-editor-idb";
+import MultiPageEditorShell from "@/features/multi-page-editor/multi-page-editor-shell";
+import { useEditorUnsupportedOnThisDevice } from "@/hooks/use-editor-device-support";
+import { idbGetEditorRecord, idbSetDocumentName } from "@/lib/avnac-editor-idb";
 
 type CreateSearch = {
   id?: string;
@@ -120,7 +117,7 @@ function CreatePage() {
   }
 
   return (
-    <EditorContainer
+    <MultiPageEditorShell
       key={id}
       persistId={id}
       persistDisplayName={documentTitle}

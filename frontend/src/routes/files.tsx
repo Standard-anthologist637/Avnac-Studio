@@ -8,24 +8,24 @@ import {
 } from "@hugeicons/core-free-icons";
 import { usePostHog } from "posthog-js/react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import DeleteConfirmDialog from "../components/delete-confirm-dialog";
-import FileGridCard from "../components/file-grid-card";
-import FilesMultiselectBar from "../components/files-multiselect-bar";
-import NewCanvasDialog from "../components/new-canvas-dialog";
-import { avnacDocumentPreviewEvictPersistId } from "../lib/avnac-document-preview";
+import DeleteConfirmDialog from "@/components/dialogs/delete-confirm-dialog";
+import FileCard from "@/components/files/file-card";
+import FilesSelectionToolbar from "@/components/files/files-selection-toolbar";
+import NewCanvasDialog from "@/components/dialogs/new-canvas-dialog";
+import { avnacDocumentPreviewEvictPersistId } from "@/lib/avnac-document-preview";
 import {
   idbDeleteDocument,
   idbListDocuments,
   idbPutDocument,
   type AvnacEditorIdbListItem,
-} from "../lib/avnac-editor-idb";
-import { downloadAvnacJsonForId } from "../lib/avnac-files-export";
+} from "@/lib/avnac-editor-idb";
+import { downloadAvnacJsonForId } from "@/lib/avnac-files-export";
 import {
   clampPageIndex,
   parseAvnacImport,
-} from "../extensions/editor-pages/multi-page-document";
-import { saveStoredPages } from "../extensions/editor-pages/multi-page-storage";
-import { useUpdateCheck } from "../lib/use-update-check";
+} from "@/lib/avnac-multi-page-document";
+import { saveStoredPages } from "@/lib/avnac-multi-page-storage";
+import { useUpdateCheck } from "@/lib/use-update-check";
 
 export const Route = createFileRoute("/files")({
   component: FilesPage,
@@ -404,7 +404,7 @@ function FilesPage() {
                   onClick={importWorkspace}
                 />
                 {items.map((row) => (
-                  <FileGridCard
+                  <FileCard
                     key={row.id}
                     row={row}
                     formatUpdatedAt={formatUpdatedAt}
@@ -423,7 +423,7 @@ function FilesPage() {
         open={newCanvasOpen}
         onClose={() => setNewCanvasOpen(false)}
       />
-      <FilesMultiselectBar
+      <FilesSelectionToolbar
         count={selectionCount}
         onClear={clearSelection}
         onDownload={bulkDownload}
