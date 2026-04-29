@@ -23,8 +23,8 @@ import { downloadAvnacJsonForId } from "@/lib/avnac-files-export";
 import {
   clampPageIndex,
   parseAvnacImport,
-} from "@/features/multi-page-editor/multi-page-document";
-import { saveStoredPages } from "@/features/multi-page-editor/multi-page-storage";
+} from "@/lib/avnac-multi-page-document";
+import { saveStoredPages } from "@/lib/avnac-multi-page-storage";
 import { useUpdateCheck } from "@/lib/use-update-check";
 
 export const Route = createFileRoute("/files")({

@@ -4,7 +4,7 @@ import {
   ReadDocumentRecord,
   WriteDocumentRecord,
 } from "../../wailsjs/go/avnacio/IOManager";
-import { duplicateStoredPages } from "@/features/multi-page-editor/multi-page-storage";
+import { duplicateStoredPages } from "@/lib/avnac-multi-page-storage";
 import { parseAvnacDocument, type AvnacDocumentV1 } from "./avnac-document";
 import type { VectorBoardDocument } from "./avnac-vector-board-document";
 import {
@@ -108,7 +108,7 @@ export async function idbPutDocument(
   const name =
     opts && opts.name !== undefined
       ? opts.name.trim() || "Untitled"
-      : ((await idbGetEditorRecord(id))?.name?.trim() || "Untitled");
+      : (await idbGetEditorRecord(id))?.name?.trim() || "Untitled";
   await WriteDocumentRecord(
     id,
     JSON.stringify({

@@ -1,5 +1,5 @@
 import { idbGetEditorRecord } from "./avnac-editor-idb";
-import { readStoredPagesForExport } from "@/features/multi-page-editor/multi-page-storage";
+import { readStoredPagesForExport } from "@/lib/avnac-multi-page-storage";
 import { exportJsonFile } from "./avnac-native-export";
 
 export function safeAvnacFileBaseName(name: string): string {

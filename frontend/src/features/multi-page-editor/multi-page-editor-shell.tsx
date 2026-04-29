@@ -29,7 +29,7 @@ import {
   createEmptyPage,
   parseMultiPageDocument,
   parseAvnacImport,
-} from "./multi-page-document";
+} from "@/lib/avnac-multi-page-document";
 import { readJsonFromFile } from "./json-file";
 import {
   createPageHistory,
@@ -47,7 +47,10 @@ import {
   buildGoToPageResult,
   buildInsertImportedPageResult,
 } from "./page-recipes";
-import { loadStoredPages, saveStoredPages } from "./multi-page-storage";
+import {
+  loadStoredPages,
+  saveStoredPages,
+} from "@/lib/avnac-multi-page-storage";
 import {
   actionMenuPopoverClass,
   actionChevronClass,

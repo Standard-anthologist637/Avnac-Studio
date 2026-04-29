@@ -3,14 +3,14 @@ import {
   WritePages,
   DeletePages,
   DuplicatePages,
-} from "../../../wailsjs/go/avnacio/IOManager";
-import type { AvnacDocumentV1 } from "../../lib/avnac-document";
+} from "../../wailsjs/go/avnacio/IOManager";
+import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import {
   buildMultiPageDocument,
   clonePages,
   parseMultiPageDocument,
   type AvnacMultiPageDocumentV1,
-} from "./multi-page-document";
+} from "@/lib/avnac-multi-page-document";
 
 async function readStorage(
   persistId: string,
@@ -79,4 +79,3 @@ export async function readStoredPagesForExport(
 ): Promise<AvnacMultiPageDocumentV1> {
   return loadStoredPages(persistId, currentDoc);
 }
-

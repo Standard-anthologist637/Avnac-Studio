@@ -1,5 +1,8 @@
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
-import { clampPageIndex, createEmptyPage } from "./multi-page-document";
+import {
+  clampPageIndex,
+  createEmptyPage,
+} from "@/lib/avnac-multi-page-document";
 import { clonePageDoc } from "./page-state";
 
 type PageState = {

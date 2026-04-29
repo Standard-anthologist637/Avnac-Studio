@@ -1,8 +1,5 @@
-import type { AvnacDocumentV1 } from "../../lib/avnac-document";
-import {
-  AVNAC_DOC_VERSION,
-  parseAvnacDocument,
-} from "../../lib/avnac-document";
+import type { AvnacDocumentV1 } from "@/lib/avnac-document";
+import { AVNAC_DOC_VERSION, parseAvnacDocument } from "@/lib/avnac-document";
 
 export const AVNAC_MULTI_PAGE_DOC_KIND = "avnac-multi-page-document" as const;
 export const AVNAC_MULTI_PAGE_DOC_VERSION = 1 as const;
