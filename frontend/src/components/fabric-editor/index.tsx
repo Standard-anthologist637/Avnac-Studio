@@ -1867,17 +1867,48 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         bump();
       };
 
-      canvas.on("object:moving", bump);
-      canvas.on("object:scaling", bump);
-      canvas.on("object:rotating", bump);
+      // RAF-throttled handlers: Fabric fires object:moving / object:scaling /
+      // object:rotating on every raw mousemove (up to 200+ times/s). Calling
+      // setElementToolbarLayout (a React setState) outside a React event
+      // handler bypasses automatic batching, scheduling a full re-render per
+      // event. By coalescing to one update per animation frame we keep the
+      // toolbar moving smoothly without competing with Fabric's own render loop.
+      let movingRaf: number | null = null;
+      let transformRaf: number | null = null;
+
+      const onMoving = () => {
+        // Only the toolbar position needs updating during a pure move —
+        // text/shape toolbars don't change while an object is being dragged.
+        if (movingRaf !== null) return;
+        movingRaf = requestAnimationFrame(() => {
+          movingRaf = null;
+          refreshElementToolbarLayoutRef.current();
+        });
+      };
+
+      const onTransforming = () => {
+        // Scale/rotate may update dimension readouts so keep the full bump,
+        // but still throttle to one React render per frame.
+        if (transformRaf !== null) return;
+        transformRaf = requestAnimationFrame(() => {
+          transformRaf = null;
+          bump();
+        });
+      };
+
+      canvas.on("object:moving", onMoving);
+      canvas.on("object:scaling", onTransforming);
+      canvas.on("object:rotating", onTransforming);
       canvas.on("object:modified", onModified);
       canvas.on("text:changed", onTextChanged);
       return () => {
-        canvas.off("object:moving", bump);
-        canvas.off("object:scaling", bump);
-        canvas.off("object:rotating", bump);
+        canvas.off("object:moving", onMoving);
+        canvas.off("object:scaling", onTransforming);
+        canvas.off("object:rotating", onTransforming);
         canvas.off("object:modified", onModified);
         canvas.off("text:changed", onTextChanged);
+        if (movingRaf !== null) cancelAnimationFrame(movingRaf);
+        if (transformRaf !== null) cancelAnimationFrame(transformRaf);
       };
     }, [ready, syncTextToolbar, syncShapeToolbar]);
 

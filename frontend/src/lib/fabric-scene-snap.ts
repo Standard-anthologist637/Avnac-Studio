@@ -21,10 +21,10 @@ const DEFAULT_GUIDE_COLOR = 'rgba(255, 88, 0, 0.95)'
  * Without this, sub-pixel "corrections" applied every mousemove cause visible jitter
  * because Fabric resets the position from the original mouse delta on each frame.
  */
-const SNAP_DEADBAND_PX = 0.25
+export const SNAP_DEADBAND_PX = 0.25
 
 /** Once a guide is engaged, the new candidate must beat it by this many px to switch. */
-const SNAP_SWITCH_HYSTERESIS_PX = 4
+const SNAP_SWITCH_HYSTERESIS_PX = 1.5
 
 /**
  * Multiplier applied to the engage threshold to compute the "release" threshold.
@@ -32,7 +32,7 @@ const SNAP_SWITCH_HYSTERESIS_PX = 4
  * eliminating the threshold-edge oscillation that caused the snap to flicker on
  * and off as the cursor crossed the engage boundary.
  */
-const SNAP_RELEASE_MULTIPLIER = 2.5
+const SNAP_RELEASE_MULTIPLIER = 1.6
 
 function collectTargets(
   canvas: Canvas,
@@ -189,7 +189,7 @@ export function installSceneSnap(
   { width, height, threshold: thOpt, fabricMod, guideColor }: Options,
 ) {
   const threshold =
-    thOpt ?? Math.max(20, Math.round(Math.min(width, height) * 0.006))
+    thOpt ?? Math.max(8, Math.round(Math.min(width, height) * 0.0025))
   const color = guideColor ?? DEFAULT_GUIDE_COLOR
 
   let activeGuides: SceneSnapGuide[] = []
@@ -209,14 +209,11 @@ export function installSceneSnap(
       lastGuideY,
     )
 
-    const needsShift =
-      Math.abs(dx) >= SNAP_DEADBAND_PX || Math.abs(dy) >= SNAP_DEADBAND_PX
+    const needsShift = dx !== 0 || dy !== 0
     if (needsShift) {
       const c = target.getCenterPoint()
-      const ddx = Math.abs(dx) >= SNAP_DEADBAND_PX ? dx : 0
-      const ddy = Math.abs(dy) >= SNAP_DEADBAND_PX ? dy : 0
       target.setPositionByOrigin(
-        new Point(c.x + ddx, c.y + ddy),
+        new Point(c.x + dx, c.y + dy),
         'center',
         'center',
       )

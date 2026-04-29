@@ -31,7 +31,6 @@ import {
   type MutableRefObject,
   type RefObject,
 } from "react";
-import { flushSync } from "react-dom";
 import {
   measureHorizontalFlyoutInContainer,
   useContainedHorizontalPopoverPlacement,
@@ -194,15 +193,14 @@ const CanvasSelectionToolbar = forwardRef<
       prev.placement !== cur.placement;
     prevAnchorRef.current = cur;
 
-    if (anchorMoved) {
-      flushSync(() => setViewportNudge({ x: 0, y: 0 }));
-    }
-
     const rect = el.getBoundingClientRect();
     const vpRect = vp.getBoundingClientRect();
     const d = containmentDeltaForRect(rect, vpRect, VIEWPORT_CONTAIN_PAD);
 
     if (anchorMoved) {
+      // Anchor moved: reset nudge to the freshly-computed value in one update,
+      // no flushSync needed (calling flushSync inside useLayoutEffect is illegal
+      // in React 18 — it fires during the commit phase while React is rendering).
       setViewportNudge({ x: d.x, y: d.y });
     } else if (d.x !== 0 || d.y !== 0) {
       setViewportNudge((prevNudge) => ({
