@@ -17,8 +17,10 @@ Thanks for your interest in contributing. Avnac Studio is the native desktop por
 ### Prerequisites
 
 - [Go](https://go.dev/dl/) — see `go.mod` for the required version
-- [Node.js](https://nodejs.org/) + npm
+- [Node.js](https://nodejs.org/) 22 + npm 10
 - [Wails CLI v2](https://wails.io/docs/gettingstarted/installation)
+
+If you use `nvm`, this repo includes `.nvmrc`, so run `nvm use` before installing frontend dependencies.
 
 ```bash
 go install github.com/wailsapp/wails/v2/cmd/wails@latest
@@ -29,7 +31,7 @@ wails doctor
 
 ```bash
 cd frontend
-npm install
+npm ci
 cd ..
 wails dev
 ```
@@ -38,11 +40,29 @@ wails dev
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
 Vite starts at `http://localhost:3300`. Native features (file storage, export dialogs, Unsplash config) are only available in the full Wails runtime.
+
+---
+
+## Dependency Workflow (Important)
+
+This project treats `frontend/package-lock.json` as a source-controlled build input. CI, release builds, and Wails frontend installs use `npm ci` so builds stay deterministic.
+
+- Use `npm ci` for normal setup, local verification, CI, and release builds.
+- Use `npm install` only when you intentionally change dependencies.
+- If `frontend/package.json` changes, commit the matching `frontend/package-lock.json` update in the same commit.
+- If `frontend/package-lock.json` changed but you did not mean to change dependencies, revert it before pushing.
+- Do not rely on `npm install` to "fix" a broken lockfile for CI. CI is supposed to fail when the repo state is inconsistent.
+
+In practice:
+
+- First-time setup: `cd frontend && npm ci`
+- Day-to-day coding: keep your existing install, or rerun `npm ci` when you need a clean slate
+- Adding/updating a package: run `npm install <package>` or `npm install`, verify the result, then commit both manifest and lockfile changes together
 
 ---
 
