@@ -446,7 +446,7 @@ function FilesPage() {
           }
           className="fixed bottom-4 left-5 z-[200] cursor-pointer text-[11px] font-medium text-[var(--text-muted)] opacity-50 transition hover:opacity-100"
         >
-          v{currentVersion}
+          {currentVersion}
         </button>
       ) : null}
 
