@@ -1,27 +1,27 @@
-import { HugeiconsIcon } from '@hugeicons/react'
+import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Cancel01Icon,
   Delete02Icon,
   Download01Icon,
-} from '@hugeicons/core-free-icons'
+} from "@hugeicons/core-free-icons";
 
-type FilesMultiselectBarProps = {
-  count: number
-  onClear: () => void
-  onDownload: () => void
-  onTrash: () => void
-}
+type FilesSelectionToolbarProps = {
+  count: number;
+  onClear: () => void;
+  onDownload: () => void;
+  onTrash: () => void;
+};
 
-export default function FilesMultiselectBar({
+export default function FilesSelectionToolbar({
   count,
   onClear,
   onDownload,
   onTrash,
-}: FilesMultiselectBarProps) {
-  if (count < 1) return null
+}: FilesSelectionToolbarProps) {
+  if (count < 1) return null;
 
   const iconBtn =
-    'flex size-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[var(--text)] transition-colors hover:bg-black/[0.06]'
+    "flex size-10 shrink-0 items-center justify-center rounded-full border-0 bg-transparent text-[var(--text)] transition-colors hover:bg-black/[0.06]";
 
   return (
     <div
@@ -45,7 +45,10 @@ export default function FilesMultiselectBar({
       <span className="min-w-0 px-1 text-[14px] font-medium tabular-nums text-[var(--text)] sm:px-2 sm:text-[15px]">
         {count} selected
       </span>
-      <div className="mx-1 hidden h-6 w-px bg-black/[0.08] sm:block" aria-hidden />
+      <div
+        className="mx-1 hidden h-6 w-px bg-black/[0.08] sm:block"
+        aria-hidden
+      />
       <button
         type="button"
         className={iconBtn}
@@ -75,5 +78,5 @@ export default function FilesMultiselectBar({
         />
       </button>
     </div>
-  )
+  );
 }

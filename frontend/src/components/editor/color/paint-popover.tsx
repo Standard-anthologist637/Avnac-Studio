@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import { floatingToolbarPopoverClass } from "@/components/editor/shared/floating-toolbar-shell";
-import type { BgValue, GradientStop } from "@/components/editor/color/types";
+
+export type GradientStop = { color: string; offset: number };
+
+export type BgValue =
+  | { type: "solid"; color: string }
+  | { type: "gradient"; css: string; stops: GradientStop[]; angle: number };
 
 /** True for CSS colors that are fully invisible (stroke/fill “none”). */
 export function isTransparentCssColor(value: string): boolean {
@@ -179,7 +184,7 @@ type Props = {
   onChange: (v: BgValue) => void;
 };
 
-export default function BackgroundPopover({ value, onChange }: Props) {
+export default function PaintPopover({ value, onChange }: Props) {
   const [tab, setTab] = useState<Tab>(
     value.type === "gradient" ? "gradient" : "solid",
   );

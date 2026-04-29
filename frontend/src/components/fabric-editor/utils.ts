@@ -2,8 +2,8 @@ import type { Canvas, FabricObject, IText } from "fabric";
 import { bgValueFromFabricFill } from "@/lib/avnac-fill-paint";
 import { getAvnacShapeMeta, type AvnacShapeKind } from "@/lib/avnac-shape-meta";
 import { getAvnacLayerName } from "@/lib/ensure-avnac-layer-id";
-import type { CanvasAlignKind } from "@/components/editor/canvas/types";
-import type { TextFormatToolbarValues } from "@/components/editor/text/types";
+import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selection-toolbar";
+import type { TextFormatToolbarValues } from "@/components/editor/text/text-format-toolbar";
 import { ARTBOARD_ALIGN_ALREADY_EPS, ARTBOARD_ALIGN_PAD } from "./constants";
 
 export function artboardAlignAlreadySatisfied(

@@ -10,10 +10,16 @@ import {
 } from "react";
 import type { CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { ImageCropModalApplyPayload } from "./types";
 
 const MIN_SIDE = 12;
 const HANDLE_PX = 9;
+
+export type ImageCropModalApplyPayload = {
+  cropX: number;
+  cropY: number;
+  width: number;
+  height: number;
+};
 
 type CropRect = { x: number; y: number; w: number; h: number };
 

@@ -30,7 +30,7 @@ import {
   FloatingToolbarShell,
   floatingToolbarIconButton,
 } from "@/components/editor/shared/floating-toolbar-shell";
-import type { BgValue } from "@/components/editor/color/types";
+import type { BgValue } from "@/components/editor/color/paint-popover";
 import {
   applySmoothPlacementHandles,
   ctrlInAbs,

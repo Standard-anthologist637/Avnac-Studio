@@ -1,5 +1,5 @@
-import type { BgValue } from "@/components/editor/color/types";
-import type { ShapesQuickAddKind } from "@/components/editor/shape/types";
+import type { BgValue } from "@/components/editor/color/paint-popover";
+import type { ShapesQuickAddKind } from "@/components/editor/shape/shapes-popover";
 
 export const DEFAULT_ARTBOARD_W = 4000;
 export const DEFAULT_ARTBOARD_H = 4000;

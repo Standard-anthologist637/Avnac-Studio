@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
-import BackgroundPopover, {
+import PaintPopover, {
   bgValueToSwatch,
-} from "@/components/editor/color/background-popover";
+  type BgValue,
+} from "@/components/editor/color/paint-popover";
 import { floatingToolbarIconButton } from "@/components/editor/shared/floating-toolbar-shell";
-import type { BgValue } from "@/components/editor/color/types";
 
-/** Approximate max height of `BackgroundPopover` for viewport fitting. */
+/** Approximate max height of `PaintPopover` for viewport fitting. */
 const PAINT_POPOVER_ESTIMATE_H = 440;
 
 type Props = {
@@ -76,7 +76,7 @@ export default function PaintPopoverControl({
           ].join(" ")}
           style={{ transform: `translateX(calc(-50% + ${shiftX}px))` }}
         >
-          <BackgroundPopover value={value} onChange={onChange} />
+          <PaintPopover value={value} onChange={onChange} />
         </div>
       ) : null}
     </div>

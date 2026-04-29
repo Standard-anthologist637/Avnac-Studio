@@ -26,7 +26,17 @@ import {
 } from "@/components/editor/shared/floating-toolbar-shell";
 import FontSizeScrubber from "@/components/editor/text/font-size-scrubber";
 import PaintPopoverControl from "@/components/editor/color/paint-popover-control";
-import type { TextFormatToolbarValues } from "@/components/editor/text/types";
+import type { BgValue } from "@/components/editor/color/paint-popover";
+
+export type TextFormatToolbarValues = {
+  fontFamily: string;
+  fontSize: number;
+  fillStyle: BgValue;
+  textAlign: "left" | "center" | "right" | "justify";
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+};
 
 type TextFormatToolbarProps = {
   values: TextFormatToolbarValues;

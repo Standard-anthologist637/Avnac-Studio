@@ -154,18 +154,16 @@ import ShapeOptionsToolbar from "@/components/editor/shape/shape-options-toolbar
 import TransparencyToolbarPopover from "@/components/editor/color/transparency-toolbar-popover";
 import ShapesPopover, {
   iconForShapesQuickAdd,
+  type PopoverShapeKind,
+  type ShapesQuickAddKind,
 } from "@/components/editor/shape/shapes-popover";
-import type { BgValue } from "@/components/editor/color/types";
-import type { CanvasAlignKind } from "@/components/editor/canvas/types";
-import type {
-  PopoverShapeKind,
-  ShapesQuickAddKind,
-} from "@/components/editor/shape/types";
-import type { TextFormatToolbarValues } from "@/components/editor/text/types";
+import type { BgValue } from "@/components/editor/color/paint-popover";
+import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selection-toolbar";
+import type { TextFormatToolbarValues } from "@/components/editor/text/text-format-toolbar";
 import TextFormatToolbar from "@/components/editor/text/text-format-toolbar";
-import BackgroundPopover, {
+import PaintPopover, {
   bgValueToSwatch,
-} from "@/components/editor/color/background-popover";
+} from "@/components/editor/color/paint-popover";
 import ArtboardResizeToolbarControl from "@/components/editor/canvas/artboard-resize-toolbar-control";
 import BlurToolbarControl from "@/components/editor/color/blur-toolbar-control";
 import ShadowToolbarPopover from "@/components/editor/color/shadow-toolbar-popover";
@@ -173,22 +171,22 @@ import StrokeToolbarPopover from "@/components/editor/color/stroke-toolbar-popov
 import CornerRadiusToolbarControl from "@/components/editor/shape/corner-radius-toolbar-control";
 import CanvasZoomSlider from "@/components/editor/canvas/canvas-zoom-slider";
 import EditorFloatingCanvasControls from "@/components/editor/canvas/editor-floating-canvas-controls";
-import CanvasElementToolbar from "@/components/editor/canvas/canvas-element-toolbar";
+import CanvasSelectionToolbar from "@/components/editor/canvas/canvas-selection-toolbar";
 import {
   FloatingToolbarDivider,
   FloatingToolbarShell,
   floatingToolbarIconButton,
 } from "@/components/editor/shared/floating-toolbar-shell";
 import ImageCropModal from "@/components/editor/dialogs/image-crop-modal";
-import type { ImageCropModalApplyPayload } from "@/components/editor/dialogs/types";
+import type { ImageCropModalApplyPayload } from "@/components/editor/dialogs/image-crop-modal";
 import { getAvnacLocked, setAvnacLocked } from "@/lib/avnac-object-lock";
-import type { ExportPngOptions } from "@/components/editor/export/types";
-import EditorFloatingSidebar from "@/components/editor/sidebar/editor-floating-sidebar";
-import type {
-  EditorLayerRow,
-  EditorSidebarPanelId,
-} from "@/components/editor/sidebar/types";
-import EditorLayersPanel from "@/components/editor/sidebar/editor-layers-panel";
+import type { ExportPngOptions } from "@/components/editor/export/editor-export-menu";
+import EditorFloatingSidebar, {
+  type EditorSidebarPanelId,
+} from "@/components/editor/sidebar/editor-floating-sidebar";
+import EditorLayersPanel, {
+  type EditorLayerRow,
+} from "@/components/editor/sidebar/editor-layers-panel";
 import EditorAiPanel from "@/components/editor/sidebar/editor-ai-panel";
 import type {
   AiDesignController,
@@ -4371,7 +4369,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
                     transform: `translateX(calc(-50% + ${backgroundPopoverShiftX}px))`,
                   }}
                 >
-                  <BackgroundPopover
+                  <PaintPopover
                     value={bgValue}
                     onChange={(v) => onBackgroundPicked(v)}
                   />
@@ -4402,7 +4400,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
               className="relative z-0 -mt-4 inline-block sm:-mt-5"
             >
               {ready && hasObjectSelected && elementToolbarLayout ? (
-                <CanvasElementToolbar
+                <CanvasSelectionToolbar
                   ref={elementToolbarRef}
                   style={{
                     left: elementToolbarLayout.left,

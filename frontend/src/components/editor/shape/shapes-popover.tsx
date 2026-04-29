@@ -10,10 +10,16 @@ import {
   SquareIcon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
-import type {
-  PopoverShapeKind,
-  ShapesQuickAddKind,
-} from "@/components/editor/shape/types";
+
+export type PopoverShapeKind =
+  | "rect"
+  | "ellipse"
+  | "polygon"
+  | "star"
+  | "line"
+  | "arrow";
+
+export type ShapesQuickAddKind = PopoverShapeKind | "generic";
 
 export const SHAPE_KIND_ICONS: Record<PopoverShapeKind, IconSvgElement> = {
   rect: SquareIcon,

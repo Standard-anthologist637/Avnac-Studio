@@ -1,4 +1,4 @@
-import type { AvnacDocumentV1 } from "../../../lib/avnac-document";
+import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 
 export function clonePageDoc(doc: AvnacDocumentV1): AvnacDocumentV1 {
   if (typeof structuredClone === "function") return structuredClone(doc);

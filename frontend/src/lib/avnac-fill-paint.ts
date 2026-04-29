@@ -3,7 +3,7 @@ import {
   isTransparentCssColor,
   solidPaintColorsEquivalent,
   type BgValue,
-} from "@/components/editor/color/background-popover";
+} from "@/components/editor/color/paint-popover";
 import { linearGradientForBox } from "./fabric-linear-gradient";
 
 const AFILL = "avnacFill" as const;

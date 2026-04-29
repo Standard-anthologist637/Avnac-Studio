@@ -17,7 +17,7 @@ import FabricEditor, {
 } from "@/components/fabric-editor/index";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import { floatingToolbarPopoverMenuClass } from "@/components/editor/shared/floating-toolbar-shell";
-import type { ExportPngOptions } from "@/components/editor/export/types";
+import type { ExportPngOptions } from "@/components/editor/export/editor-export-menu";
 import { idbGetDocument } from "@/lib/avnac-editor-idb";
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";
@@ -85,7 +85,7 @@ type PageState = IndexedPagesState<AvnacDocumentV1>;
 
 const PAGE_HISTORY_LIMIT = 20;
 
-export default function EditorContainer({
+export default function MultiPageEditorShell({
   persistId,
   persistDisplayName,
   documentTitle,

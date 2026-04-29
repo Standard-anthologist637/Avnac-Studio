@@ -14,7 +14,14 @@ import {
   editorSidebarPanelLeftClass,
   editorSidebarPanelTopClass,
 } from "@/lib/editor-sidebar-panel-layout";
-import type { EditorLayerRow } from "@/components/editor/sidebar/types";
+
+export type EditorLayerRow = {
+  id: string;
+  index: number;
+  label: string;
+  visible: boolean;
+  selected: boolean;
+};
 
 type Props = {
   open: boolean;

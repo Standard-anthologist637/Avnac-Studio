@@ -16,7 +16,14 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import type { EditorSidebarPanelId } from "@/components/editor/sidebar/types";
+
+export type EditorSidebarPanelId =
+  | "layers"
+  | "uploads"
+  | "images"
+  | "vector-board"
+  | "apps"
+  | "ai";
 
 type Item = {
   id: EditorSidebarPanelId;

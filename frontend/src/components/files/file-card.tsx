@@ -12,11 +12,11 @@ import { usePostHog } from "posthog-js/react";
 import {
   idbDuplicateDocument,
   type AvnacEditorIdbListItem,
-} from "../lib/avnac-editor-idb";
-import { downloadAvnacJsonForId } from "../lib/avnac-files-export";
-import FileGridPreview from "./file-grid-preview";
+} from "@/lib/avnac-editor-idb";
+import { downloadAvnacJsonForId } from "@/lib/avnac-files-export";
+import FileCardPreview from "@/components/files/file-card-preview";
 
-type FileGridCardProps = {
+type FileCardProps = {
   row: AvnacEditorIdbListItem;
   formatUpdatedAt: (ts: number) => string;
   onListChange: () => void;
@@ -25,14 +25,14 @@ type FileGridCardProps = {
   onRequestDelete: (id: string) => void;
 };
 
-export default function FileGridCard({
+export default function FileCard({
   row,
   formatUpdatedAt,
   onListChange,
   selected,
   onToggleSelect,
   onRequestDelete,
-}: FileGridCardProps) {
+}: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const posthog = usePostHog();
@@ -168,7 +168,7 @@ export default function FileGridCard({
                   : "ring-1 ring-inset ring-black/[0.06]",
               ].join(" ")}
             >
-              <FileGridPreview
+              <FileCardPreview
                 persistId={row.id}
                 updatedAt={row.updatedAt}
                 className="absolute inset-0"

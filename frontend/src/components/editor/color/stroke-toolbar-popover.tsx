@@ -8,7 +8,7 @@ import {
   floatingToolbarIconButton,
   floatingToolbarPopoverMenuClass,
 } from "@/components/editor/shared/floating-toolbar-shell";
-import type { BgValue } from "@/components/editor/color/types";
+import type { BgValue } from "@/components/editor/color/paint-popover";
 
 const PANEL_ESTIMATE_H = 340;
 const STROKE_WIDTH_MAX = 40;

@@ -41,7 +41,14 @@ import {
   floatingToolbarPopoverClass,
   floatingToolbarPopoverMenuClass,
 } from "@/components/editor/shared/floating-toolbar-shell";
-import type { CanvasAlignKind } from "@/components/editor/canvas/types";
+
+export type CanvasAlignKind =
+  | "left"
+  | "centerH"
+  | "right"
+  | "top"
+  | "centerV"
+  | "bottom";
 
 const VIEWPORT_CONTAIN_PAD = 8;
 
@@ -77,7 +84,7 @@ function containmentDeltaForRect(
   return { x: dx, y: dy };
 }
 
-type CanvasElementToolbarProps = {
+type CanvasSelectionToolbarProps = {
   style: CSSProperties;
   placement: "above" | "below";
   viewportRef: RefObject<HTMLElement | null>;
@@ -97,10 +104,10 @@ type CanvasElementToolbarProps = {
   onUngroup: () => void;
 };
 
-const CanvasElementToolbar = forwardRef<
+const CanvasSelectionToolbar = forwardRef<
   HTMLDivElement,
-  CanvasElementToolbarProps
->(function CanvasElementToolbar(
+  CanvasSelectionToolbarProps
+>(function CanvasSelectionToolbar(
   {
     style,
     placement,
@@ -821,4 +828,4 @@ const CanvasElementToolbar = forwardRef<
   );
 });
 
-export default CanvasElementToolbar;
+export default CanvasSelectionToolbar;
