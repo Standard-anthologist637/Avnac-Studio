@@ -208,6 +208,7 @@ const ARTBOARD_ALIGN_PAD = 32;
 const ARTBOARD_ALIGN_ALREADY_EPS = 2;
 const ZOOM_MIN_PCT = 5;
 const ZOOM_MAX_PCT = 100;
+const HISTORY_LIMIT = 20;
 
 const OBJECT_SERIAL_KEYS = [
   "avnacShape",
@@ -354,6 +355,8 @@ export type FabricEditorHandle = {
   captureDocument: () => AvnacDocumentV1;
   applyDocument: (doc: AvnacDocumentV1) => Promise<void>;
   hasSelection: () => boolean;
+  undo: () => Promise<boolean>;
+  redo: () => Promise<boolean>;
 };
 
 type FabricEditorProps = {
@@ -3021,7 +3024,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       pastSerialized.push(ser);
       historyIndexRef.current = past.length - 1;
       pendingPersistedDocRef.current = snap;
-      if (past.length > 50) {
+      if (past.length > HISTORY_LIMIT) {
         past.shift();
         pastSerialized.shift();
         historyIndexRef.current--;
@@ -3029,28 +3032,30 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       scheduleIdbAutosave();
     }, [ready, captureDoc, scheduleIdbAutosave]);
 
-    const undo = useCallback(async () => {
-      if (applyingHistoryRef.current) return;
+    const undo = useCallback(async (): Promise<boolean> => {
+      if (applyingHistoryRef.current) return false;
       const past = historySnapshotsRef.current;
       let idx = historyIndexRef.current;
-      if (idx <= 0) return;
+      if (idx <= 0) return false;
       idx -= 1;
       historyIndexRef.current = idx;
       await applyDoc(past[idx]!);
       pendingPersistedDocRef.current = past[idx]!;
       scheduleIdbAutosave();
+      return true;
     }, [applyDoc, scheduleIdbAutosave]);
 
-    const redo = useCallback(async () => {
-      if (applyingHistoryRef.current) return;
+    const redo = useCallback(async (): Promise<boolean> => {
+      if (applyingHistoryRef.current) return false;
       const past = historySnapshotsRef.current;
       let idx = historyIndexRef.current;
-      if (idx >= past.length - 1) return;
+      if (idx >= past.length - 1) return false;
       idx += 1;
       historyIndexRef.current = idx;
       await applyDoc(past[idx]!);
       pendingPersistedDocRef.current = past[idx]!;
       scheduleIdbAutosave();
+      return true;
     }, [applyDoc, scheduleIdbAutosave]);
 
     const createVectorBoard = useCallback(() => {
@@ -3605,6 +3610,11 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             else void undo();
             return;
           }
+          if (e.key === "y" || e.key === "Y") {
+            e.preventDefault();
+            void redo();
+            return;
+          }
           if (e.key === "]") {
             e.preventDefault();
             const active = c.getActiveObject();
@@ -4128,14 +4138,18 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         captureDocument: captureDoc,
         applyDocument: replaceDocument,
         hasSelection: () => hasObjectSelected,
+        undo,
+        redo,
       }),
       [
         captureDoc,
         exportPng,
         hasObjectSelected,
         loadDocument,
+        redo,
         replaceDocument,
         saveDocument,
+        undo,
       ],
     );
 

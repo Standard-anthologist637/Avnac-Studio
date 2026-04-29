@@ -6,6 +6,7 @@ type ShortcutRow = { keys: string; action: string };
 const ROWS: ShortcutRow[] = [
   { keys: "Cmd/Ctrl + Z", action: "Undo" },
   { keys: "Cmd/Ctrl + Shift + Z", action: "Redo" },
+  { keys: "Ctrl/Cmd + Y", action: "Redo" },
   { keys: "Cmd/Ctrl + G", action: "Group selection" },
   { keys: "Cmd/Ctrl + Shift + G", action: "Ungroup" },
   { keys: "Cmd/Ctrl + D", action: "Duplicate selection" },

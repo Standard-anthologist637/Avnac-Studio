@@ -30,6 +30,15 @@ import {
   parseMultiPageDocument,
   parseAvnacImport,
 } from "./multi-page-document";
+import {
+  createPageHistory,
+  getPageRedoState,
+  getPageUndoState,
+  movePageHistoryIndex,
+  pushPageHistory,
+  type IndexedPagesState,
+  type PageHistory,
+} from "./page-history";
 import { loadStoredPages, saveStoredPages } from "./multi-page-storage";
 
 type Props = {
@@ -43,10 +52,9 @@ type Props = {
   onReadyChange?: (ready: boolean) => void;
 };
 
-type PageState = {
-  currentPage: number;
-  pages: AvnacDocumentV1[];
-};
+type PageState = IndexedPagesState<AvnacDocumentV1>;
+
+const PAGE_HISTORY_LIMIT = 20;
 
 function cloneDoc(doc: AvnacDocumentV1): AvnacDocumentV1 {
   if (typeof structuredClone === "function") return structuredClone(doc);
@@ -148,6 +156,7 @@ export default function EditorContainer({
   const [pageState, setPageState] = useState<PageState | null>(null);
   const pageStateRef = useRef<PageState | null>(null);
   pageStateRef.current = pageState;
+  const pageHistoryRef = useRef<PageHistory<AvnacDocumentV1> | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [pngExpanded, setPngExpanded] = useState(false);
   const [pngMult, setPngMult] = useState(2);
@@ -182,6 +191,7 @@ export default function EditorContainer({
         nextState: PageState;
         nextDoc: AvnacDocumentV1;
       },
+      options?: { trackHistory?: boolean },
     ) => {
       const prev = pageStateRef.current;
       const currentDoc = captureCurrentPage();
@@ -195,12 +205,56 @@ export default function EditorContainer({
       };
 
       const { nextState, nextDoc } = recipe(withCurrent, currentDoc);
+      if (options?.trackHistory !== false) {
+        pageHistoryRef.current = pushPageHistory(
+          pageHistoryRef.current,
+          nextState,
+          cloneDoc,
+          PAGE_HISTORY_LIMIT,
+        );
+      }
       void persistPages(nextState);
       setPageState(nextState);
       await syncCurrentPageToEditor(nextDoc);
     },
     [captureCurrentPage, persistPages, syncCurrentPageToEditor],
   );
+
+  const applyHistoryState = useCallback(
+    async (nextState: PageState): Promise<boolean> => {
+      const nextDoc = nextState.pages[nextState.currentPage];
+      if (!nextDoc) return false;
+      void persistPages(nextState);
+      setPageState(nextState);
+      await syncCurrentPageToEditor(nextDoc);
+      return true;
+    },
+    [persistPages, syncCurrentPageToEditor],
+  );
+
+  const undoPage = useCallback(async (): Promise<boolean> => {
+    const nextState = getPageUndoState(pageHistoryRef.current, cloneDoc);
+    if (!nextState) return false;
+    pageHistoryRef.current = movePageHistoryIndex(pageHistoryRef.current, -1);
+    return applyHistoryState(nextState);
+  }, [applyHistoryState]);
+
+  const redoPage = useCallback(async (): Promise<boolean> => {
+    const nextState = getPageRedoState(pageHistoryRef.current, cloneDoc);
+    if (!nextState) return false;
+    pageHistoryRef.current = movePageHistoryIndex(pageHistoryRef.current, 1);
+    return applyHistoryState(nextState);
+  }, [applyHistoryState]);
+
+  const undoAny = useCallback(async (): Promise<boolean> => {
+    if ((await editorRef.current?.undo?.()) === true) return true;
+    return undoPage();
+  }, [undoPage]);
+
+  const redoAny = useCallback(async (): Promise<boolean> => {
+    if ((await editorRef.current?.redo?.()) === true) return true;
+    return redoPage();
+  }, [redoPage]);
 
   const goToPage = useCallback(
     async (targetIndex: number) => {
@@ -311,6 +365,7 @@ export default function EditorContainer({
         pages: imported.pages,
       };
 
+      pageHistoryRef.current = createPageHistory(nextState, cloneDoc);
       void persistPages(nextState);
       setPageState(nextState);
       await syncCurrentPageToEditor(nextState.pages[nextState.currentPage]!);
@@ -372,6 +427,7 @@ export default function EditorContainer({
 
   useEffect(() => {
     setPageState(null);
+    pageHistoryRef.current = null;
   }, [persistId]);
 
   useEffect(() => {
@@ -406,10 +462,12 @@ export default function EditorContainer({
           return doc;
         })();
       const stored = await loadStoredPages(persistId, currentDoc);
-      setPageState({
+      const nextState: PageState = {
         currentPage: stored.currentPage,
         pages: stored.pages,
-      });
+      };
+      pageHistoryRef.current = createPageHistory(nextState, cloneDoc);
+      setPageState(nextState);
     })();
 
     return () => {
@@ -453,6 +511,21 @@ export default function EditorContainer({
     const onKeyDown = (event: KeyboardEvent) => {
       if (shouldIgnoreShortcutTarget(event.target)) return;
 
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.shiftKey) void redoAny();
+        else void undoAny();
+        return;
+      }
+
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "y") {
+        event.preventDefault();
+        event.stopPropagation();
+        void redoAny();
+        return;
+      }
+
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         void addPage();
@@ -481,9 +554,9 @@ export default function EditorContainer({
       }
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addPage, deletePage, editorReady, goToPage]);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [addPage, deletePage, editorReady, goToPage, redoAny, undoAny]);
 
   useEffect(() => {
     if (!actionsOpen) return;
