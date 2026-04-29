@@ -11,6 +11,8 @@ import {
   Copy01Icon,
   Delete02Icon,
   FilePasteIcon,
+  FlipHorizontalIcon,
+  FlipVerticalIcon,
   GroupItemsIcon,
   Layers02Icon,
   More01Icon,
@@ -102,6 +104,8 @@ type CanvasSelectionToolbarProps = {
   onGroup: () => void;
   onAlignElements: (kind: CanvasAlignKind) => void;
   onUngroup: () => void;
+  onFlipH: () => void;
+  onFlipV: () => void;
 };
 
 const CanvasSelectionToolbar = forwardRef<
@@ -126,6 +130,8 @@ const CanvasSelectionToolbar = forwardRef<
     onGroup,
     onAlignElements,
     onUngroup,
+    onFlipH,
+    onFlipV,
   },
   ref,
 ) {
@@ -505,6 +511,41 @@ const CanvasSelectionToolbar = forwardRef<
                         className="shrink-0 text-neutral-600"
                       />
                       Paste
+                    </button>
+                    <div className="my-1 h-px bg-black/[0.06]" aria-hidden />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-neutral-800 hover:bg-black/[0.05]"
+                      onClick={() => {
+                        onFlipH();
+                        setMoreOpen(false);
+                      }}
+                    >
+                      <HugeiconsIcon
+                        icon={FlipHorizontalIcon}
+                        size={18}
+                        strokeWidth={1.75}
+                        className="shrink-0 text-neutral-600"
+                      />
+                      Flip horizontal
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium text-neutral-800 hover:bg-black/[0.05]"
+                      onClick={() => {
+                        onFlipV();
+                        setMoreOpen(false);
+                      }}
+                    >
+                      <HugeiconsIcon
+                        icon={FlipVerticalIcon}
+                        size={18}
+                        strokeWidth={1.75}
+                        className="shrink-0 text-neutral-600"
+                      />
+                      Flip vertical
                     </button>
                     <div className="my-1 h-px bg-black/[0.06]" aria-hidden />
                     {canAlignElements ? (

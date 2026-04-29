@@ -2634,6 +2634,46 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       [persistAfterMutation],
     );
 
+    const flipHorizontal = useCallback(() => {
+      const canvas = fabricCanvasRef.current;
+      const mod = fabricModRef.current;
+      if (!canvas || !mod) return;
+      const obj = canvas.getActiveObject();
+      if (!obj) return;
+      if (mod.ActiveSelection && obj instanceof mod.ActiveSelection) {
+        obj.getObjects().forEach((o) => {
+          o.set({ flipX: !o.flipX });
+          o.setCoords();
+        });
+        obj.setCoords();
+      } else {
+        obj.set({ flipX: !obj.flipX });
+        obj.setCoords();
+      }
+      canvas.requestRenderAll();
+      persistAfterMutation(canvas, obj);
+    }, [persistAfterMutation]);
+
+    const flipVertical = useCallback(() => {
+      const canvas = fabricCanvasRef.current;
+      const mod = fabricModRef.current;
+      if (!canvas || !mod) return;
+      const obj = canvas.getActiveObject();
+      if (!obj) return;
+      if (mod.ActiveSelection && obj instanceof mod.ActiveSelection) {
+        obj.getObjects().forEach((o) => {
+          o.set({ flipY: !o.flipY });
+          o.setCoords();
+        });
+        obj.setCoords();
+      } else {
+        obj.set({ flipY: !obj.flipY });
+        obj.setCoords();
+      }
+      canvas.requestRenderAll();
+      persistAfterMutation(canvas, obj);
+    }, [persistAfterMutation]);
+
     const alignSelectedElements = useCallback(
       (kind: CanvasAlignKind) => {
         const canvas = fabricCanvasRef.current;
@@ -4445,6 +4485,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
                   onGroup={groupSelection}
                   onAlignElements={alignSelectedElements}
                   onUngroup={ungroupSelection}
+                  onFlipH={flipHorizontal}
+                  onFlipV={flipVertical}
                 />
               ) : null}
               <div
