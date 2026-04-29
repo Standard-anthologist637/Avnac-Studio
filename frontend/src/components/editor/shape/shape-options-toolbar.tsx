@@ -27,7 +27,7 @@ import {
 import CornerRadiusToolbarControl from "@/components/editor/shape/corner-radius-toolbar-control";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import PaintPopoverControl from "@/components/editor/color/paint-popover-control";
-import type { BgValue } from "@/components/editor/color/paint-popover";
+import type { BgValue } from "@/lib/editor-paint";
 
 type Props = {
   meta: AvnacShapeMeta;

@@ -1,5 +1,5 @@
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
-import type { ExportPngOptions } from "@/components/editor/export/editor-export-menu";
+import type { ExportPngOptions } from "@/lib/png-export";
 
 export type FabricEditorHandle = {
   exportPng: (opts?: ExportPngOptions) => void;

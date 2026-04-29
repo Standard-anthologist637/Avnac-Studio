@@ -5,14 +5,7 @@ import { usePostHog } from "posthog-js/react";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import { floatingToolbarPopoverClass } from "@/components/editor/shared/floating-toolbar-shell";
-
-export type PngExportCrop = "none" | "selection" | "content";
-
-export type ExportPngOptions = {
-  multiplier: number;
-  transparent: boolean;
-  crop?: PngExportCrop;
-};
+import type { ExportPngOptions } from "@/lib/png-export";
 
 const DEFAULT_EXPORT: ExportPngOptions = {
   multiplier: 1,

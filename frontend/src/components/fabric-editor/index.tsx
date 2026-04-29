@@ -157,7 +157,7 @@ import ShapesPopover, {
   type PopoverShapeKind,
   type ShapesQuickAddKind,
 } from "@/components/editor/shape/shapes-popover";
-import type { BgValue } from "@/components/editor/color/paint-popover";
+import type { BgValue } from "@/lib/editor-paint";
 import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selection-toolbar";
 import type { TextFormatToolbarValues } from "@/components/editor/text/text-format-toolbar";
 import TextFormatToolbar from "@/components/editor/text/text-format-toolbar";
@@ -180,7 +180,7 @@ import {
 import ImageCropModal from "@/components/editor/dialogs/image-crop-modal";
 import type { ImageCropModalApplyPayload } from "@/components/editor/dialogs/image-crop-modal";
 import { getAvnacLocked, setAvnacLocked } from "@/lib/avnac-object-lock";
-import type { ExportPngOptions } from "@/components/editor/export/editor-export-menu";
+import type { ExportPngOptions } from "@/lib/png-export";
 import EditorFloatingSidebar, {
   type EditorSidebarPanelId,
 } from "@/components/editor/sidebar/editor-floating-sidebar";

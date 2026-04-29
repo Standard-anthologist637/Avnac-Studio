@@ -1,4 +1,4 @@
-import type { GradientStop } from "@/components/editor/color/paint-popover";
+import type { GradientStop } from "@/lib/editor-paint";
 
 /**
  * Fabric's linear gradient coords in `pixels` units for a w×h box (object or artboard).

@@ -17,7 +17,7 @@ import FabricEditor, {
 } from "@/components/fabric-editor/index";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import { floatingToolbarPopoverMenuClass } from "@/components/editor/shared/floating-toolbar-shell";
-import type { ExportPngOptions } from "@/components/editor/export/editor-export-menu";
+import type { ExportPngOptions } from "@/lib/png-export";
 import { idbGetDocument } from "@/lib/avnac-editor-idb";
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";

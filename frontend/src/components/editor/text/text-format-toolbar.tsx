@@ -26,7 +26,7 @@ import {
 } from "@/components/editor/shared/floating-toolbar-shell";
 import FontSizeScrubber from "@/components/editor/text/font-size-scrubber";
 import PaintPopoverControl from "@/components/editor/color/paint-popover-control";
-import type { BgValue } from "@/components/editor/color/paint-popover";
+import type { BgValue } from "@/lib/editor-paint";
 
 export type TextFormatToolbarValues = {
   fontFamily: string;

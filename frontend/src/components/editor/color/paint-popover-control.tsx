@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import PaintPopover, {
   bgValueToSwatch,
-  type BgValue,
 } from "@/components/editor/color/paint-popover";
 import { floatingToolbarIconButton } from "@/components/editor/shared/floating-toolbar-shell";
+import type { BgValue } from "@/lib/editor-paint";
 
 /** Approximate max height of `PaintPopover` for viewport fitting. */
 const PAINT_POPOVER_ESTIMATE_H = 440;
