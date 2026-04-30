@@ -304,9 +304,9 @@ There needs to be a workspace layer where editor orchestration can live while th
 
 Current workspace boundary:
 
-- `frontend/src/features/scene-editor/scene-editor-workspace.tsx`
-- `frontend/src/features/scene-editor/scene-editor-store.ts`
-- `frontend/src/features/scene-editor/scene-editor-stage.tsx`
+- `frontend/src/components/scene-workspace/workspace.tsx`
+- `frontend/src/components/scene-workspace/store.ts`
+- `frontend/src/components/scene-workspace/stage.tsx`
 
 Responsibilities of this layer:
 
@@ -400,7 +400,7 @@ Today it already includes:
 - a pure command reducer
 - render-command generation
 - an external renderer backend layer under `frontend/src/lib/renderer/`
-- a new scene-editor workspace boundary under `frontend/src/features/scene-editor/`
+- a new scene-editor workspace boundary under `frontend/src/components/scene-workspace/`
 - a Canvas2D backend renderer
 - a Pixi placeholder backend with no engine coupling
 - a Fabric adapter

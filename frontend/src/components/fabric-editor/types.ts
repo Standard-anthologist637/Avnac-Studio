@@ -1,4 +1,5 @@
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
+import type { EditorSidebarPanelId } from "@/components/editor/sidebar/editor-floating-sidebar";
 import type { ExportPngOptions } from "@/lib/png-export";
 
 export type FabricEditorHandle = {
@@ -21,6 +22,9 @@ export type FabricEditorProps = {
   /** When there is no saved document yet, seed artboard size (e.g. from /create?w=&h=). */
   initialArtboardWidth?: number;
   initialArtboardHeight?: number;
+  /** Optional controlled UI state for workspace-level sidebar orchestration. */
+  activeSidebarPanel?: EditorSidebarPanelId | null;
+  onActiveSidebarPanelChange?: (panel: EditorSidebarPanelId | null) => void;
 };
 
 export type EditorContextMenuState = {

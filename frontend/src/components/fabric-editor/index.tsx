@@ -243,6 +243,13 @@ import {
   getUndoHistoryEntry,
   pushHistorySnapshot,
 } from "./history";
+import {
+  createSceneWorkspaceStore,
+  SceneWorkspace,
+  useSceneWorkspaceStore,
+  type SceneWorkspacePreviewMode,
+  type SceneWorkspaceStore,
+} from "@/components/scene-workspace";
 
 export type { FabricEditorHandle } from "./types";
 
@@ -254,6 +261,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       persistDisplayName,
       initialArtboardWidth,
       initialArtboardHeight,
+      activeSidebarPanel: controlledSidebarPanel,
+      onActiveSidebarPanelChange,
     },
     ref,
   ) {
@@ -290,6 +299,11 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const sceneHandleSizesRef = useRef<SceneHandleSizes | null>(null);
     const removeSceneSnapRef = useRef<(() => void) | null>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
+    const sceneEditorStoreRef = useRef<SceneWorkspaceStore | null>(null);
+    if (!sceneEditorStoreRef.current) {
+      sceneEditorStoreRef.current = createSceneWorkspaceStore();
+    }
+    const sceneEditorStore = sceneEditorStoreRef.current;
 
     const [artboardSize, setArtboardSize] = useState({
       w: DEFAULT_ARTBOARD_W,
@@ -387,8 +401,46 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     );
     const [selectionShadowActive, setSelectionShadowActive] = useState(false);
     const [artboardEmptyHovered, setArtboardEmptyHovered] = useState(false);
-    const [editorSidebarPanel, setEditorSidebarPanel] =
-      useState<EditorSidebarPanelId | null>(null);
+    const previewMode = useSceneWorkspaceStore(
+      sceneEditorStore,
+      (state) => state.previewMode,
+    );
+    const workspaceSidebarPanel = useSceneWorkspaceStore(
+      sceneEditorStore,
+      (state) => state.sidebarPanel,
+    );
+    const focusMode = useSceneWorkspaceStore(
+      sceneEditorStore,
+      (state) => state.focusMode,
+    );
+    const shortcutsOpen = useSceneWorkspaceStore(
+      sceneEditorStore,
+      (state) => state.shortcutsOpen,
+    );
+    const editorSidebarPanel = controlledSidebarPanel ?? workspaceSidebarPanel;
+    const setEditorSidebarPanel = useCallback(
+      (
+        next:
+          | EditorSidebarPanelId
+          | null
+          | ((
+              prev: EditorSidebarPanelId | null,
+            ) => EditorSidebarPanelId | null),
+      ) => {
+        const resolved =
+          typeof next === "function" ? next(editorSidebarPanel) : next;
+        if (controlledSidebarPanel === undefined) {
+          sceneEditorStore.getState().setSidebarPanel(resolved);
+        }
+        onActiveSidebarPanelChange?.(resolved);
+      },
+      [
+        controlledSidebarPanel,
+        editorSidebarPanel,
+        onActiveSidebarPanelChange,
+        sceneEditorStore,
+      ],
+    );
     const [vectorBoards, setVectorBoards] = useState<AvnacVectorBoardMeta[]>(
       [],
     );
@@ -407,8 +459,6 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const vectorBoardDocsSaveTimerRef = useRef<ReturnType<
       typeof setTimeout
     > | null>(null);
-    const [shortcutsOpen, setShortcutsOpen] = useState(false);
-    const [focusMode, setFocusMode] = useState(false);
     const [exportError, setExportError] = useState<string | null>(null);
     const [contextMenu, setContextMenu] =
       useState<EditorContextMenuState | null>(null);
@@ -2957,6 +3007,18 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     captureDocRef.current = captureDoc;
     const applyDocRef = useRef(applyDoc);
     applyDocRef.current = applyDoc;
+    const sceneEditorPreviewDoc = useMemo(() => {
+      if (!ready || previewMode === "off") return null;
+      return captureDoc();
+    }, [
+      artboardH,
+      artboardW,
+      bgValue,
+      captureDoc,
+      previewMode,
+      ready,
+      selectionRev,
+    ]);
 
     const scheduleIdbAutosave = useCallback(() => {
       const pid = persistIdRef.current;
@@ -3509,7 +3571,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (t.closest("[data-avnac-chrome]")) return;
         if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
           e.preventDefault();
-          setShortcutsOpen(true);
+          setShortcutsModalOpen(true);
           return;
         }
         const c = fabricCanvasRef.current;
@@ -4374,8 +4436,25 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
 
     const toggleFocusMode = useCallback(() => {
       if (!focusMode) setEditorSidebarPanel(null);
-      setFocusMode((value) => !value);
-    }, [focusMode]);
+      sceneEditorStore.getState().toggleFocusMode();
+    }, [focusMode, sceneEditorStore, setEditorSidebarPanel]);
+
+    const setShortcutsModalOpen = useCallback(
+      (value: boolean) => {
+        sceneEditorStore.getState().setShortcutsOpen(value);
+      },
+      [sceneEditorStore],
+    );
+
+    const cycleRendererMode = useCallback(() => {
+      sceneEditorStore.getState().cyclePreviewMode();
+    }, [sceneEditorStore]);
+
+    const rendererModeLabel: Record<SceneWorkspacePreviewMode, string> = {
+      off: "Fabric",
+      split: "Split",
+      full: "Saraswati",
+    };
 
     return (
       <div className="relative flex min-h-0 flex-1 flex-col">
@@ -4592,6 +4671,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
               </div>
             </div>
           </div>
+          <SceneWorkspace mode={previewMode} document={sceneEditorPreviewDoc} />
         </div>
 
         {contextMenu ? (
@@ -4820,11 +4900,27 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             type="button"
             disabled={!ready}
             className={toolbarIconBtn(!ready)}
-            onClick={() => setShortcutsOpen(true)}
+            onClick={() => setShortcutsModalOpen(true)}
             aria-label="Keyboard shortcuts"
             title="Shortcuts (?)"
           >
             <HugeiconsIcon icon={HelpCircleIcon} size={20} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            disabled={!ready}
+            className={toolbarIconBtn(!ready)}
+            onClick={cycleRendererMode}
+            aria-label={`Renderer mode: ${rendererModeLabel[previewMode]}`}
+            title={`Renderer mode: ${rendererModeLabel[previewMode]}`}
+          >
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
+              {previewMode === "off"
+                ? "FAB"
+                : previewMode === "split"
+                  ? "SPL"
+                  : "SWS"}
+            </span>
           </button>
 
           {!ready ? (
@@ -4909,7 +5005,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         ) : null}
         <EditorShortcutsModal
           open={shortcutsOpen}
-          onClose={() => setShortcutsOpen(false)}
+          onClose={() => setShortcutsModalOpen(false)}
         />
         <ImageCropModal
           open={imageCropOpen}
