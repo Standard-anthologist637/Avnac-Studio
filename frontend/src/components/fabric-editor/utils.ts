@@ -1,32 +1,21 @@
 import type { Canvas, FabricObject, IText } from "fabric";
 import { bgValueFromFabricFill } from "@/lib/avnac-fill-paint";
-import { getAvnacShapeMeta, type AvnacShapeKind } from "@/lib/avnac-shape-meta";
+import { getAvnacShapeMeta } from "@/lib/avnac-shape-meta";
 import { getAvnacLayerName } from "@/lib/ensure-avnac-layer-id";
-import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selection-toolbar";
 import type { TextFormatToolbarValues } from "@/components/editor/text/text-format-toolbar";
-import { ARTBOARD_ALIGN_ALREADY_EPS, ARTBOARD_ALIGN_PAD } from "./constants";
+import {
+  artboardAlignAlreadySatisfied,
+  avnacShapeKindLayerLabel,
+  pointerIsTouch,
+  primaryFontFamily,
+} from "@/lib/saraswati/utils";
 
-export function artboardAlignAlreadySatisfied(
-  br: {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  },
-  boardW: number,
-  boardH: number,
-): Record<CanvasAlignKind, boolean> {
-  const pad = ARTBOARD_ALIGN_PAD;
-  const eps = ARTBOARD_ALIGN_ALREADY_EPS;
-  return {
-    left: Math.abs(br.left - pad) <= eps,
-    centerH: Math.abs(br.left + br.width / 2 - boardW / 2) <= eps,
-    right: Math.abs(br.left + br.width - (boardW - pad)) <= eps,
-    top: Math.abs(br.top - pad) <= eps,
-    centerV: Math.abs(br.top + br.height / 2 - boardH / 2) <= eps,
-    bottom: Math.abs(br.top + br.height - (boardH - pad)) <= eps,
-  };
-}
+export {
+  artboardAlignAlreadySatisfied,
+  avnacShapeKindLayerLabel,
+  pointerIsTouch,
+  primaryFontFamily,
+};
 
 export function toolbarIconBtn(disabled?: boolean): string {
   const base =
@@ -56,21 +45,12 @@ export function isEventOnFabricCanvas(
   return lower.contains(target) || upper.contains(target);
 }
 
-export function pointerIsTouch(e: Event): boolean {
-  return "pointerType" in e && (e as PointerEvent).pointerType === "touch";
-}
-
 /** Local outer radius for centered polygon/star points after scaling is baked into geometry. */
 export function outerRadiusFromScaledPolygon(obj: FabricObject): number {
   return Math.max(
     24,
     Math.min(obj.getScaledWidth(), obj.getScaledHeight()) / 2,
   );
-}
-
-export function primaryFontFamily(css: string): string {
-  const first = css.split(",")[0]?.trim() ?? "Inter";
-  return first.replace(/^["']|["']$/g, "");
 }
 
 export function readTextFormat(
@@ -96,18 +76,6 @@ export function readTextFormat(
     italic: obj.fontStyle === "italic",
     underline: !!obj.underline,
   };
-}
-
-export function avnacShapeKindLayerLabel(kind: AvnacShapeKind): string {
-  const labels: Record<AvnacShapeKind, string> = {
-    rect: "Square",
-    ellipse: "Ellipse",
-    polygon: "Polygon",
-    star: "Star",
-    line: "Line",
-    arrow: "Arrow",
-  };
-  return labels[kind];
 }
 
 export function fabricObjectLabel(

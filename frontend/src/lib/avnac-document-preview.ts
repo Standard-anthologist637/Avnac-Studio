@@ -1,5 +1,5 @@
 import type { AvnacDocumentV1 } from "./avnac-document";
-import { renderAvnacDocumentFastPreviewDataUrl } from "./saraswati/render/preview";
+import { renderAvnacDocumentFastPreviewDataUrl } from "./saraswati/preview/render";
 import { loadCanvasGoogleFontsAndRelayout } from "./avnac-canvas-google-fonts";
 import { ensureAvnacLayerId } from "./ensure-avnac-layer-id";
 import { linearGradientForBox } from "./fabric-linear-gradient";
@@ -63,7 +63,7 @@ export async function renderAvnacDocumentPreviewDataUrl(
     null;
 
   try {
-    const fastUrl = renderAvnacDocumentFastPreviewDataUrl(doc, options);
+    const fastUrl = await renderAvnacDocumentFastPreviewDataUrl(doc, options);
     if (fastUrl) {
       if (cacheKey) {
         previewCache.set(cacheKey, fastUrl);

@@ -220,24 +220,24 @@ import type {
   FabricEditorProps,
 } from "./types";
 import {
-  artboardAlignAlreadySatisfied,
   backgroundTopBtn,
   fabricObjectLabel,
   isEventOnFabricCanvas,
   outerRadiusFromScaledPolygon,
-  pointerIsTouch,
   readTextFormat,
   toolbarIconBtn,
 } from "./utils";
 import {
+  artboardAlignAlreadySatisfied,
+  placementCenterOccupied,
+  pointerIsTouch,
+  stepPlacementDiagonally,
+  type PlacementRect,
+} from "@/lib/saraswati/utils";
+import {
   imageFilesFromClipboardData,
   readClipboardImageFiles,
 } from "./clipboard";
-import {
-  placementCenterOccupied,
-  stepPlacementDiagonally,
-  type PlacementRect,
-} from "./object-placement";
 import {
   getRedoHistoryEntry,
   getUndoHistoryEntry,
@@ -2134,10 +2134,17 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         CLIPBOARD_PASTE_OFFSET,
         placementCenterOccupied,
       );
-      moveFabricObjectBy(obj, positioned.x - current.x, positioned.y - current.y);
+      moveFabricObjectBy(
+        obj,
+        positioned.x - current.x,
+        positioned.y - current.y,
+      );
     }
 
-    function prepareInsertedObject(obj: FabricObject, mod: typeof import("fabric")) {
+    function prepareInsertedObject(
+      obj: FabricObject,
+      mod: typeof import("fabric"),
+    ) {
       if (getAvnacLocked(obj)) setAvnacLocked(obj, false, mod);
       detachAvnacVectorBoardLink(obj, mod);
       renewAvnacLayerId(obj);
@@ -4739,7 +4746,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           >
             <HugeiconsIcon icon={RedoIcon} size={20} strokeWidth={1.75} />
           </button>
-          <div className="mx-0.5 h-5 w-px shrink-0 self-center bg-black/10" aria-hidden />
+          <div
+            className="mx-0.5 h-5 w-px shrink-0 self-center bg-black/10"
+            aria-hidden
+          />
           <div
             ref={shapeToolSplitRef}
             className="relative flex items-stretch rounded-lg border border-black/[0.06] bg-black/[0.02]"

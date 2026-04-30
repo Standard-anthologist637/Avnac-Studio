@@ -1,61 +1,172 @@
-import type {
-  SaraswatiPreviewRenderableObject,
-  SaraswatiSceneDocumentV1,
-  SaraswatiSceneObject,
+import type { BgValue } from "../editor-paint";
+import {
+  SARASWATI_SCENE_VERSION,
+  type SaraswatiGroupNode,
+  type SaraswatiNode,
+  type SaraswatiNodeId,
+  type SaraswatiRenderableNode,
+  type SaraswatiScene,
+  type SaraswatiSceneValidationIssue,
 } from "./types";
 
-export const SARASWATI_SCENE_VERSION = 1 as const;
+export const SARASWATI_ROOT_ID = "root" as const;
 
-export function createSaraswatiSceneDocument(
-  input: Omit<SaraswatiSceneDocumentV1, "v">,
-): SaraswatiSceneDocumentV1 {
+export function createSaraswatiRootGroup(
+  id: SaraswatiNodeId = SARASWATI_ROOT_ID,
+): SaraswatiGroupNode {
   return {
-    v: SARASWATI_SCENE_VERSION,
+    id,
+    type: "group",
+    parentId: null,
+    visible: true,
+    children: [],
+  };
+}
+
+export function createEmptySaraswatiScene(input?: {
+  width?: number;
+  height?: number;
+  bg?: BgValue;
+}): SaraswatiScene {
+  const root = createSaraswatiRootGroup();
+  return {
+    version: SARASWATI_SCENE_VERSION,
+    root: root.id,
+    nodes: { [root.id]: root },
+    artboard: {
+      width: input?.width ?? 4000,
+      height: input?.height ?? 4000,
+      bg: input?.bg ?? { type: "solid", color: "#ffffff" },
+    },
+  };
+}
+
+export function createSaraswatiScene(
+  input: Omit<SaraswatiScene, "version">,
+): SaraswatiScene {
+  return {
+    version: SARASWATI_SCENE_VERSION,
     ...input,
   };
 }
 
-export function parseSaraswatiSceneDocument(
-  raw: unknown,
-): SaraswatiSceneDocumentV1 | null {
+export function cloneSaraswatiScene(scene: SaraswatiScene): SaraswatiScene {
+  const nodes: Record<SaraswatiNodeId, SaraswatiNode> = {};
+  for (const [id, node] of Object.entries(scene.nodes)) {
+    nodes[id] =
+      node.type === "group"
+        ? { ...node, children: [...node.children] }
+        : { ...node };
+  }
+  return {
+    version: scene.version,
+    root: scene.root,
+    nodes,
+    artboard: {
+      width: scene.artboard.width,
+      height: scene.artboard.height,
+      bg: cloneBgValue(scene.artboard.bg),
+    },
+  };
+}
+
+export function parseSaraswatiScene(raw: unknown): SaraswatiScene | null {
   if (!raw || typeof raw !== "object") return null;
-  const doc = raw as Partial<SaraswatiSceneDocumentV1>;
-  if (doc.v !== SARASWATI_SCENE_VERSION) return null;
+  const scene = raw as Partial<SaraswatiScene>;
+  if (scene.version !== SARASWATI_SCENE_VERSION) return null;
+  if (!scene.root || typeof scene.root !== "string") return null;
+  if (!scene.nodes || typeof scene.nodes !== "object") return null;
   if (
-    !doc.artboard ||
-    typeof doc.artboard.width !== "number" ||
-    typeof doc.artboard.height !== "number"
+    !scene.artboard ||
+    typeof scene.artboard.width !== "number" ||
+    typeof scene.artboard.height !== "number" ||
+    !scene.artboard.bg ||
+    typeof scene.artboard.bg !== "object"
   ) {
     return null;
   }
-  if (!doc.bg || typeof doc.bg !== "object") return null;
-  if (!Array.isArray(doc.objects)) return null;
-  return doc as SaraswatiSceneDocumentV1;
+  const typed = scene as SaraswatiScene;
+  return validateSaraswatiScene(typed).length === 0 ? typed : null;
 }
 
-export function isSaraswatiPreviewRenderableObject(
-  object: SaraswatiSceneObject,
-): object is SaraswatiPreviewRenderableObject {
-  switch (object.kind) {
-    case "rect":
-    case "ellipse":
-    case "polygon":
-    case "text":
-    case "line":
-    case "arrow":
-      return true;
-    default:
-      return false;
+export function validateSaraswatiScene(
+  scene: SaraswatiScene,
+): SaraswatiSceneValidationIssue[] {
+  const issues: SaraswatiSceneValidationIssue[] = [];
+  const root = scene.nodes[scene.root];
+  if (!root) {
+    issues.push({ reason: "missing-root", nodeId: scene.root });
+    return issues;
   }
+  if (root.type !== "group") {
+    issues.push({ reason: "root-must-be-group", nodeId: scene.root });
+  }
+  for (const node of Object.values(scene.nodes)) {
+    if (node.type === "group") {
+      for (const childId of node.children) {
+        const child = scene.nodes[childId];
+        if (!child) {
+          issues.push({ reason: "missing-child", nodeId: childId });
+          continue;
+        }
+        if (child.parentId !== node.id) {
+          issues.push({ reason: "child-parent-mismatch", nodeId: childId });
+        }
+      }
+      continue;
+    }
+    if (node.parentId && !scene.nodes[node.parentId]) {
+      issues.push({ reason: "missing-parent", nodeId: node.id });
+    }
+  }
+  return issues;
 }
 
-export function isSaraswatiFastPreviewCapable(
-  scene: SaraswatiSceneDocumentV1,
-): boolean {
-  return scene.objects.every(
-    (object) =>
-      object.visible === false || isSaraswatiPreviewRenderableObject(object),
-  );
+export function getSaraswatiNode(
+  scene: SaraswatiScene,
+  nodeId: SaraswatiNodeId,
+): SaraswatiNode | null {
+  return scene.nodes[nodeId] ?? null;
+}
+
+export function isSaraswatiRenderableNode(
+  node: SaraswatiNode,
+): node is SaraswatiRenderableNode {
+  return node.type === "rect" || node.type === "text" || node.type === "image";
+}
+
+export function listSaraswatiNodesInRenderOrder(
+  scene: SaraswatiScene,
+): SaraswatiRenderableNode[] {
+  const ordered: SaraswatiRenderableNode[] = [];
+  visitNode(scene, scene.root, ordered);
+  return ordered;
+}
+
+function visitNode(
+  scene: SaraswatiScene,
+  nodeId: SaraswatiNodeId,
+  ordered: SaraswatiRenderableNode[],
+) {
+  const node = scene.nodes[nodeId];
+  if (!node || node.visible === false) return;
+  if (node.type === "group") {
+    for (const childId of node.children) {
+      visitNode(scene, childId, ordered);
+    }
+    return;
+  }
+  ordered.push(node);
+}
+
+function cloneBgValue(bg: BgValue): BgValue {
+  if (bg.type === "solid") return { ...bg };
+  return {
+    type: "gradient",
+    angle: bg.angle,
+    css: bg.css,
+    stops: bg.stops.map((stop) => ({ ...stop })),
+  };
 }
 
 export * from "./types";
