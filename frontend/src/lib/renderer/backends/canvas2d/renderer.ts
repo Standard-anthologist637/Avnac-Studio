@@ -3,7 +3,11 @@ import type {
   SaraswatiRenderImageCommand,
 } from "../../../saraswati/render/commands";
 import type { RendererBackend } from "../../types";
-import { renderCanvas2DRectCommand } from "./shapes";
+import {
+  renderCanvas2DEllipseCommand,
+  renderCanvas2DPolygonCommand,
+  renderCanvas2DRectCommand,
+} from "./shapes";
 import { loadCanvas2DImage, withCanvas2DTransform } from "./shared";
 import { renderCanvas2DTextCommand } from "./text";
 
@@ -23,6 +27,12 @@ export async function renderCanvas2DCommands(
     switch (command.type) {
       case "rect":
         renderCanvas2DRectCommand(ctx, command);
+        break;
+      case "ellipse":
+        renderCanvas2DEllipseCommand(ctx, command);
+        break;
+      case "polygon":
+        renderCanvas2DPolygonCommand(ctx, command);
         break;
       case "text":
         renderCanvas2DTextCommand(ctx, command);

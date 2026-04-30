@@ -53,10 +53,18 @@ export function createSaraswatiScene(
 export function cloneSaraswatiScene(scene: SaraswatiScene): SaraswatiScene {
   const nodes: Record<SaraswatiNodeId, SaraswatiNode> = {};
   for (const [id, node] of Object.entries(scene.nodes)) {
-    nodes[id] =
-      node.type === "group"
-        ? { ...node, children: [...node.children] }
-        : { ...node };
+    if (node.type === "group") {
+      nodes[id] = { ...node, children: [...node.children] };
+      continue;
+    }
+    if (node.type === "polygon") {
+      nodes[id] = {
+        ...node,
+        points: node.points.map((point) => ({ ...point })),
+      };
+      continue;
+    }
+    nodes[id] = { ...node };
   }
   return {
     version: scene.version,
@@ -132,7 +140,13 @@ export function getSaraswatiNode(
 export function isSaraswatiRenderableNode(
   node: SaraswatiNode,
 ): node is SaraswatiRenderableNode {
-  return node.type === "rect" || node.type === "text" || node.type === "image";
+  return (
+    node.type === "rect" ||
+    node.type === "ellipse" ||
+    node.type === "polygon" ||
+    node.type === "text" ||
+    node.type === "image"
+  );
 }
 
 export function listSaraswatiNodesInRenderOrder(

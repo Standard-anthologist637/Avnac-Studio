@@ -1,7 +1,12 @@
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import type { RendererBackend } from "@/lib/renderer";
-import { fromAvnacDocument } from "@/lib/saraswati";
-import { useMemo } from "react";
+import {
+  applyCommand,
+  fromAvnacDocument,
+  type SaraswatiCommand,
+  type SaraswatiScene,
+} from "@/lib/saraswati";
+import { useEffect, useMemo } from "react";
 import SceneWorkspaceStage from "./stage";
 import type { SceneWorkspacePreviewMode } from "./store";
 
@@ -9,17 +14,73 @@ type Props = {
   mode: SceneWorkspacePreviewMode;
   document: AvnacDocumentV1 | null;
   backend?: RendererBackend<CanvasRenderingContext2D>;
+  commands?: readonly SaraswatiCommand[];
+  onCommandsApplied?: (result: {
+    commands: readonly SaraswatiCommand[];
+    scene: SaraswatiScene;
+  }) => void;
 };
 
-export default function SceneWorkspace({ mode, document, backend }: Props) {
+export default function SceneWorkspace({
+  mode,
+  document,
+  backend,
+  commands,
+  onCommandsApplied,
+}: Props) {
   const adapterResult = useMemo(() => {
     if (!document || mode === "off") return null;
     return fromAvnacDocument(document);
   }, [document, mode]);
 
-  if (mode === "off" || !adapterResult) return null;
+  const sceneResult = useMemo(() => {
+    if (!adapterResult) return null;
+    if (!commands || commands.length === 0) {
+      return {
+        scene: adapterResult.scene,
+        issues: adapterResult.issues,
+        appliedCommands: [] as SaraswatiCommand[],
+      };
+    }
+    let nextScene = adapterResult.scene;
+    for (const command of commands) {
+      nextScene = applyCommand(nextScene, command);
+    }
+    return {
+      scene: nextScene,
+      issues: adapterResult.issues,
+      appliedCommands: [...commands],
+    };
+  }, [adapterResult, commands]);
 
-  const { scene, issues } = adapterResult;
+  useEffect(() => {
+    if (!onCommandsApplied || !sceneResult) return;
+    if (sceneResult.appliedCommands.length === 0) return;
+    onCommandsApplied({
+      commands: sceneResult.appliedCommands,
+      scene: sceneResult.scene,
+    });
+  }, [onCommandsApplied, sceneResult]);
+
+  if (mode === "off" || !sceneResult) return null;
+
+  const { scene, issues } = sceneResult;
+  const issueSummary = useMemo(() => {
+    if (issues.length === 0) return null;
+    const buckets = new Map<string, number>();
+    for (const issue of issues) {
+      const key = `${issue.sourceType}:${issue.reason}`;
+      buckets.set(key, (buckets.get(key) ?? 0) + 1);
+    }
+    return [...buckets.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([key, count]) => {
+        const [sourceType, reason] = key.split(":");
+        return `${sourceType} (${reason}) x${count}`;
+      })
+      .slice(0, 3)
+      .join(", ");
+  }, [issues]);
   const maxPreviewEdge = mode === "split" ? 300 : 560;
   const maxSceneEdge = Math.max(scene.artboard.width, scene.artboard.height, 1);
   const scale = Math.min(1, maxPreviewEdge / maxSceneEdge);
@@ -64,7 +125,7 @@ export default function SceneWorkspace({ mode, document, backend }: Props) {
 
         <p className="mt-2 text-xs text-neutral-600">
           {issues.length > 0
-            ? `Partial render: ${issues.length} legacy Fabric item${issues.length === 1 ? "" : "s"} still need porting.`
+            ? `Partial render: ${issues.length} legacy Fabric item${issues.length === 1 ? "" : "s"} still need porting. ${issueSummary ? `Top blockers: ${issueSummary}.` : ""}`
             : "RenderCommands are being interpreted by the selected renderer backend instead of Fabric."}
         </p>
       </div>

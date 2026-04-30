@@ -1,9 +1,11 @@
 import type { BgValue } from "../../editor-paint";
 import {
+  type SaraswatiEllipseNode,
   listSaraswatiNodesInRenderOrder,
   type SaraswatiImageNode,
   type SaraswatiNodeOriginX,
   type SaraswatiNodeOriginY,
+  type SaraswatiPolygonNode,
   type SaraswatiRectNode,
   type SaraswatiRenderableNode,
   type SaraswatiScene,
@@ -30,6 +32,25 @@ export type SaraswatiRenderRectCommand = RenderTransform & {
   strokeWidth: number;
   radiusX: number;
   radiusY: number;
+};
+
+export type SaraswatiRenderEllipseCommand = RenderTransform & {
+  type: "ellipse";
+  width: number;
+  height: number;
+  fill: BgValue;
+  stroke: BgValue | null;
+  strokeWidth: number;
+};
+
+export type SaraswatiRenderPolygonCommand = RenderTransform & {
+  type: "polygon";
+  width: number;
+  height: number;
+  fill: BgValue;
+  stroke: BgValue | null;
+  strokeWidth: number;
+  points: Array<{ x: number; y: number }>;
 };
 
 export type SaraswatiRenderTextCommand = RenderTransform & {
@@ -59,6 +80,8 @@ export type SaraswatiRenderImageCommand = RenderTransform & {
 
 export type SaraswatiRenderCommand =
   | SaraswatiRenderRectCommand
+  | SaraswatiRenderEllipseCommand
+  | SaraswatiRenderPolygonCommand
   | SaraswatiRenderTextCommand
   | SaraswatiRenderImageCommand;
 
@@ -99,6 +122,10 @@ function nodeToRenderCommand(
   switch (node.type) {
     case "rect":
       return rectNodeToCommand(node);
+    case "ellipse":
+      return ellipseNodeToCommand(node);
+    case "polygon":
+      return polygonNodeToCommand(node);
     case "text":
       return textNodeToCommand(node);
     case "image":
@@ -120,6 +147,49 @@ function rectNodeToCommand(
     strokeWidth: node.strokeWidth,
     radiusX: node.radiusX,
     radiusY: node.radiusY,
+    rotation: node.rotation,
+    scaleX: node.scaleX,
+    scaleY: node.scaleY,
+    opacity: node.opacity,
+    originX: node.originX,
+    originY: node.originY,
+  };
+}
+
+function ellipseNodeToCommand(
+  node: SaraswatiEllipseNode,
+): SaraswatiRenderEllipseCommand {
+  return {
+    type: "ellipse",
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    fill: node.fill,
+    stroke: node.stroke,
+    strokeWidth: node.strokeWidth,
+    rotation: node.rotation,
+    scaleX: node.scaleX,
+    scaleY: node.scaleY,
+    opacity: node.opacity,
+    originX: node.originX,
+    originY: node.originY,
+  };
+}
+
+function polygonNodeToCommand(
+  node: SaraswatiPolygonNode,
+): SaraswatiRenderPolygonCommand {
+  return {
+    type: "polygon",
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
+    fill: node.fill,
+    stroke: node.stroke,
+    strokeWidth: node.strokeWidth,
+    points: node.points.map((point) => ({ ...point })),
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,

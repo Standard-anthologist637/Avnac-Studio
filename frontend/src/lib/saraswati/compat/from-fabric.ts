@@ -4,10 +4,12 @@ import {
   createEmptySaraswatiScene,
   type SaraswatiAdapterIssue,
   type SaraswatiAdapterResult,
+  type SaraswatiEllipseNode,
   type SaraswatiImageNode,
   type SaraswatiNode,
   type SaraswatiNodeOriginX,
   type SaraswatiNodeOriginY,
+  type SaraswatiPolygonNode,
   type SaraswatiRectNode,
   type SaraswatiTextNode,
 } from "../scene";
@@ -38,6 +40,7 @@ type RawFabricObject = Record<string, unknown> & {
   height?: number;
   rx?: number;
   ry?: number;
+  r?: number;
   strokeWidth?: number;
   text?: string;
   fontSize?: number;
@@ -61,6 +64,16 @@ type RawFabricObject = Record<string, unknown> & {
   points?: RawFabricPoint[];
   pathOffset?: RawFabricPoint;
 };
+
+type NormalizedFabricObjectType =
+  | "rect"
+  | "ellipse"
+  | "polygon"
+  | "text"
+  | "textbox"
+  | "i-text"
+  | "image"
+  | "unknown";
 
 type FabricCanvasLike = {
   width?: number;
@@ -163,7 +176,8 @@ function adaptRawFabricObject(
       },
     };
   }
-  if (raw.avnacShape) {
+  const shapeKind = readShapeKind(raw.avnacShape);
+  if (shapeKind === "arrow" || shapeKind === "line") {
     return {
       node: null,
       issue: {
@@ -174,7 +188,9 @@ function adaptRawFabricObject(
     };
   }
 
-  switch (raw.type) {
+  const normalizedType = normalizeFabricObjectType(raw.type);
+
+  switch (normalizedType) {
     case "rect": {
       if (!isPositiveNumber(raw.width) || !isPositiveNumber(raw.height)) {
         return {
@@ -207,6 +223,87 @@ function adaptRawFabricObject(
         radiusY: readNumber(raw.ry, 0),
       };
       return { node, issue: unsupportedIssue(sourceId, "rect") };
+    }
+    case "ellipse": {
+      const radius = readNumber(raw.r, 0);
+      const rx = readNumber(raw.rx, radius > 0 ? radius : readNumber(raw.width, 0) / 2);
+      const ry = readNumber(raw.ry, radius > 0 ? radius : readNumber(raw.height, 0) / 2);
+      const width = rx > 0 ? rx * 2 : 0;
+      const height = ry > 0 ? ry * 2 : 0;
+      if (!isPositiveNumber(width) || !isPositiveNumber(height)) {
+        return {
+          node: null,
+          issue: {
+            reason: "missing-ellipse-size",
+            sourceType: normalizedType,
+            sourceId,
+          },
+        };
+      }
+      const node: SaraswatiEllipseNode = {
+        id: sourceId,
+        type: "ellipse",
+        parentId,
+        visible: raw.visible !== false,
+        x: readNumber(raw.left, 0),
+        y: readNumber(raw.top, 0),
+        rotation: readNumber(raw.angle, 0),
+        scaleX: readNumber(raw.scaleX, 1),
+        scaleY: readNumber(raw.scaleY, 1),
+        opacity: clampOpacity(readNumber(raw.opacity, 1)),
+        originX: normalizeOriginX(raw.originX),
+        originY: normalizeOriginY(raw.originY),
+        width,
+        height,
+        fill: readPaint(raw.avnacFill, raw.fill, {
+          type: "solid",
+          color: "transparent",
+        }),
+        stroke: readOptionalPaint(raw.avnacStroke, raw.stroke),
+        strokeWidth: readNumber(raw.strokeWidth, 0),
+      };
+      return { node, issue: unsupportedIssue(sourceId, normalizedType) };
+    }
+    case "polygon": {
+      const points = normalizePolygonPoints(raw.points);
+      if (!points) {
+        return {
+          node: null,
+          issue: {
+            reason: "missing-polygon-points",
+            sourceType: "polygon",
+            sourceId,
+          },
+        };
+      }
+      const bounds = polygonBounds(points);
+      const node: SaraswatiPolygonNode = {
+        id: sourceId,
+        type: "polygon",
+        parentId,
+        visible: raw.visible !== false,
+        x: readNumber(raw.left, 0),
+        y: readNumber(raw.top, 0),
+        rotation: readNumber(raw.angle, 0),
+        scaleX: readNumber(raw.scaleX, 1),
+        scaleY: readNumber(raw.scaleY, 1),
+        opacity: clampOpacity(readNumber(raw.opacity, 1)),
+        originX: normalizeOriginX(raw.originX),
+        originY: normalizeOriginY(raw.originY),
+        width: bounds.width,
+        height: bounds.height,
+        points,
+        fill: readPaint(raw.avnacFill, raw.fill, {
+          type: "solid",
+          color: "transparent",
+        }),
+        stroke: readOptionalPaint(raw.avnacStroke, raw.stroke),
+        strokeWidth: readNumber(raw.strokeWidth, 0),
+      };
+      return {
+        node,
+        issue: unsupportedIssue(sourceId, shapeKind === "star" ? "star" : "polygon"),
+      };
     }
     case "textbox":
     case "i-text":
@@ -295,7 +392,7 @@ function adaptRawFabricObject(
         node: null,
         issue: {
           reason: "unsupported-type",
-          sourceType: readSourceType(raw),
+          sourceType: normalizedType,
           sourceId,
         },
       };
@@ -377,6 +474,72 @@ function clampOpacity(value: number) {
 
 function readSourceType(raw: RawFabricObject): string {
   return typeof raw.type === "string" ? raw.type : "unknown";
+}
+
+function normalizeFabricObjectType(
+  rawType: unknown,
+): NormalizedFabricObjectType {
+  if (typeof rawType !== "string") return "unknown";
+  const value = rawType.trim().toLowerCase();
+  if (value === "circle" || value === "ellipse") return "ellipse";
+  if (
+    value === "rect" ||
+    value === "polygon" ||
+    value === "image" ||
+    value === "text" ||
+    value === "textbox" ||
+    value === "i-text"
+  ) {
+    return value;
+  }
+  return "unknown";
+}
+
+function readShapeKind(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const kind = (raw as { kind?: unknown }).kind;
+  return typeof kind === "string" ? kind : null;
+}
+
+function normalizePolygonPoints(
+  rawPoints: RawFabricPoint[] | undefined,
+): Array<{ x: number; y: number }> | null {
+  if (!Array.isArray(rawPoints) || rawPoints.length < 3) return null;
+  const points = rawPoints.filter(
+    (point) =>
+      point &&
+      Number.isFinite(point.x) &&
+      Number.isFinite(point.y),
+  );
+  if (points.length < 3) return null;
+  const bounds = polygonBounds(points);
+  const centerX = bounds.minX + bounds.width / 2;
+  const centerY = bounds.minY + bounds.height / 2;
+  return points.map((point) => ({
+    x: point.x - centerX,
+    y: point.y - centerY,
+  }));
+}
+
+function polygonBounds(points: Array<{ x: number; y: number }>) {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const point of points) {
+    minX = Math.min(minX, point.x);
+    minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x);
+    maxY = Math.max(maxY, point.y);
+  }
+  return {
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
 }
 
 function unsupportedIssue(

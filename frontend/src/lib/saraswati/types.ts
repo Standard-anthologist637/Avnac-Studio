@@ -34,6 +34,19 @@ export type SaraswatiRectNode = SaraswatiPaintNodeBase & {
   radiusY: number;
 };
 
+export type SaraswatiEllipseNode = SaraswatiPaintNodeBase & {
+  type: "ellipse";
+  width: number;
+  height: number;
+};
+
+export type SaraswatiPolygonNode = SaraswatiPaintNodeBase & {
+  type: "polygon";
+  width: number;
+  height: number;
+  points: Array<{ x: number; y: number }>;
+};
+
 export type SaraswatiTextNode = SaraswatiNodeBase & {
   type: "text";
   text: string;
@@ -69,12 +82,16 @@ export type SaraswatiGroupNode = {
 
 export type SaraswatiNode =
   | SaraswatiRectNode
+  | SaraswatiEllipseNode
+  | SaraswatiPolygonNode
   | SaraswatiTextNode
   | SaraswatiImageNode
   | SaraswatiGroupNode;
 
 export type SaraswatiRenderableNode =
   | SaraswatiRectNode
+  | SaraswatiEllipseNode
+  | SaraswatiPolygonNode
   | SaraswatiTextNode
   | SaraswatiImageNode;
 
