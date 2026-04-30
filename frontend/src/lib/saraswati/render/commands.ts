@@ -1,6 +1,7 @@
 import type { BgValue } from "../../editor-paint";
 import {
   type SaraswatiEllipseNode,
+  type SaraswatiImageClipPath,
   listSaraswatiNodesInRenderOrder,
   type SaraswatiImageNode,
   type SaraswatiLineNode,
@@ -107,6 +108,7 @@ export type SaraswatiRenderImageCommand = RenderTransform & {
   src: string;
   cropX: number;
   cropY: number;
+  clipPath: SaraswatiImageClipPath | null;
 };
 
 export type SaraswatiRenderCommand =
@@ -301,6 +303,7 @@ function imageNodeToCommand(
     src: node.src,
     cropX: node.cropX,
     cropY: node.cropY,
+    clipPath: node.clipPath,
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,

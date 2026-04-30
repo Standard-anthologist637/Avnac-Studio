@@ -7,6 +7,7 @@ import {
   type SaraswatiEllipseNode,
   type SaraswatiGroupNode,
   type SaraswatiImageNode,
+  type SaraswatiImageClipPath,
   type SaraswatiLineNode,
   type SaraswatiLinePathType,
   type SaraswatiLineStyle,
@@ -68,6 +69,19 @@ type RawFabricObject = Record<string, unknown> & {
   points?: RawFabricPoint[];
   pathOffset?: RawFabricPoint;
   objects?: unknown[];
+};
+
+type RawFabricClipPath = Record<string, unknown> & {
+  type?: string;
+  left?: number;
+  top?: number;
+  width?: number;
+  height?: number;
+  originX?: "left" | "center" | "right";
+  originY?: "top" | "center" | "bottom";
+  rx?: number;
+  ry?: number;
+  r?: number;
 };
 
 type NormalizedFabricObjectType =
@@ -161,8 +175,18 @@ function adaptRawFabricObjects(input: {
   indexPrefix: string;
   nodes: Record<string, SaraswatiNode>;
   issues: SaraswatiAdapterIssue[];
+  offsetX?: number;
+  offsetY?: number;
 }): string[] {
-  const { rawObjects, parentId, indexPrefix, nodes, issues } = input;
+  const {
+    rawObjects,
+    parentId,
+    indexPrefix,
+    nodes,
+    issues,
+    offsetX = 0,
+    offsetY = 0,
+  } = input;
   const children: string[] = [];
 
   rawObjects.forEach((raw, index) => {
@@ -188,12 +212,15 @@ function adaptRawFabricObjects(input: {
       };
       nodes[groupId] = groupNode;
 
+      const { cx, cy } = resolveGroupCenter(raw);
       const nestedChildren = adaptRawFabricObjects({
         rawObjects: groupChildren,
         parentId: groupId,
         indexPrefix: indexKey,
         nodes,
         issues,
+        offsetX: offsetX + cx,
+        offsetY: offsetY + cy,
       });
 
       nodes[groupId] = {
@@ -204,7 +231,10 @@ function adaptRawFabricObjects(input: {
       return;
     }
 
-    const adapted = adaptRawFabricObject(raw, parentId, indexKey);
+    const adapted = adaptRawFabricObject(raw, parentId, indexKey, {
+      offsetX,
+      offsetY,
+    });
     if (!adapted.node) {
       issues.push(adapted.issue);
       return;
@@ -220,8 +250,11 @@ function adaptRawFabricObject(
   raw: RawFabricObject,
   parentId: string,
   index: string,
+  options?: { offsetX?: number; offsetY?: number },
 ): { node: SaraswatiNode | null; issue: SaraswatiAdapterIssue } {
   const sourceId = readSourceId(raw, index);
+  const offsetX = options?.offsetX ?? 0;
+  const offsetY = options?.offsetY ?? 0;
 
   if (typeof raw.avnacVectorBoardId === "string" && raw.avnacVectorBoardId) {
     return {
@@ -239,7 +272,11 @@ function adaptRawFabricObject(
     if (!eps) {
       return {
         node: null,
-        issue: { reason: "shape-meta", sourceType: readSourceType(raw), sourceId },
+        issue: {
+          reason: "shape-meta",
+          sourceType: readSourceType(raw),
+          sourceId,
+        },
       };
     }
     const node: SaraswatiLineNode = {
@@ -259,7 +296,11 @@ function adaptRawFabricObject(
       y1: eps.y1,
       x2: eps.x2,
       y2: eps.y2,
-      stroke: readPaint(raw.avnacStroke ?? raw.avnacFill, raw.stroke ?? raw.fill, { type: "solid", color: "#262626" }),
+      stroke: readPaint(
+        raw.avnacStroke ?? raw.avnacFill,
+        raw.stroke ?? raw.fill,
+        { type: "solid", color: "#262626" },
+      ),
       strokeWidth: readArrowStrokeWidth(raw.avnacShape),
       arrowStart: false,
       arrowEnd: shapeKind === "arrow",
@@ -293,8 +334,8 @@ function adaptRawFabricObject(
         type: "rect",
         parentId,
         visible: raw.visible !== false,
-        x: readNumber(raw.left, 0),
-        y: readNumber(raw.top, 0),
+        x: readNumber(raw.left, 0) + offsetX,
+        y: readNumber(raw.top, 0) + offsetY,
         rotation: readNumber(raw.angle, 0),
         scaleX: readNumber(raw.scaleX, 1),
         scaleY: readNumber(raw.scaleY, 1),
@@ -316,8 +357,14 @@ function adaptRawFabricObject(
     }
     case "ellipse": {
       const radius = readNumber(raw.r, 0);
-      const rx = readNumber(raw.rx, radius > 0 ? radius : readNumber(raw.width, 0) / 2);
-      const ry = readNumber(raw.ry, radius > 0 ? radius : readNumber(raw.height, 0) / 2);
+      const rx = readNumber(
+        raw.rx,
+        radius > 0 ? radius : readNumber(raw.width, 0) / 2,
+      );
+      const ry = readNumber(
+        raw.ry,
+        radius > 0 ? radius : readNumber(raw.height, 0) / 2,
+      );
       const width = rx > 0 ? rx * 2 : 0;
       const height = ry > 0 ? ry * 2 : 0;
       if (!isPositiveNumber(width) || !isPositiveNumber(height)) {
@@ -335,8 +382,8 @@ function adaptRawFabricObject(
         type: "ellipse",
         parentId,
         visible: raw.visible !== false,
-        x: readNumber(raw.left, 0),
-        y: readNumber(raw.top, 0),
+        x: readNumber(raw.left, 0) + offsetX,
+        y: readNumber(raw.top, 0) + offsetY,
         rotation: readNumber(raw.angle, 0),
         scaleX: readNumber(raw.scaleX, 1),
         scaleY: readNumber(raw.scaleY, 1),
@@ -372,8 +419,8 @@ function adaptRawFabricObject(
         type: "polygon",
         parentId,
         visible: raw.visible !== false,
-        x: readNumber(raw.left, 0),
-        y: readNumber(raw.top, 0),
+        x: readNumber(raw.left, 0) + offsetX,
+        y: readNumber(raw.top, 0) + offsetY,
         rotation: readNumber(raw.angle, 0),
         scaleX: readNumber(raw.scaleX, 1),
         scaleY: readNumber(raw.scaleY, 1),
@@ -392,7 +439,10 @@ function adaptRawFabricObject(
       };
       return {
         node,
-        issue: unsupportedIssue(sourceId, shapeKind === "star" ? "star" : "polygon"),
+        issue: unsupportedIssue(
+          sourceId,
+          shapeKind === "star" ? "star" : "polygon",
+        ),
       };
     }
     case "textbox":
@@ -413,8 +463,8 @@ function adaptRawFabricObject(
         type: "text",
         parentId,
         visible: raw.visible !== false,
-        x: readNumber(raw.left, 0),
-        y: readNumber(raw.top, 0),
+        x: readNumber(raw.left, 0) + offsetX,
+        y: readNumber(raw.top, 0) + offsetY,
         rotation: readNumber(raw.angle, 0),
         scaleX: readNumber(raw.scaleX, 1),
         scaleY: readNumber(raw.scaleY, 1),
@@ -461,8 +511,8 @@ function adaptRawFabricObject(
         type: "image",
         parentId,
         visible: raw.visible !== false,
-        x: readNumber(raw.left, 0),
-        y: readNumber(raw.top, 0),
+        x: readNumber(raw.left, 0) + offsetX,
+        y: readNumber(raw.top, 0) + offsetY,
         rotation: readNumber(raw.angle, 0),
         scaleX: readNumber(raw.scaleX, 1),
         scaleY: readNumber(raw.scaleY, 1),
@@ -474,6 +524,7 @@ function adaptRawFabricObject(
         src: raw.src,
         cropX: readNumber(raw.cropX, 0),
         cropY: readNumber(raw.cropY, 0),
+        clipPath: readImageClipPath(raw.clipPath),
       };
       return { node, issue: unsupportedIssue(sourceId, "image") };
     }
@@ -487,6 +538,36 @@ function adaptRawFabricObject(
         },
       };
   }
+}
+
+/**
+ * Compute the canvas-space center of a Fabric group.
+ *
+ * In Fabric v6 all objects (including groups) default to originX="left"/originY="top",
+ * meaning `left` and `top` refer to the top-left corner of the bounding box.
+ * Children of a group are stored in group-local space where (0,0) = group center.
+ * To convert a child's local position to canvas space we need the group center:
+ *   centerX = left + width  * (0.5 - resolveOriginOffset)
+ *           = left - width  * originOffset   (left=-0.5, center=0, right=0.5)
+ */
+function resolveGroupCenter(raw: RawFabricObject): { cx: number; cy: number } {
+  const left = readNumber(raw.left, 0);
+  const top = readNumber(raw.top, 0);
+  const width = readNumber(raw.width, 0);
+  const height = readNumber(raw.height, 0);
+  // originOffset: left/top = -0.5, center = 0, right/bottom = 0.5
+  // centerX = left - width * originOffset[originX]
+  //         = left + width * (0.5)   for originX='left'  (default in Fabric v6)
+  //         = left                   for originX='center'
+  //         = left - width * (0.5)   for originX='right'
+  const ox = raw.originX;
+  const oy = raw.originY;
+  const factorX = ox === "center" ? 0 : ox === "right" ? -0.5 : 0.5;
+  const factorY = oy === "center" ? 0 : oy === "bottom" ? -0.5 : 0.5;
+  return {
+    cx: left + width * factorX,
+    cy: top + height * factorY,
+  };
 }
 
 function readFabricObjects(fabric: Record<string, unknown>): RawFabricObject[] {
@@ -616,9 +697,12 @@ function readArrowEndpoints(
   if (!ep || typeof ep !== "object") return null;
   const { x1, y1, x2, y2 } = ep as Record<string, unknown>;
   if (
-    typeof x1 !== "number" || typeof y1 !== "number" ||
-    typeof x2 !== "number" || typeof y2 !== "number"
-  ) return null;
+    typeof x1 !== "number" ||
+    typeof y1 !== "number" ||
+    typeof x2 !== "number" ||
+    typeof y2 !== "number"
+  )
+    return null;
   return { x1, y1, x2, y2 };
 }
 
@@ -653,15 +737,79 @@ function readArrowCurveT(raw: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0.5;
 }
 
+function readImageClipPath(raw: unknown): SaraswatiImageClipPath | null {
+  if (!raw || typeof raw !== "object") return null;
+  const clip = raw as RawFabricClipPath;
+  const rawType =
+    typeof clip.type === "string" ? clip.type.trim().toLowerCase() : "";
+
+  if (rawType !== "rect" && rawType !== "ellipse" && rawType !== "circle") {
+    return null;
+  }
+
+  const circleR = readNumber(clip.r, 0);
+  const rx = readNumber(
+    clip.rx,
+    circleR > 0 ? circleR : readNumber(clip.width, 0) / 2,
+  );
+  const ry = readNumber(
+    clip.ry,
+    circleR > 0 ? circleR : readNumber(clip.height, 0) / 2,
+  );
+  const width = rawType === "rect" ? readNumber(clip.width, 0) : rx * 2;
+  const height = rawType === "rect" ? readNumber(clip.height, 0) : ry * 2;
+  if (!isPositiveNumber(width) || !isPositiveNumber(height)) return null;
+
+  const left = readNumber(clip.left, 0);
+  const top = readNumber(clip.top, 0);
+  const originX = normalizeOriginX(clip.originX);
+  const originY = normalizeOriginY(clip.originY);
+  const x = anchorToCenter(left, originX, width, true);
+  const y = anchorToCenter(top, originY, height, false);
+
+  if (rawType === "rect") {
+    return {
+      type: "rect",
+      x,
+      y,
+      width,
+      height,
+      radiusX: Math.max(0, readNumber(clip.rx, 0)),
+      radiusY: Math.max(0, readNumber(clip.ry, 0)),
+    };
+  }
+
+  return {
+    type: "ellipse",
+    x,
+    y,
+    width,
+    height,
+  };
+}
+
+function anchorToCenter(
+  anchor: number,
+  origin: SaraswatiNodeOriginX | SaraswatiNodeOriginY,
+  size: number,
+  isX: boolean,
+) {
+  const axisOrigin = origin ?? (isX ? "left" : "top");
+  const factor =
+    axisOrigin === "center"
+      ? 0.5
+      : axisOrigin === "right" || axisOrigin === "bottom"
+        ? 1
+        : 0;
+  return anchor + (0.5 - factor) * size;
+}
+
 function normalizePolygonPoints(
   rawPoints: RawFabricPoint[] | undefined,
 ): Array<{ x: number; y: number }> | null {
   if (!Array.isArray(rawPoints) || rawPoints.length < 3) return null;
   const points = rawPoints.filter(
-    (point) =>
-      point &&
-      Number.isFinite(point.x) &&
-      Number.isFinite(point.y),
+    (point) => point && Number.isFinite(point.x) && Number.isFinite(point.y),
   );
   if (points.length < 3) return null;
   const bounds = polygonBounds(points);

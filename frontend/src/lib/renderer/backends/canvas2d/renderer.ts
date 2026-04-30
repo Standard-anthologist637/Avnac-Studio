@@ -12,6 +12,51 @@ import {
 import { loadCanvas2DImage, withCanvas2DTransform } from "./shared";
 import { renderCanvas2DTextCommand } from "./text";
 
+function clipCanvas2DImagePath(
+  ctx: CanvasRenderingContext2D,
+  command: SaraswatiRenderImageCommand,
+) {
+  const clip = command.clipPath;
+  if (!clip) return;
+  ctx.beginPath();
+  if (clip.type === "ellipse") {
+    ctx.ellipse(
+      clip.x,
+      clip.y,
+      clip.width / 2,
+      clip.height / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
+  } else {
+    const x = clip.x - clip.width / 2;
+    const y = clip.y - clip.height / 2;
+    const radius = Math.max(clip.radiusX, clip.radiusY, 0);
+    if (radius <= 0) {
+      ctx.rect(x, y, clip.width, clip.height);
+    } else {
+      const r = Math.min(radius, clip.width / 2, clip.height / 2);
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + clip.width - r, y);
+      ctx.quadraticCurveTo(x + clip.width, y, x + clip.width, y + r);
+      ctx.lineTo(x + clip.width, y + clip.height - r);
+      ctx.quadraticCurveTo(
+        x + clip.width,
+        y + clip.height,
+        x + clip.width - r,
+        y + clip.height,
+      );
+      ctx.lineTo(x + r, y + clip.height);
+      ctx.quadraticCurveTo(x, y + clip.height, x, y + clip.height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+  }
+  ctx.clip();
+}
+
 export type Canvas2DRendererTarget = CanvasRenderingContext2D;
 
 export const canvas2DRendererBackend: RendererBackend<Canvas2DRendererTarget> =
@@ -58,6 +103,7 @@ async function renderCanvas2DImageCommand(
 ) {
   const image = await loadCanvas2DImage(command.src);
   withCanvas2DTransform(ctx, command, command.width, command.height, () => {
+    clipCanvas2DImagePath(ctx, command);
     const targetX = -command.width / 2;
     const targetY = -command.height / 2;
     const cropX = Math.max(0, Math.round(command.cropX));

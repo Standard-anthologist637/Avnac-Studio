@@ -16,6 +16,14 @@ export function applyCommand(
       return addNode(scene, command.node);
     case "DELETE_NODE":
       return deleteNode(scene, command.id);
+    case "REPLACE_NODE":
+      return replaceNode(scene, command.node);
+    case "SET_GROUP_CHILDREN":
+      return setGroupChildren(scene, command.id, command.children);
+    case "GROUP_NODES":
+      return groupNodes(scene, command.id, command.parentId, command.children);
+    case "UNGROUP_NODE":
+      return ungroupNode(scene, command.id);
     default:
       return scene;
   }
@@ -68,6 +76,150 @@ function deleteNode(scene: SaraswatiScene, nodeId: string): SaraswatiScene {
   for (const id of idsToDelete) {
     delete next.nodes[id];
   }
+  return next;
+}
+
+function replaceNode(
+  scene: SaraswatiScene,
+  node: SaraswatiNode,
+): SaraswatiScene {
+  const existing = scene.nodes[node.id];
+  if (!existing) return scene;
+  const next = cloneSaraswatiScene(scene);
+  if (existing.type === "group" && node.type === "group") {
+    next.nodes[node.id] = {
+      ...node,
+      children: [...existing.children],
+    };
+    return next;
+  }
+  next.nodes[node.id] = {
+    ...node,
+    parentId: existing.parentId,
+  };
+  return next;
+}
+
+function setGroupChildren(
+  scene: SaraswatiScene,
+  groupId: string,
+  children: string[],
+): SaraswatiScene {
+  const group = scene.nodes[groupId];
+  if (!group || group.type !== "group") return scene;
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const childId of children) {
+    if (seen.has(childId) || !scene.nodes[childId] || childId === scene.root)
+      continue;
+    seen.add(childId);
+    deduped.push(childId);
+  }
+  if (
+    deduped.length === group.children.length &&
+    deduped.every((childId, index) => childId === group.children[index])
+  ) {
+    return scene;
+  }
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[groupId] = {
+    ...group,
+    children: deduped,
+  };
+  for (const childId of deduped) {
+    const child = next.nodes[childId];
+    if (!child || child.parentId === groupId) continue;
+    next.nodes[childId] = { ...child, parentId: groupId };
+  }
+  return next;
+}
+
+function groupNodes(
+  scene: SaraswatiScene,
+  groupId: string,
+  parentId: string,
+  children: string[],
+): SaraswatiScene {
+  if (scene.nodes[groupId]) return scene;
+  const parent = scene.nodes[parentId];
+  if (!parent || parent.type !== "group") return scene;
+
+  const selected = new Set<string>();
+  const orderedChildren: string[] = [];
+  for (const childId of parent.children) {
+    if (!children.includes(childId) || selected.has(childId)) continue;
+    const child = scene.nodes[childId];
+    if (!child || child.parentId !== parentId) continue;
+    selected.add(childId);
+    orderedChildren.push(childId);
+  }
+  if (orderedChildren.length < 2) return scene;
+
+  const firstIndex = parent.children.findIndex((childId) =>
+    selected.has(childId),
+  );
+  if (firstIndex < 0) return scene;
+
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[groupId] = {
+    id: groupId,
+    type: "group",
+    parentId,
+    visible: true,
+    opacity: 1,
+    children: orderedChildren,
+  };
+
+  next.nodes[parentId] = {
+    ...parent,
+    children: [
+      ...parent.children
+        .slice(0, firstIndex)
+        .filter((childId) => !selected.has(childId)),
+      groupId,
+      ...parent.children
+        .slice(firstIndex)
+        .filter((childId) => !selected.has(childId)),
+    ],
+  };
+
+  for (const childId of orderedChildren) {
+    const child = next.nodes[childId];
+    if (!child) continue;
+    next.nodes[childId] = { ...child, parentId: groupId };
+  }
+
+  return next;
+}
+
+function ungroupNode(scene: SaraswatiScene, groupId: string): SaraswatiScene {
+  const group = scene.nodes[groupId];
+  if (!group || group.type !== "group" || groupId === scene.root) return scene;
+  const parentId = group.parentId;
+  if (!parentId) return scene;
+  const parent = scene.nodes[parentId];
+  if (!parent || parent.type !== "group") return scene;
+
+  const groupIndex = parent.children.indexOf(groupId);
+  if (groupIndex < 0) return scene;
+
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[parentId] = {
+    ...parent,
+    children: [
+      ...parent.children.slice(0, groupIndex),
+      ...group.children,
+      ...parent.children.slice(groupIndex + 1),
+    ],
+  };
+
+  for (const childId of group.children) {
+    const child = next.nodes[childId];
+    if (!child) continue;
+    next.nodes[childId] = { ...child, parentId };
+  }
+
+  delete next.nodes[groupId];
   return next;
 }
 

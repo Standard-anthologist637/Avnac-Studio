@@ -262,6 +262,88 @@ describe("fromAvnacDocument shape ingestion", () => {
     expect(adapted.scene.nodes["group-child-rect"]?.type).toBe("rect");
   });
 
+  it("uses group center (left+width/2) as the offset for children with originX=left", () => {
+    // Fabric v6 groups default to originX='left', so group.left is the LEFT EDGE.
+    // Children are in group-local space where (0,0) = group center.
+    // Absolute child position = groupCenter + child.left
+    //   = (group.left + group.width/2) + child.left
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "group",
+          avnacLayerId: "outer-g",
+          // originX defaults to 'left' in Fabric v6
+          left: 100, // left edge of group bounding box
+          top: 50, // top edge of group bounding box
+          width: 200,
+          height: 120,
+          // group center in canvas space = (100+100, 50+60) = (200, 110)
+          objects: [
+            {
+              type: "rect",
+              avnacLayerId: "child-r",
+              left: -30, // in group-local space (relative to group center)
+              top: 15,
+              width: 60,
+              height: 40,
+              fill: "#111111",
+            },
+          ],
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    const node = adapted.scene.nodes["child-r"];
+    expect(node?.type).toBe("rect");
+    if (node?.type === "rect") {
+      // canvas_x = (100 + 200/2) + (-30) = 200 - 30 = 170
+      // canvas_y = (50  + 120/2) + 15   = 110 + 15 = 125
+      expect(node.x).toBe(170);
+      expect(node.y).toBe(125);
+    }
+  });
+
+  it("uses group.left directly as center when originX=center", () => {
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "group",
+          avnacLayerId: "center-g",
+          originX: "center",
+          originY: "center",
+          left: 300, // IS the center x (originX='center')
+          top: 200, // IS the center y
+          width: 160,
+          height: 80,
+          objects: [
+            {
+              type: "rect",
+              avnacLayerId: "center-child",
+              left: 20,
+              top: -10,
+              width: 50,
+              height: 30,
+              fill: "#222222",
+            },
+          ],
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    const node = adapted.scene.nodes["center-child"];
+    expect(node?.type).toBe("rect");
+    if (node?.type === "rect") {
+      // canvas_x = 300 + 20 = 320  (group.left IS center when originX='center')
+      // canvas_y = 200 + (-10) = 190
+      expect(node.x).toBe(320);
+      expect(node.y).toBe(190);
+    }
+  });
+
   it("ingests images with clipPath instead of skipping them", () => {
     const doc = makeBaseDocument();
     doc.fabric = {
@@ -280,7 +362,13 @@ describe("fromAvnacDocument shape ingestion", () => {
     };
 
     const adapted = fromAvnacDocument(doc);
-    expect(adapted.scene.nodes["img-clip-1"]?.type).toBe("image");
+    const node = adapted.scene.nodes["img-clip-1"];
+    expect(node?.type).toBe("image");
+    if (node?.type === "image") {
+      expect(node.clipPath?.type).toBe("rect");
+      expect(node.clipPath?.width).toBe(100);
+      expect(node.clipPath?.height).toBe(100);
+    }
     expect(adapted.issues.some((issue) => issue.reason === "clip-path")).toBe(
       false,
     );

@@ -96,6 +96,24 @@ export type SaraswatiTextNode = SaraswatiNodeBase & {
   strokeWidth: number;
 };
 
+export type SaraswatiImageClipPath =
+  | {
+      type: "rect";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      radiusX: number;
+      radiusY: number;
+    }
+  | {
+      type: "ellipse";
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+
 export type SaraswatiImageNode = SaraswatiNodeBase & {
   type: "image";
   width: number;
@@ -103,6 +121,7 @@ export type SaraswatiImageNode = SaraswatiNodeBase & {
   src: string;
   cropX: number;
   cropY: number;
+  clipPath: SaraswatiImageClipPath | null;
 };
 
 export type SaraswatiGroupNode = {

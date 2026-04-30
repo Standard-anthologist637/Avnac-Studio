@@ -145,7 +145,6 @@ import {
   renewAvnacLayerId,
   setAvnacLayerName,
 } from "../../lib/ensure-avnac-layer-id";
-import { extractImageUrlFromDataTransfer } from "@/lib/extract-image-url-from-data-transfer";
 import { linearGradientForBox } from "@/lib/fabric-linear-gradient";
 import { loadCanvasGoogleFontsAndRelayout } from "@/lib/avnac-canvas-google-fonts";
 import { loadGoogleFontFamily } from "@/lib/load-google-font";
@@ -245,18 +244,27 @@ import {
   pushHistorySnapshot,
 } from "./history";
 import {
+  buildGroupSelectionCommands,
+  buildLayerReorderCommands,
+  buildLayerStepCommand,
+  buildUngroupSelectionCommands,
   createSceneWorkspaceStore,
+  readSceneWorkspaceDropIntent,
   SceneWorkspace,
+  useSceneWorkspaceController,
   useSceneWorkspaceStore,
   type SceneWorkspacePreviewMode,
   type SceneWorkspaceStore,
-} from "@/components/scene-workspace";
+} from "@/scene";
 import {
+  applyCommand,
   createSaraswatiEditorStore,
   fromAvnacDocument,
   type SaraswatiCommand,
   type SaraswatiEditorStore,
+  type SaraswatiScene,
 } from "@/lib/saraswati";
+import { deriveSaraswatiCommands } from "./saraswati-command-bridge";
 
 export type { FabricEditorHandle } from "./types";
 
@@ -279,10 +287,6 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     persistDisplayNameRef.current = persistDisplayName?.trim()
       ? persistDisplayName.trim()
       : "Untitled";
-    const idbAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-      null,
-    );
-
     const canvasElRef = useRef<HTMLCanvasElement>(null);
     const artboardFrameRef = useRef<HTMLDivElement>(null);
     const canvasZoomRef = useRef<HTMLDivElement>(null);
@@ -312,12 +316,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     }
     const sceneEditorStore = sceneEditorStoreRef.current;
     const saraswatiLiveStoreRef = useRef<SaraswatiEditorStore | null>(null);
-    const fabricNodeLastPosRef = useRef(
-      new Map<string, { x: number; y: number }>(),
-    );
-    const [scenePreviewCommands, setScenePreviewCommands] = useState<
-      readonly SaraswatiCommand[]
-    >([]);
+    const saraswatiLiveSceneRef = useRef<SaraswatiScene | null>(null);
+    const suppressSaraswatiMutationRouteRef = useRef(false);
 
     const [artboardSize, setArtboardSize] = useState({
       w: DEFAULT_ARTBOARD_W,
@@ -347,7 +347,6 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     const historyIndexRef = useRef(0);
     const applyingHistoryRef = useRef(false);
     const historyInitRef = useRef(false);
-    const pendingPersistedDocRef = useRef<AvnacDocumentV1 | null>(null);
     const [canUndo, setCanUndo] = useState(false);
     const [canRedo, setCanRedo] = useState(false);
 
@@ -1901,26 +1900,43 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       return () => ro.disconnect();
     }, [ready, fitArtboardToViewport]);
 
-    const routeMoveToSaraswati = useCallback((target?: FabricObject) => {
-      const mod = fabricModRef.current;
-      if (!target || !mod) return;
-      if (mod.ActiveSelection && target instanceof mod.ActiveSelection) return;
-      const meta = getAvnacShapeMeta(target);
-      if (meta && isAvnacStrokeLineLike(meta)) return;
+    const routeFabricMutationToSaraswati = useCallback(() => {
+      if (
+        applyingHistoryRef.current ||
+        suppressSaraswatiMutationRouteRef.current
+      )
+        return;
+      const prevScene = saraswatiLiveSceneRef.current;
+      if (!prevScene) return;
 
-      const id = ensureAvnacLayerId(target);
-      const next = { x: target.left ?? 0, y: target.top ?? 0 };
-      const prev = fabricNodeLastPosRef.current.get(id);
-      fabricNodeLastPosRef.current.set(id, next);
-      if (!prev) return;
+      const canvas = fabricCanvasRef.current;
+      if (!canvas) return;
+      const fabricJson = canvas.toObject([
+        ...OBJECT_SERIAL_KEYS,
+      ] as unknown as string[]) as Record<string, unknown>;
+      const doc: AvnacDocumentV1 = {
+        v: AVNAC_DOC_VERSION,
+        artboard: {
+          width: artboardWRef.current,
+          height: artboardHRef.current,
+        },
+        bg: bgValueRef.current,
+        fabric: fabricJson,
+      };
 
-      const dx = next.x - prev.x;
-      const dy = next.y - prev.y;
-      if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return;
+      const adapted = fromAvnacDocument(doc);
+      const nextScene = adapted.scene;
+      const commands = deriveSaraswatiCommands(prevScene, nextScene);
+      if (commands.length === 0) {
+        saraswatiLiveSceneRef.current = nextScene;
+        return;
+      }
 
-      const command: SaraswatiCommand = { type: "MOVE_NODE", id, dx, dy };
-      saraswatiLiveStoreRef.current?.dispatch(command);
-      setScenePreviewCommands((commands) => [...commands, command]);
+      for (const command of commands) {
+        saraswatiLiveStoreRef.current?.dispatch(command);
+      }
+      saraswatiLiveSceneRef.current = nextScene;
+      bumpPreviewDocumentRevision();
     }, []);
 
     useEffect(() => {
@@ -1945,7 +1961,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
 
       const onModified = (opt: { target?: FabricObject; action?: string }) => {
         const target = opt.target;
-        routeMoveToSaraswati(target);
+        routeFabricMutationToSaraswati();
         if (
           target instanceof mod.Textbox &&
           (opt.action === "resizing" || opt.action === "scaling")
@@ -1994,17 +2010,26 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       canvas.on("object:scaling", onTransforming);
       canvas.on("object:rotating", onTransforming);
       canvas.on("object:modified", onModified);
+      canvas.on("object:added", routeFabricMutationToSaraswati);
+      canvas.on("object:removed", routeFabricMutationToSaraswati);
       canvas.on("text:changed", onTextChanged);
       return () => {
         canvas.off("object:moving", onMoving);
         canvas.off("object:scaling", onTransforming);
         canvas.off("object:rotating", onTransforming);
         canvas.off("object:modified", onModified);
+        canvas.off("object:added", routeFabricMutationToSaraswati);
+        canvas.off("object:removed", routeFabricMutationToSaraswati);
         canvas.off("text:changed", onTextChanged);
         if (movingRaf !== null) cancelAnimationFrame(movingRaf);
         if (transformRaf !== null) cancelAnimationFrame(transformRaf);
       };
-    }, [ready, routeMoveToSaraswati, syncTextToolbar, syncShapeToolbar]);
+    }, [
+      ready,
+      routeFabricMutationToSaraswati,
+      syncTextToolbar,
+      syncShapeToolbar,
+    ]);
 
     useEffect(() => {
       const vp = viewportRef.current;
@@ -2912,19 +2937,46 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if ("isEditing" in o && (o as IText).isEditing) return;
       }
       const snapshot = [...objs];
-      canvas.discardActiveObject();
-      for (const o of snapshot) canvas.remove(o);
-      const group = new mod.Group(snapshot, { canvas });
-      ensureAvnacLayerId(group);
-      canvas.add(group);
-      canvas.setActiveObject(group);
+      const selectedIds = snapshot.map((object) => ensureAvnacLayerId(object));
+      const nextGroupId = crypto.randomUUID();
+      const sceneCommands = saraswatiLiveSceneRef.current
+        ? buildGroupSelectionCommands(
+            saraswatiLiveSceneRef.current,
+            selectedIds,
+            nextGroupId,
+          )
+        : [];
+      applySceneWorkspaceCommands(sceneCommands);
+      suppressSaraswatiMutationRouteRef.current = true;
+      let group: FabricObject | null = null;
+      try {
+        canvas.discardActiveObject();
+        for (const o of snapshot) canvas.remove(o);
+        const nextGroup = new mod.Group(snapshot, { canvas });
+        nextGroup.set({ avnacLayerId: nextGroupId } as Partial<FabricObject> & {
+          avnacLayerId?: string;
+        });
+        canvas.add(nextGroup);
+        canvas.setActiveObject(nextGroup);
+        group = nextGroup;
+      } finally {
+        suppressSaraswatiMutationRouteRef.current = false;
+      }
       canvas.requestRenderAll();
       setHasObjectSelected(true);
       setCanvasBodySelected(false);
       selectionTick();
       syncTextToolbar();
       syncShapeToolbar();
-    }, [syncShapeToolbar, syncTextToolbar]);
+      routeFabricMutationToSaraswati();
+      persistAfterMutation(canvas, group);
+    }, [
+      applySceneWorkspaceCommands,
+      persistAfterMutation,
+      routeFabricMutationToSaraswati,
+      syncShapeToolbar,
+      syncTextToolbar,
+    ]);
 
     const ungroupSelection = useCallback(() => {
       const canvas = fabricCanvasRef.current;
@@ -2935,18 +2987,29 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       if (mod.ActiveSelection && g instanceof mod.ActiveSelection) return;
       const meta = getAvnacShapeMeta(g);
       if (isAvnacStrokeLineLike(meta)) return;
+      const groupId = ensureAvnacLayerId(g);
+      const sceneCommands = saraswatiLiveSceneRef.current
+        ? buildUngroupSelectionCommands(saraswatiLiveSceneRef.current, groupId)
+        : [];
+      applySceneWorkspaceCommands(sceneCommands);
 
-      canvas.discardActiveObject();
-      const items = g.removeAll();
-      canvas.remove(g);
-      for (const o of items) {
-        canvas.add(o);
-      }
-      if (items.length === 1) {
-        canvas.setActiveObject(items[0]!);
-      } else if (items.length > 1) {
-        const sel = new mod.ActiveSelection(items, { canvas });
-        canvas.setActiveObject(sel);
+      let items: FabricObject[] = [];
+      suppressSaraswatiMutationRouteRef.current = true;
+      try {
+        canvas.discardActiveObject();
+        items = g.removeAll();
+        canvas.remove(g);
+        for (const o of items) {
+          canvas.add(o);
+        }
+        if (items.length === 1) {
+          canvas.setActiveObject(items[0]!);
+        } else if (items.length > 1) {
+          const sel = new mod.ActiveSelection(items, { canvas });
+          canvas.setActiveObject(sel);
+        }
+      } finally {
+        suppressSaraswatiMutationRouteRef.current = false;
       }
       canvas.requestRenderAll();
       setHasObjectSelected(items.length > 0);
@@ -2954,7 +3017,15 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       selectionTick();
       syncTextToolbar();
       syncShapeToolbar();
-    }, [syncShapeToolbar, syncTextToolbar]);
+      routeFabricMutationToSaraswati();
+      persistAfterMutation(canvas, items[0] ?? canvas.getActiveObject());
+    }, [
+      applySceneWorkspaceCommands,
+      persistAfterMutation,
+      routeFabricMutationToSaraswati,
+      syncShapeToolbar,
+      syncTextToolbar,
+    ]);
 
     useEffect(() => {
       if (!ready) return;
@@ -3084,53 +3155,46 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     captureDocRef.current = captureDoc;
     const applyDocRef = useRef(applyDoc);
     applyDocRef.current = applyDoc;
-    const sceneEditorPreviewDoc = useMemo(() => {
-      if (!ready || previewMode === "off") return null;
-      return captureDoc();
-    }, [
-      artboardH,
-      artboardW,
-      bgValue,
-      captureDoc,
-      previewMode,
+    const {
+      previewDocument: sceneEditorPreviewDoc,
+      bumpPreviewDocumentRevision,
+      previewCommands: sceneWorkspacePreviewCommands,
+      stagePreviewCommands,
+      setPendingPersistedDocument,
+      scheduleAutosave,
+    } = useSceneWorkspaceController({
       ready,
-      selectionRev,
-    ]);
+      mode: previewMode,
+      captureDocument: captureDoc,
+      persistId,
+      persistDisplayName,
+    });
 
-    const onScenePreviewCommandsApplied = useCallback(() => {
-      setScenePreviewCommands([]);
-    }, []);
+    function applySceneWorkspaceCommands(
+      commands: readonly SaraswatiCommand[],
+    ) {
+      if (commands.length === 0) return;
+      stagePreviewCommands(commands);
+      let nextScene = saraswatiLiveSceneRef.current;
+      for (const command of commands) {
+        saraswatiLiveStoreRef.current?.dispatch(command);
+        if (nextScene) nextScene = applyCommand(nextScene, command);
+      }
+      if (nextScene) {
+        saraswatiLiveSceneRef.current = nextScene;
+      }
+    }
 
     useEffect(() => {
       if (!sceneEditorPreviewDoc) {
         saraswatiLiveStoreRef.current = null;
-        fabricNodeLastPosRef.current.clear();
-        setScenePreviewCommands([]);
+        saraswatiLiveSceneRef.current = null;
         return;
       }
       const adapted = fromAvnacDocument(sceneEditorPreviewDoc);
       saraswatiLiveStoreRef.current = createSaraswatiEditorStore(adapted.scene);
-      fabricNodeLastPosRef.current.clear();
-      setScenePreviewCommands([]);
+      saraswatiLiveSceneRef.current = adapted.scene;
     }, [sceneEditorPreviewDoc]);
-
-    const scheduleIdbAutosave = useCallback(() => {
-      const pid = persistIdRef.current;
-      if (!pid) return;
-      if (idbAutosaveTimerRef.current)
-        clearTimeout(idbAutosaveTimerRef.current);
-      idbAutosaveTimerRef.current = setTimeout(() => {
-        idbAutosaveTimerRef.current = null;
-        const nextDoc =
-          pendingPersistedDocRef.current ?? captureDocRef.current();
-        pendingPersistedDocRef.current = nextDoc;
-        void idbPutDocument(pid, nextDoc, {
-          name: persistDisplayNameRef.current,
-        }).catch((err) => {
-          console.error("FabricEditor: workspace autosave failed", err);
-        });
-      }, 1500);
-    }, []);
 
     const commitHistory = useCallback(() => {
       if (!ready || applyingHistoryRef.current) return;
@@ -3150,10 +3214,16 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       historySnapshotsRef.current = nextHistory.snapshots;
       historySerializedRef.current = nextHistory.serialized;
       historyIndexRef.current = nextHistory.index;
-      pendingPersistedDocRef.current = snap;
-      scheduleIdbAutosave();
+      setPendingPersistedDocument(snap);
+      scheduleAutosave();
       syncHistoryAvailability();
-    }, [ready, captureDoc, scheduleIdbAutosave, syncHistoryAvailability]);
+    }, [
+      ready,
+      captureDoc,
+      scheduleAutosave,
+      setPendingPersistedDocument,
+      syncHistoryAvailability,
+    ]);
 
     const undo = useCallback(async (): Promise<boolean> => {
       if (applyingHistoryRef.current) return false;
@@ -3165,11 +3235,16 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       if (!entry) return false;
       historyIndexRef.current = entry.index;
       await applyDoc(entry.snapshot);
-      pendingPersistedDocRef.current = entry.snapshot;
-      scheduleIdbAutosave();
+      setPendingPersistedDocument(entry.snapshot);
+      scheduleAutosave();
       syncHistoryAvailability();
       return true;
-    }, [applyDoc, scheduleIdbAutosave, syncHistoryAvailability]);
+    }, [
+      applyDoc,
+      scheduleAutosave,
+      setPendingPersistedDocument,
+      syncHistoryAvailability,
+    ]);
 
     const redo = useCallback(async (): Promise<boolean> => {
       if (applyingHistoryRef.current) return false;
@@ -3181,11 +3256,16 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       if (!entry) return false;
       historyIndexRef.current = entry.index;
       await applyDoc(entry.snapshot);
-      pendingPersistedDocRef.current = entry.snapshot;
-      scheduleIdbAutosave();
+      setPendingPersistedDocument(entry.snapshot);
+      scheduleAutosave();
       syncHistoryAvailability();
       return true;
-    }, [applyDoc, scheduleIdbAutosave, syncHistoryAvailability]);
+    }, [
+      applyDoc,
+      scheduleAutosave,
+      setPendingPersistedDocument,
+      syncHistoryAvailability,
+    ]);
 
     const createVectorBoard = useCallback(() => {
       const id = crypto.randomUUID();
@@ -3278,23 +3358,22 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         const canvas = fabricCanvasRef.current;
         const mod = fabricModRef.current;
         if (!canvas || !mod) return;
-        const boardId = e.dataTransfer.getData(AVNAC_VECTOR_BOARD_DRAG_MIME);
-        if (boardId) {
-          const p = canvas.getScenePoint(e.nativeEvent);
-          placeVectorBoardOnCanvas(boardId, p.x, p.y);
-          return;
-        }
-        const imageFiles = Array.from(e.dataTransfer.files).filter((f) =>
-          f.type.startsWith("image/"),
+        const intent = readSceneWorkspaceDropIntent(
+          e.dataTransfer,
+          AVNAC_VECTOR_BOARD_DRAG_MIME,
         );
         const p = canvas.getScenePoint(e.nativeEvent);
-        if (imageFiles.length > 0) {
-          addImageFromFiles(imageFiles, { x: p.x, y: p.y });
+        if (!intent) return;
+        if (intent.kind === "vector-board") {
+          placeVectorBoardOnCanvas(intent.boardId, p.x, p.y);
           return;
         }
-        const remoteUrl = extractImageUrlFromDataTransfer(e.dataTransfer);
-        if (remoteUrl) {
-          void addImageFromRemoteUrl(remoteUrl, { x: p.x, y: p.y });
+        if (intent.kind === "image-files") {
+          addImageFromFiles(intent.files, { x: p.x, y: p.y });
+          return;
+        }
+        if (intent.kind === "image-url") {
+          void addImageFromRemoteUrl(intent.url, { x: p.x, y: p.y });
         }
       },
       [addImageFromFiles, addImageFromRemoteUrl, placeVectorBoardOnCanvas],
@@ -3429,7 +3508,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           historySnapshotsRef.current = [initial];
           historySerializedRef.current = [JSON.stringify(initial)];
           historyIndexRef.current = 0;
-          pendingPersistedDocRef.current = initial;
+          setPendingPersistedDocument(initial);
         }
         return;
       }
@@ -3505,7 +3584,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         historySerializedRef.current = [JSON.stringify(initial)];
         historyIndexRef.current = 0;
         historyInitRef.current = true;
-        pendingPersistedDocRef.current = initial;
+        setPendingPersistedDocument(initial);
         if (!doc) {
           // New document — save immediately so it appears in the files list
           // even if the user navigates away before the debounced autosave fires.
@@ -3518,7 +3597,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             );
           });
         }
-        scheduleIdbAutosave();
+        scheduleAutosave();
       })();
 
       return () => {
@@ -3527,7 +3606,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
     }, [
       ready,
       persistId,
-      scheduleIdbAutosave,
+      scheduleAutosave,
+      setPendingPersistedDocument,
       initialArtboardWidth,
       initialArtboardHeight,
       fitArtboardToViewport,
@@ -3603,23 +3683,6 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
 
     useEffect(() => {
       return () => {
-        if (idbAutosaveTimerRef.current) {
-          clearTimeout(idbAutosaveTimerRef.current);
-          idbAutosaveTimerRef.current = null;
-        }
-        // Flush any pending document save when the editor unmounts.
-        // This ensures that even a brand-new file that was never interacted
-        // with still gets written before the user sees the files list.
-        const pid = persistIdRef.current;
-        const pendingDoc = pendingPersistedDocRef.current;
-        if (pid && pendingDoc) {
-          pendingPersistedDocRef.current = null;
-          void idbPutDocument(pid, pendingDoc, {
-            name: persistDisplayNameRef.current,
-          }).catch((err) => {
-            console.error("FabricEditor: flush on unmount failed", err);
-          });
-        }
         if (vectorBoardsSaveTimerRef.current) {
           clearTimeout(vectorBoardsSaveTimerRef.current);
           vectorBoardsSaveTimerRef.current = null;
@@ -3924,7 +3987,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           historySnapshotsRef.current = [next];
           historySerializedRef.current = [JSON.stringify(next)];
           historyIndexRef.current = 0;
-          pendingPersistedDocRef.current = next;
+          setPendingPersistedDocument(next);
           const pid = persistIdRef.current;
           if (pid) {
             void idbPutDocument(pid, next, {
@@ -3938,7 +4001,12 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           }
         });
       },
-      [applyDoc, captureDoc, fitArtboardToViewport],
+      [
+        applyDoc,
+        captureDoc,
+        fitArtboardToViewport,
+        setPendingPersistedDocument,
+      ],
     );
 
     const loadDocument = useCallback(
@@ -4379,12 +4447,20 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (!c) return;
         const o = c.getObjects()[stackIndex];
         if (!o) return;
+        const sceneCommands = saraswatiLiveSceneRef.current
+          ? buildLayerStepCommand(
+              saraswatiLiveSceneRef.current,
+              ensureAvnacLayerId(o),
+              "forward",
+            )
+          : [];
+        applySceneWorkspaceCommands(sceneCommands);
         c.bringObjectForward(o);
         c.requestRenderAll();
         selectionTick();
         persistAfterMutation(c, o);
       },
-      [persistAfterMutation],
+      [applySceneWorkspaceCommands, persistAfterMutation],
     );
 
     const onLayerSendBackward = useCallback(
@@ -4393,12 +4469,20 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (!c) return;
         const o = c.getObjects()[stackIndex];
         if (!o) return;
+        const sceneCommands = saraswatiLiveSceneRef.current
+          ? buildLayerStepCommand(
+              saraswatiLiveSceneRef.current,
+              ensureAvnacLayerId(o),
+              "backward",
+            )
+          : [];
+        applySceneWorkspaceCommands(sceneCommands);
         c.sendObjectBackwards(o);
         c.requestRenderAll();
         selectionTick();
         persistAfterMutation(c, o);
       },
-      [persistAfterMutation],
+      [applySceneWorkspaceCommands, persistAfterMutation],
     );
 
     const onRenameLayer = useCallback(
@@ -4421,6 +4505,13 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (!c) return;
         const stack = c.getObjects();
         if (orderedLayerIds.length !== stack.length) return;
+        const sceneCommands = saraswatiLiveSceneRef.current
+          ? buildLayerReorderCommands(
+              saraswatiLiveSceneRef.current,
+              orderedLayerIds,
+            )
+          : [];
+        applySceneWorkspaceCommands(sceneCommands);
         const byId = new Map<string, FabricObject>();
         for (const o of stack) {
           byId.set(ensureAvnacLayerId(o), o);
@@ -4447,7 +4538,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         selectionTick();
         persistAfterMutation(c, moved);
       },
-      [persistAfterMutation],
+      [applySceneWorkspaceCommands, persistAfterMutation],
     );
 
     let elementToolbarLockedDisplay = false;
@@ -4768,8 +4859,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           <SceneWorkspace
             mode={previewMode}
             document={sceneEditorPreviewDoc}
-            commands={scenePreviewCommands}
-            onCommandsApplied={onScenePreviewCommandsApplied}
+            commands={sceneWorkspacePreviewCommands}
           />
         </div>
 
