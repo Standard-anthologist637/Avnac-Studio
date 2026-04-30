@@ -32,15 +32,15 @@ Saraswati does not own:
 
 ```text
 User Input (mouse, keyboard)
-	↓
+ ↓
 React UI (toolbars, panels)
-	↓
+ ↓
 Editor Controller (interaction layer)
-	↓
+ ↓
 Saraswati Engine (scene + commands)
-	↓
+ ↓
 Render Commands (abstract draw instructions)
-	↓
+ ↓
 Renderer (Canvas2D / Pixi / GPU / Go-native)
 ```
 
@@ -116,7 +116,66 @@ Renderers consume these commands.
 Current source-of-truth files in this repo:
 
 - `frontend/src/lib/saraswati/render/commands.ts`
-- `frontend/src/lib/saraswati/render/canvas.ts`
+- `frontend/src/lib/renderer/`
+
+---
+
+## Renderer Backends
+
+Renderer implementations should not live inside Saraswati.
+
+Saraswati owns the render language. The renderer layer interprets that language.
+
+Current structure:
+
+```text
+frontend/src/lib/
+	saraswati/
+		render/
+			commands.ts
+	renderer/
+		types.ts
+		backends/
+			canvas2d/
+				renderer.ts
+				text.ts
+				shapes.ts
+				shared.ts
+			pixi/
+				renderer.ts
+				text.ts
+				shapes.ts
+```
+
+The important rule is not the folder shape. The important rule is the contract.
+
+Both renderers must implement the same `RenderCommand` language.
+
+Conceptually:
+
+```ts
+type RenderCommand =
+  | { type: "rect"; x: number; y: number; width: number; height: number }
+  | { type: "text"; text: string; x: number; y: number; fontSize: number }
+  | {
+      type: "image";
+      src: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+```
+
+The real command types in this repo carry more detail such as paint, stroke, crop, scale, origin, and rotation, but the rule stays the same: backend-specific types must not leak into the command model.
+
+If Pixi introduces Pixi-specific scene objects into Saraswati state, abstraction is already broken.
+
+This is the correct dependency direction:
+
+- Saraswati can define `RenderCommands`
+- renderer backends can depend on `RenderCommands`
+- Saraswati should not own Canvas2D or Pixi implementation files
 
 ---
 
@@ -138,6 +197,43 @@ Renderers:
 - must stay output-only
 
 Saraswati is renderer-agnostic by design. A renderer is an implementation detail, not the engine definition.
+
+What swappable renderer really means:
+
+- Saraswati logic does not change
+- scene logic does not branch by backend
+- command generation stays identical
+- only the interpreter changes
+
+In practice, the thing being swapped is this shape of responsibility:
+
+- `render(commands, canvasContext)`
+- `render(commands, pixiApp)`
+
+Everything above that boundary should remain the same.
+
+Canvas2D backend responsibilities:
+
+- `fillRect` or path drawing for shapes
+- `fillText` or `strokeText` for text
+- `drawImage` for images
+- simple transforms and paint application
+
+Pixi backend responsibilities:
+
+- `Graphics` or equivalent for shapes
+- `Text` for text
+- `Sprite` for images
+- GPU-friendly batching and display-tree output
+
+What not to do:
+
+- do not put scene logic inside the Pixi folder
+- do not let Pixi nodes become the scene model
+- do not store Pixi or Canvas objects in Saraswati state
+- do not branch engine logic with renderer conditionals such as `if (renderer === "pixi")`
+
+That would turn the renderer from an interpreter into a second engine, which is exactly what Saraswati is trying to avoid.
 
 ---
 
@@ -179,6 +275,60 @@ State can be managed by:
 The engine must run without React.
 
 That rule matters because React is a delivery layer for interaction, not the definition of the editor state machine.
+
+---
+
+## Runtime Flow
+
+The intended runtime loop is:
+
+```text
+UI → Commands → Engine → Renderer → UI reflects result
+```
+
+This means:
+
+- UI gathers intent
+- Saraswati converts intent into deterministic state changes
+- render commands are produced from state
+- a backend interprets those commands
+- the UI reflects the updated scene state rather than owning it
+
+---
+
+## Workspace Migration Layer
+
+The migration should not jump straight from `FabricEditor` to a final Saraswati editor.
+
+There needs to be a workspace layer where editor orchestration can live while the runtime underneath is still changing.
+
+Current workspace boundary:
+
+- `frontend/src/features/scene-editor/scene-editor-workspace.tsx`
+- `frontend/src/features/scene-editor/scene-editor-store.ts`
+- `frontend/src/features/scene-editor/scene-editor-stage.tsx`
+
+Responsibilities of this layer:
+
+- own workspace-level UI state that does not belong in Saraswati
+- reduce prop drilling with Zustand where shell state is shared
+- keep Fabric-specific runtime details behind a boundary while the Saraswati stage grows
+- provide the place where Saraswati stage rendering can replace Fabric incrementally instead of through a big-bang swap
+
+What belongs here:
+
+- sidebar or panel state
+- renderer mode selection
+- workspace-level chrome and orchestration
+- migration glue between legacy editor runtime and Saraswati stage
+
+What does not belong here:
+
+- scene truth
+- renderer-specific object models
+- Fabric lifecycle semantics
+
+This layer exists so maintainers can keep porting behavior out of `FabricEditor` without forcing Saraswati to absorb UI shell concerns.
 
 ---
 
@@ -249,7 +399,10 @@ Today it already includes:
 - a versioned scene graph
 - a pure command reducer
 - render-command generation
-- a Canvas2D renderer
+- an external renderer backend layer under `frontend/src/lib/renderer/`
+- a new scene-editor workspace boundary under `frontend/src/features/scene-editor/`
+- a Canvas2D backend renderer
+- a Pixi placeholder backend with no engine coupling
 - a Fabric adapter
 - a preview entry point that tries Saraswati first and falls back to Fabric when needed
 
@@ -265,6 +418,10 @@ That is deliberate. Safety is more important than pretending the migration is co
 
 The adapter boundary is also where basic grouping support belongs as compatibility expands. Grouping must remain adapter-scoped rather than becoming an engine-wide dependency on Fabric semantics.
 
+The current live editor is still Fabric-backed. The renderer backend work starts at the preview boundary first because that is the safest place to prove the abstraction before the interactive editor is migrated.
+
+Moving the backend layer out of Saraswati is also part of moving away from Fabric the right way: Avnac now has a renderer layer that does not belong to Fabric and does not belong to the engine. That gives the migration a clean place to grow without leaking renderer concerns back into Saraswati.
+
 ---
 
 ## Non-Goals
@@ -274,6 +431,30 @@ The adapter boundary is also where basic grouping support belongs as compatibili
 - Saraswati does not directly use GPU APIs
 - Saraswati is not a drop-in Fabric replacement
 - Saraswati v1 is not a big-bang rewrite of the live editor
+
+---
+
+## Phased Renderer Plan
+
+### Phase 1
+
+- Canvas2D renderer only
+- strict `RenderCommand` system
+- clean scene model
+- preview boundary integration first
+
+### Phase 2
+
+- plug in Pixi using the same commands
+- keep command generation identical
+- measure where Pixi actually helps dense scenes
+
+### Phase 3
+
+- choose backend dynamically or by performance profile
+- keep the engine unchanged while interpreters vary
+
+The key point is that Saraswati does not swap engines. It swaps interpreters of the same language.
 
 ---
 
