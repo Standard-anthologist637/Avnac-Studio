@@ -4474,7 +4474,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
 
         <div
           ref={viewportRef}
-          className="relative flex min-h-0 flex-1 flex-col overflow-auto rounded-2xl bg-[var(--surface-subtle)]"
+          className="relative flex min-h-0 flex-1 flex-col overflow-auto rounded-2xl bg-[var(--surface-subtle)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           onDragOver={ready ? onVectorBoardDragOver : undefined}
           onDrop={ready ? onViewportDrop : undefined}
           onContextMenu={ready ? onViewportContextMenu : undefined}
