@@ -203,6 +203,7 @@ import EditorVectorBoardPanel from "@/components/editor/vector-boards/editor-vec
 import VectorBoardWorkspace from "@/components/editor/vector-boards/vector-board-workspace";
 import {
   ARTBOARD_ALIGN_PAD,
+  CLIPBOARD_PASTE_OFFSET,
   DEFAULT_ARTBOARD_H,
   DEFAULT_ARTBOARD_W,
   DEFAULT_PAINT,
@@ -232,6 +233,11 @@ import {
   imageFilesFromClipboardData,
   readClipboardImageFiles,
 } from "./clipboard";
+import {
+  placementCenterOccupied,
+  stepPlacementDiagonally,
+  type PlacementRect,
+} from "./object-placement";
 import {
   getRedoHistoryEntry,
   getUndoHistoryEntry,
@@ -2097,6 +2103,46 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       return () => document.removeEventListener("mousedown", onDocMouseDown);
     }, [ready]);
 
+    function placementRectFromFabricObject(obj: FabricObject): PlacementRect {
+      obj.setCoords();
+      const b = obj.getBoundingRect();
+      return {
+        x: b.left,
+        y: b.top,
+        width: b.width,
+        height: b.height,
+      };
+    }
+
+    function moveFabricObjectBy(obj: FabricObject, dx: number, dy: number) {
+      if (dx === 0 && dy === 0) return;
+      obj.set({
+        left: (obj.left ?? 0) + dx,
+        top: (obj.top ?? 0) + dy,
+      });
+      obj.setCoords();
+    }
+
+    function offsetFromOccupiedCenter(canvas: Canvas, obj: FabricObject) {
+      const current = placementRectFromFabricObject(obj);
+      const existing = canvas.getObjects().map(placementRectFromFabricObject);
+      const positioned = stepPlacementDiagonally(
+        current,
+        existing,
+        artboardW,
+        artboardH,
+        CLIPBOARD_PASTE_OFFSET,
+        placementCenterOccupied,
+      );
+      moveFabricObjectBy(obj, positioned.x - current.x, positioned.y - current.y);
+    }
+
+    function prepareInsertedObject(obj: FabricObject, mod: typeof import("fabric")) {
+      if (getAvnacLocked(obj)) setAvnacLocked(obj, false, mod);
+      detachAvnacVectorBoardLink(obj, mod);
+      renewAvnacLayerId(obj);
+    }
+
     function addText() {
       const canvas = fabricCanvasRef.current;
       const mod = fabricModRef.current;
@@ -2117,6 +2163,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       fitTextboxWidthToContent(t);
       applyBgValueToFill(mod, t, selectedPaint);
       ensureAvnacLayerId(t);
+      offsetFromOccupiedCenter(canvas, t);
       canvas.add(t);
       canvas.setActiveObject(t);
       canvas.requestRenderAll();
@@ -2140,6 +2187,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       setAvnacShapeMeta(r, { kind: "rect" });
       applyBgValueToFill(mod, r, selectedPaint);
       ensureAvnacLayerId(r);
+      offsetFromOccupiedCenter(canvas, r);
       canvas.add(r);
       canvas.setActiveObject(r);
       canvas.requestRenderAll();
@@ -2163,6 +2211,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       setAvnacShapeMeta(e, { kind: "ellipse" });
       applyBgValueToFill(mod, e, selectedPaint);
       ensureAvnacLayerId(e);
+      offsetFromOccupiedCenter(canvas, e);
       canvas.add(e);
       canvas.setActiveObject(e);
       canvas.requestRenderAll();
@@ -2185,6 +2234,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       setAvnacShapeMeta(p, { kind: "polygon", polygonSides: sides });
       applyBgValueToFill(mod, p, selectedPaint);
       ensureAvnacLayerId(p);
+      offsetFromOccupiedCenter(canvas, p);
       canvas.add(p);
       canvas.setActiveObject(p);
       canvas.requestRenderAll();
@@ -2207,6 +2257,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       setAvnacShapeMeta(p, { kind: "star", starPoints: points });
       applyBgValueToFill(mod, p, selectedPaint);
       ensureAvnacLayerId(p);
+      offsetFromOccupiedCenter(canvas, p);
       canvas.add(p);
       canvas.setActiveObject(p);
       canvas.requestRenderAll();
@@ -2242,6 +2293,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       });
       installArrowEndpointControls(g);
       ensureAvnacLayerId(g);
+      offsetFromOccupiedCenter(canvas, g);
       canvas.add(g);
       canvas.setActiveObject(g);
       canvas.requestRenderAll();
@@ -2278,6 +2330,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       });
       installArrowEndpointControls(g);
       ensureAvnacLayerId(g);
+      offsetFromOccupiedCenter(canvas, g);
       canvas.add(g);
       canvas.setActiveObject(g);
       canvas.requestRenderAll();
@@ -2472,28 +2525,29 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       if (!active) return;
       if ("isEditing" in active && (active as IText).isEditing) return;
 
-      const dup = await active.clone([...OBJECT_SERIAL_KEYS]);
-      dup.set({ left: (active.left ?? 0) + 32, top: (active.top ?? 0) + 32 });
-      const clearLock = (o: FabricObject) => {
-        if (getAvnacLocked(o)) setAvnacLocked(o, false, mod);
-      };
-      const detachVb = (o: FabricObject) => detachAvnacVectorBoardLink(o, mod);
-      if (mod.ActiveSelection && dup instanceof mod.ActiveSelection) {
-        dup.getObjects().forEach((o) => {
-          clearLock(o);
-          detachVb(o);
-        });
-      } else {
-        clearLock(dup as FabricObject);
-        detachVb(dup as FabricObject);
-      }
-      renewAvnacLayerId(dup as FabricObject);
+      const activeObjects = canvas.getActiveObjects();
+      if (activeObjects.length === 0) return;
+      const duplicates = (await Promise.all(
+        activeObjects.map((obj) => obj.clone([...OBJECT_SERIAL_KEYS])),
+      )) as FabricObject[];
+
       canvas.discardActiveObject();
-      canvas.add(dup);
-      canvas.setActiveObject(dup);
+      duplicates.forEach((dup) => {
+        moveFabricObjectBy(dup, CLIPBOARD_PASTE_OFFSET, CLIPBOARD_PASTE_OFFSET);
+        prepareInsertedObject(dup, mod);
+        canvas.add(dup);
+      });
+      if (duplicates.length === 1) {
+        canvas.setActiveObject(duplicates[0]!);
+      } else if (duplicates.length > 1 && mod.ActiveSelection) {
+        const selection = new mod.ActiveSelection(duplicates, { canvas });
+        canvas.setActiveObject(selection);
+      }
       canvas.requestRenderAll();
       selectionTick();
-    }, []);
+      syncTextToolbar();
+      syncShapeToolbar();
+    }, [syncShapeToolbar, syncTextToolbar]);
 
     const toggleElementLock = useCallback(() => {
       const canvas = fabricCanvasRef.current;
@@ -2553,8 +2607,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           {},
         )) as FabricObject[];
 
-        let dx = 32;
-        let dy = 32;
+        let dx = CLIPBOARD_PASTE_OFFSET;
+        let dy = CLIPBOARD_PASTE_OFFSET;
         if (atPoint && objs.length > 0) {
           objs.forEach((o) => o.setCoords());
           const rects = objs.map((o) => o.getBoundingRect());
@@ -2566,12 +2620,8 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           dy = atPoint.y - (top + bottom) / 2;
         }
         objs.forEach((o) => {
-          o.set({
-            left: (o.left ?? 0) + dx,
-            top: (o.top ?? 0) + dy,
-          });
-          renewAvnacLayerId(o);
-          detachAvnacVectorBoardLink(o, mod);
+          moveFabricObjectBy(o, dx, dy);
+          prepareInsertedObject(o, mod);
           canvas.add(o);
         });
         canvas.discardActiveObject();

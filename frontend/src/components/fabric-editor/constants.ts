@@ -5,6 +5,7 @@ export const DEFAULT_ARTBOARD_W = 4000;
 export const DEFAULT_ARTBOARD_H = 4000;
 export const ARTBOARD_ALIGN_PAD = 32;
 export const ARTBOARD_ALIGN_ALREADY_EPS = 2;
+export const CLIPBOARD_PASTE_OFFSET = 32;
 export const ZOOM_MIN_PCT = 5;
 export const ZOOM_MAX_PCT = 100;
 export const HISTORY_LIMIT = 20;
