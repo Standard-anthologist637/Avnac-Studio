@@ -123,17 +123,19 @@ export function paintCanvas2DStyle(
 }
 
 export function loadCanvas2DImage(src: string): Promise<HTMLImageElement> {
-  let existing = imageCache.get(src);
+  const existing = imageCache.get(src);
   if (existing) return existing;
-  existing = new Promise<HTMLImageElement>((resolve, reject) => {
+  const pending = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
     image.decoding = "async";
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error(`Failed to load image: ${src}`));
     image.src = src;
   });
-  imageCache.set(src, existing);
-  return existing;
+  // Remove from cache on failure so the next render can retry
+  pending.catch(() => imageCache.delete(src));
+  imageCache.set(src, pending);
+  return pending;
 }
 
 export function normalizeCanvas2DTextAlign(
@@ -182,8 +184,7 @@ function linearGradientForCanvas2DBox(
   const dy = -Math.cos(rad);
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
-  const tx =
-    dx !== 0 ? box.width / 2 / Math.abs(dx) : Number.POSITIVE_INFINITY;
+  const tx = dx !== 0 ? box.width / 2 / Math.abs(dx) : Number.POSITIVE_INFINITY;
   const ty =
     dy !== 0 ? box.height / 2 / Math.abs(dy) : Number.POSITIVE_INFINITY;
   const halfLen = Math.min(tx, ty);

@@ -201,4 +201,88 @@ describe("fromAvnacDocument shape ingestion", () => {
       expect(node.arrowStart).toBe(false);
     }
   });
+
+  it("prefers avnacStroke for line color", () => {
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "group",
+          avnacLayerId: "line-color-1",
+          avnacShape: {
+            kind: "line",
+            arrowEndpoints: { x1: 10, y1: 20, x2: 210, y2: 220 },
+            arrowStrokeWidth: 2,
+          },
+          avnacFill: { type: "solid", color: "#ef4444" },
+          avnacStroke: { type: "solid", color: "#0ea5e9" },
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    const node = adapted.scene.nodes["line-color-1"];
+    expect(node?.type).toBe("line");
+    if (node?.type === "line") {
+      expect(node.stroke).toEqual({ type: "solid", color: "#0ea5e9" });
+    }
+  });
+
+  it("recurses through nested Fabric groups", () => {
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "group",
+          avnacLayerId: "group-outer",
+          objects: [
+            {
+              type: "group",
+              avnacLayerId: "group-inner",
+              objects: [
+                {
+                  type: "rect",
+                  avnacLayerId: "group-child-rect",
+                  left: 32,
+                  top: 64,
+                  width: 120,
+                  height: 80,
+                  fill: "#f97316",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    expect(adapted.scene.nodes["group-outer"]?.type).toBe("group");
+    expect(adapted.scene.nodes["group-inner"]?.type).toBe("group");
+    expect(adapted.scene.nodes["group-child-rect"]?.type).toBe("rect");
+  });
+
+  it("ingests images with clipPath instead of skipping them", () => {
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "image",
+          avnacLayerId: "img-clip-1",
+          left: 120,
+          top: 140,
+          width: 300,
+          height: 180,
+          src: "https://example.com/image.png",
+          clipPath: { type: "rect", width: 100, height: 100 },
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    expect(adapted.scene.nodes["img-clip-1"]?.type).toBe("image");
+    expect(adapted.issues.some((issue) => issue.reason === "clip-path")).toBe(
+      false,
+    );
+  });
 });

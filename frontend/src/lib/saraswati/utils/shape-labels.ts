@@ -1,4 +1,4 @@
-import type { AvnacShapeKind } from "@/lib/avnac-shape-meta";
+type AvnacShapeKind = "rect" | "ellipse" | "polygon" | "star" | "line" | "arrow";
 
 export function avnacShapeKindLayerLabel(kind: AvnacShapeKind): string {
   const labels: Record<AvnacShapeKind, string> = {

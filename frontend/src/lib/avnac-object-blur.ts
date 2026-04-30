@@ -103,7 +103,12 @@ export function installAvnacObjectCanvasBlur(
     const FO = mod.FabricObject
     const cacheProps = FO?.cacheProperties
     if (Array.isArray(cacheProps) && !cacheProps.includes('avnacBlur')) {
-      FO.cacheProperties = [...cacheProps, 'avnacBlur']
+      // Fabric 6 can expose this as a readonly static; mutate defensively.
+      try {
+        cacheProps.push('avnacBlur')
+      } catch {
+        /* best-effort */
+      }
     }
 
     patchFabricObjectShouldCache(mod)

@@ -86,6 +86,18 @@ function moveNodeRecursive(
     }
     return;
   }
+  if (node.type === "line") {
+    nodes[nodeId] = {
+      ...node,
+      x: node.x + dx,
+      y: node.y + dy,
+      x1: node.x1 + dx,
+      y1: node.y1 + dy,
+      x2: node.x2 + dx,
+      y2: node.y2 + dy,
+    };
+    return;
+  }
   nodes[nodeId] = {
     ...node,
     x: node.x + dx,

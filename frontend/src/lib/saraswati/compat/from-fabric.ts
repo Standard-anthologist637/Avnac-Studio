@@ -5,6 +5,7 @@ import {
   type SaraswatiAdapterIssue,
   type SaraswatiAdapterResult,
   type SaraswatiEllipseNode,
+  type SaraswatiGroupNode,
   type SaraswatiImageNode,
   type SaraswatiLineNode,
   type SaraswatiLinePathType,
@@ -66,6 +67,7 @@ type RawFabricObject = Record<string, unknown> & {
   cropY?: number;
   points?: RawFabricPoint[];
   pathOffset?: RawFabricPoint;
+  objects?: unknown[];
 };
 
 type NormalizedFabricObjectType =
@@ -76,6 +78,7 @@ type NormalizedFabricObjectType =
   | "textbox"
   | "i-text"
   | "image"
+  | "group"
   | "unknown";
 
 type FabricCanvasLike = {
@@ -132,15 +135,14 @@ function fromSerializedFabric(input: {
   const nodes: Record<string, SaraswatiNode> = { ...scene.nodes };
   const children: string[] = [];
 
-  objects.forEach((raw, index) => {
-    const adapted = adaptRawFabricObject(raw, scene.root, index);
-    if (!adapted.node) {
-      issues.push(adapted.issue);
-      return;
-    }
-    nodes[adapted.node.id] = adapted.node;
-    children.push(adapted.node.id);
+  const adaptedChildren = adaptRawFabricObjects({
+    rawObjects: objects,
+    parentId: scene.root,
+    indexPrefix: "",
+    nodes,
+    issues,
   });
+  children.push(...adaptedChildren);
 
   nodes[scene.root] = { ...root, children };
   return {
@@ -153,22 +155,74 @@ function fromSerializedFabric(input: {
   };
 }
 
+function adaptRawFabricObjects(input: {
+  rawObjects: RawFabricObject[];
+  parentId: string;
+  indexPrefix: string;
+  nodes: Record<string, SaraswatiNode>;
+  issues: SaraswatiAdapterIssue[];
+}): string[] {
+  const { rawObjects, parentId, indexPrefix, nodes, issues } = input;
+  const children: string[] = [];
+
+  rawObjects.forEach((raw, index) => {
+    const indexKey = indexPrefix ? `${indexPrefix}-${index}` : `${index}`;
+    const groupChildren = readRawGroupObjects(raw);
+    const normalizedType = normalizeFabricObjectType(raw.type);
+    const shapeKind = readShapeKind(raw.avnacShape);
+    const isStructuralGroup =
+      normalizedType === "group" &&
+      shapeKind !== "line" &&
+      shapeKind !== "arrow" &&
+      groupChildren.length > 0;
+
+    if (isStructuralGroup) {
+      const groupId = readSourceId(raw, indexKey);
+      const groupNode: SaraswatiGroupNode = {
+        id: groupId,
+        type: "group",
+        parentId,
+        visible: raw.visible !== false,
+        opacity: clampOpacity(readNumber(raw.opacity, 1)),
+        children: [],
+      };
+      nodes[groupId] = groupNode;
+
+      const nestedChildren = adaptRawFabricObjects({
+        rawObjects: groupChildren,
+        parentId: groupId,
+        indexPrefix: indexKey,
+        nodes,
+        issues,
+      });
+
+      nodes[groupId] = {
+        ...groupNode,
+        children: nestedChildren,
+      };
+      children.push(groupId);
+      return;
+    }
+
+    const adapted = adaptRawFabricObject(raw, parentId, indexKey);
+    if (!adapted.node) {
+      issues.push(adapted.issue);
+      return;
+    }
+    nodes[adapted.node.id] = adapted.node;
+    children.push(adapted.node.id);
+  });
+
+  return children;
+}
+
 function adaptRawFabricObject(
   raw: RawFabricObject,
   parentId: string,
-  index: number,
+  index: string,
 ): { node: SaraswatiNode | null; issue: SaraswatiAdapterIssue } {
-  const sourceId =
-    typeof raw.avnacLayerId === "string" && raw.avnacLayerId.length > 0
-      ? raw.avnacLayerId
-      : `fabric-node-${index}`;
+  const sourceId = readSourceId(raw, index);
 
-  if (raw.clipPath) {
-    return {
-      node: null,
-      issue: { reason: "clip-path", sourceType: readSourceType(raw), sourceId },
-    };
-  }
   if (typeof raw.avnacVectorBoardId === "string" && raw.avnacVectorBoardId) {
     return {
       node: null,
@@ -205,7 +259,7 @@ function adaptRawFabricObject(
       y1: eps.y1,
       x2: eps.x2,
       y2: eps.y2,
-      stroke: readPaint(raw.avnacFill, raw.fill, { type: "solid", color: "#262626" }),
+      stroke: readPaint(raw.avnacStroke ?? raw.avnacFill, raw.stroke ?? raw.fill, { type: "solid", color: "#262626" }),
       strokeWidth: readArrowStrokeWidth(raw.avnacShape),
       arrowStart: false,
       arrowEnd: shapeKind === "arrow",
@@ -218,6 +272,13 @@ function adaptRawFabricObject(
   }
 
   const normalizedType = normalizeFabricObjectType(raw.type);
+
+  if (raw.clipPath && normalizedType !== "image") {
+    return {
+      node: null,
+      issue: { reason: "clip-path", sourceType: readSourceType(raw), sourceId },
+    };
+  }
 
   switch (normalizedType) {
     case "rect": {
@@ -437,6 +498,22 @@ function readFabricObjects(fabric: Record<string, unknown>): RawFabricObject[] {
   );
 }
 
+function readRawGroupObjects(raw: RawFabricObject): RawFabricObject[] {
+  const objects = raw.objects;
+  if (!Array.isArray(objects)) return [];
+  return objects.filter(
+    (object): object is RawFabricObject =>
+      !!object && typeof object === "object",
+  );
+}
+
+function readSourceId(raw: RawFabricObject, index: string): string {
+  if (typeof raw.avnacLayerId === "string" && raw.avnacLayerId.length > 0) {
+    return raw.avnacLayerId;
+  }
+  return `fabric-node-${index}`;
+}
+
 function readPaint(
   stored: BgValue | undefined,
   raw: unknown,
@@ -513,6 +590,7 @@ function normalizeFabricObjectType(
   if (value === "circle" || value === "ellipse") return "ellipse";
   if (
     value === "rect" ||
+    value === "group" ||
     value === "polygon" ||
     value === "image" ||
     value === "text" ||

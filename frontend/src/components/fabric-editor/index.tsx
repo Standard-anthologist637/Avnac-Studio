@@ -81,6 +81,7 @@ import {
 import {
   arrowDisplayColor,
   createArrowGroup,
+  ensureArrowNoopLayoutRegistered,
   getArrowParts,
   layoutArrowGroup,
 } from "../../lib/avnac-stroke-arrow";
@@ -250,6 +251,12 @@ import {
   type SceneWorkspacePreviewMode,
   type SceneWorkspaceStore,
 } from "@/components/scene-workspace";
+import {
+  createSaraswatiEditorStore,
+  fromAvnacDocument,
+  type SaraswatiCommand,
+  type SaraswatiEditorStore,
+} from "@/lib/saraswati";
 
 export type { FabricEditorHandle } from "./types";
 
@@ -304,6 +311,13 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       sceneEditorStoreRef.current = createSceneWorkspaceStore();
     }
     const sceneEditorStore = sceneEditorStoreRef.current;
+    const saraswatiLiveStoreRef = useRef<SaraswatiEditorStore | null>(null);
+    const fabricNodeLastPosRef = useRef(
+      new Map<string, { x: number; y: number }>(),
+    );
+    const [scenePreviewCommands, setScenePreviewCommands] = useState<
+      readonly SaraswatiCommand[]
+    >([]);
 
     const [artboardSize, setArtboardSize] = useState({
       w: DEFAULT_ARTBOARD_W,
@@ -1678,6 +1692,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
           }
 
           installAvnacObjectCanvasBlur(mod);
+          ensureArrowNoopLayoutRegistered(mod);
 
           fabricModRef.current = mod;
           installFabricSelectionChrome(mod);
@@ -1886,6 +1901,28 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       return () => ro.disconnect();
     }, [ready, fitArtboardToViewport]);
 
+    const routeMoveToSaraswati = useCallback((target?: FabricObject) => {
+      const mod = fabricModRef.current;
+      if (!target || !mod) return;
+      if (mod.ActiveSelection && target instanceof mod.ActiveSelection) return;
+      const meta = getAvnacShapeMeta(target);
+      if (meta && isAvnacStrokeLineLike(meta)) return;
+
+      const id = ensureAvnacLayerId(target);
+      const next = { x: target.left ?? 0, y: target.top ?? 0 };
+      const prev = fabricNodeLastPosRef.current.get(id);
+      fabricNodeLastPosRef.current.set(id, next);
+      if (!prev) return;
+
+      const dx = next.x - prev.x;
+      const dy = next.y - prev.y;
+      if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) return;
+
+      const command: SaraswatiCommand = { type: "MOVE_NODE", id, dx, dy };
+      saraswatiLiveStoreRef.current?.dispatch(command);
+      setScenePreviewCommands((commands) => [...commands, command]);
+    }, []);
+
     useEffect(() => {
       const canvas = fabricCanvasRef.current;
       const mod = fabricModRef.current;
@@ -1908,6 +1945,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
 
       const onModified = (opt: { target?: FabricObject; action?: string }) => {
         const target = opt.target;
+        routeMoveToSaraswati(target);
         if (
           target instanceof mod.Textbox &&
           (opt.action === "resizing" || opt.action === "scaling")
@@ -1966,7 +2004,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (movingRaf !== null) cancelAnimationFrame(movingRaf);
         if (transformRaf !== null) cancelAnimationFrame(transformRaf);
       };
-    }, [ready, syncTextToolbar, syncShapeToolbar]);
+    }, [ready, routeMoveToSaraswati, syncTextToolbar, syncShapeToolbar]);
 
     useEffect(() => {
       const vp = viewportRef.current;
@@ -2198,6 +2236,42 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       if (getAvnacLocked(obj)) setAvnacLocked(obj, false, mod);
       detachAvnacVectorBoardLink(obj, mod);
       renewAvnacLayerId(obj);
+      rehydrateAvnacStrokeLineLikeObject(obj, mod);
+    }
+
+    function rehydrateAvnacStrokeLineLikeObject(
+      obj: FabricObject,
+      mod: typeof import("fabric"),
+    ) {
+      if (!(obj instanceof mod.Group)) return;
+      const meta = getAvnacShapeMeta(obj);
+      if (!meta || !isAvnacStrokeLineLike(meta)) return;
+
+      ensureAvnacArrowEndpoints(obj);
+      const nextMeta = getAvnacShapeMeta(obj);
+      const ep = nextMeta?.arrowEndpoints;
+      if (!nextMeta || !ep) return;
+
+      const strokeW = nextMeta.arrowStrokeWidth ?? 10;
+      const storedStroke = getAvnacStroke(obj);
+      const color =
+        storedStroke?.type === "solid"
+          ? storedStroke.color
+          : arrowDisplayColor(obj);
+
+      layoutArrowGroup(obj, ep.x1, ep.y1, ep.x2, ep.y2, {
+        strokeWidth: strokeW,
+        headFrac: avnacStrokeLineHeadFrac(nextMeta),
+        color,
+        lineStyle: nextMeta.arrowLineStyle,
+        roundedEnds: nextMeta.arrowRoundedEnds,
+        pathType: nextMeta.arrowPathType ?? "straight",
+        curveBulge: nextMeta.arrowCurveBulge,
+        curveT: nextMeta.arrowCurveT,
+      });
+      installArrowEndpointControls(obj);
+      syncAvnacArrowCurveControlVisibility(obj);
+      obj.setCoords();
     }
 
     function addText() {
@@ -2951,7 +3025,10 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
               err,
             );
           }
-          for (const o of canvas.getObjects()) ensureAvnacLayerId(o);
+          for (const o of canvas.getObjects()) {
+            ensureAvnacLayerId(o);
+            rehydrateAvnacStrokeLineLikeObject(o, mod);
+          }
           try {
             migrateLegacyImageBlurFilters(canvas, mod);
           } catch (err) {
@@ -3019,6 +3096,23 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
       ready,
       selectionRev,
     ]);
+
+    const onScenePreviewCommandsApplied = useCallback(() => {
+      setScenePreviewCommands([]);
+    }, []);
+
+    useEffect(() => {
+      if (!sceneEditorPreviewDoc) {
+        saraswatiLiveStoreRef.current = null;
+        fabricNodeLastPosRef.current.clear();
+        setScenePreviewCommands([]);
+        return;
+      }
+      const adapted = fromAvnacDocument(sceneEditorPreviewDoc);
+      saraswatiLiveStoreRef.current = createSaraswatiEditorStore(adapted.scene);
+      fabricNodeLastPosRef.current.clear();
+      setScenePreviewCommands([]);
+    }, [sceneEditorPreviewDoc]);
 
     const scheduleIdbAutosave = useCallback(() => {
       const pid = persistIdRef.current;
@@ -4671,7 +4765,12 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
               </div>
             </div>
           </div>
-          <SceneWorkspace mode={previewMode} document={sceneEditorPreviewDoc} />
+          <SceneWorkspace
+            mode={previewMode}
+            document={sceneEditorPreviewDoc}
+            commands={scenePreviewCommands}
+            onCommandsApplied={onScenePreviewCommandsApplied}
+          />
         </div>
 
         {contextMenu ? (

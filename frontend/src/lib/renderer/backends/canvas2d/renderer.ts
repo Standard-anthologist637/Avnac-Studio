@@ -42,7 +42,11 @@ export async function renderCanvas2DCommands(
         renderCanvas2DTextCommand(ctx, command);
         break;
       case "image":
-        await renderCanvas2DImageCommand(ctx, command);
+        try {
+          await renderCanvas2DImageCommand(ctx, command);
+        } catch {
+          // Image failed to load — skip this shape, continue rendering others
+        }
         break;
     }
   }

@@ -7,6 +7,7 @@ import {
   migrateLegacyImageBlurFilters,
   installAvnacObjectCanvasBlur,
 } from "./avnac-object-blur";
+import { ensureArrowNoopLayoutRegistered } from "./avnac-stroke-arrow";
 import { normalizeCanvasImagesForExport } from "./avnac-image-proxy";
 import { refreshAllVectorBoardInstances } from "./avnac-vector-board-fabric";
 import { loadVectorBoardDocs } from "./avnac-vector-boards-storage";
@@ -84,6 +85,7 @@ export async function renderAvnacDocumentPreviewDataUrl(
       }
     }
     installAvnacObjectCanvasBlur(mod);
+    ensureArrowNoopLayoutRegistered(mod);
 
     const aw = doc.artboard.width;
     const ah = doc.artboard.height;
