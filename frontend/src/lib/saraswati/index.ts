@@ -2,7 +2,6 @@ export * from "./scene";
 export * from "./commands/types";
 export * from "./commands/reducer";
 export * from "./render/commands";
-export * from "./render/canvas";
 export * from "./editor/store";
 export * from "./editor/interaction";
 export * from "./spatial";

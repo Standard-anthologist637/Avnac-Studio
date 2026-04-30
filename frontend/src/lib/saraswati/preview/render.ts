@@ -1,8 +1,8 @@
 import type { AvnacDocumentV1 } from "../../avnac-document";
+import { canvas2DRendererBackend } from "../../renderer";
 import { fromAvnacDocument } from "../compat/from-fabric";
 import type { SaraswatiScene } from "../scene";
 import { buildRenderCommands } from "../render/commands";
-import { renderToCanvas } from "../render/canvas";
 
 export async function renderAvnacDocumentFastPreviewDataUrl(
   doc: AvnacDocumentV1,
@@ -35,7 +35,7 @@ export async function renderSaraswatiScenePreviewDataUrl(
 
   ctx.save();
   ctx.scale(scale, scale);
-  await renderToCanvas(ctx, buildRenderCommands(scene));
+  await canvas2DRendererBackend.render(ctx, buildRenderCommands(scene));
   ctx.restore();
 
   return canvas.toDataURL("image/png");
