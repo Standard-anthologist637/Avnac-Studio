@@ -3,6 +3,9 @@ import {
   type SaraswatiEllipseNode,
   listSaraswatiNodesInRenderOrder,
   type SaraswatiImageNode,
+  type SaraswatiLineNode,
+  type SaraswatiLinePathType,
+  type SaraswatiLineStyle,
   type SaraswatiNodeOriginX,
   type SaraswatiNodeOriginY,
   type SaraswatiPolygonNode,
@@ -11,6 +14,18 @@ import {
   type SaraswatiScene,
   type SaraswatiTextNode,
 } from "../scene";
+
+export const SARASWATI_RENDER_COMMAND_TYPES = [
+  "rect",
+  "ellipse",
+  "polygon",
+  "line",
+  "text",
+  "image",
+] as const;
+
+export type SaraswatiRenderCommandType =
+  (typeof SARASWATI_RENDER_COMMAND_TYPES)[number];
 
 type RenderTransform = {
   x: number;
@@ -53,6 +68,22 @@ export type SaraswatiRenderPolygonCommand = RenderTransform & {
   points: Array<{ x: number; y: number }>;
 };
 
+export type SaraswatiRenderLineCommand = RenderTransform & {
+  type: "line";
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  stroke: BgValue;
+  strokeWidth: number;
+  arrowStart: boolean;
+  arrowEnd: boolean;
+  lineStyle: SaraswatiLineStyle;
+  pathType: SaraswatiLinePathType;
+  curveBulge: number;
+  curveT: number;
+};
+
 export type SaraswatiRenderTextCommand = RenderTransform & {
   type: "text";
   text: string;
@@ -82,6 +113,7 @@ export type SaraswatiRenderCommand =
   | SaraswatiRenderRectCommand
   | SaraswatiRenderEllipseCommand
   | SaraswatiRenderPolygonCommand
+  | SaraswatiRenderLineCommand
   | SaraswatiRenderTextCommand
   | SaraswatiRenderImageCommand;
 
@@ -126,6 +158,8 @@ function nodeToRenderCommand(
       return ellipseNodeToCommand(node);
     case "polygon":
       return polygonNodeToCommand(node);
+    case "line":
+      return lineNodeToCommand(node);
     case "text":
       return textNodeToCommand(node);
     case "image":
@@ -190,6 +224,34 @@ function polygonNodeToCommand(
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
     points: node.points.map((point) => ({ ...point })),
+    rotation: node.rotation,
+    scaleX: node.scaleX,
+    scaleY: node.scaleY,
+    opacity: node.opacity,
+    originX: node.originX,
+    originY: node.originY,
+  };
+}
+
+function lineNodeToCommand(
+  node: SaraswatiLineNode,
+): SaraswatiRenderLineCommand {
+  return {
+    type: "line",
+    x: node.x,
+    y: node.y,
+    x1: node.x1,
+    y1: node.y1,
+    x2: node.x2,
+    y2: node.y2,
+    stroke: node.stroke,
+    strokeWidth: node.strokeWidth,
+    arrowStart: node.arrowStart,
+    arrowEnd: node.arrowEnd,
+    lineStyle: node.lineStyle,
+    pathType: node.pathType,
+    curveBulge: node.curveBulge,
+    curveT: node.curveT,
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,

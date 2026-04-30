@@ -3,8 +3,8 @@ import { bgValueFromFabricFill } from "@/lib/avnac-fill-paint";
 import { getAvnacShapeMeta } from "@/lib/avnac-shape-meta";
 import { getAvnacLayerName } from "@/lib/ensure-avnac-layer-id";
 import type { TextFormatToolbarValues } from "@/components/editor/text/text-format-toolbar";
+import { artboardAlignAlreadySatisfied } from "@/lib/editor-alignment";
 import {
-  artboardAlignAlreadySatisfied,
   avnacShapeKindLayerLabel,
   pointerIsTouch,
   primaryFontFamily,

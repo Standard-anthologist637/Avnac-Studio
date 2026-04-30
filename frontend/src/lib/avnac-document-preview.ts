@@ -1,5 +1,5 @@
 import type { AvnacDocumentV1 } from "./avnac-document";
-import { renderAvnacDocumentFastPreviewDataUrl } from "./saraswati/preview/render";
+import { renderAvnacDocumentFastPreviewDataUrl } from "./renderer/preview";
 import { loadCanvasGoogleFontsAndRelayout } from "./avnac-canvas-google-fonts";
 import { ensureAvnacLayerId } from "./ensure-avnac-layer-id";
 import { linearGradientForBox } from "./fabric-linear-gradient";

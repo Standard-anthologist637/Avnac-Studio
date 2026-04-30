@@ -227,8 +227,8 @@ import {
   readTextFormat,
   toolbarIconBtn,
 } from "./utils";
+import { artboardAlignAlreadySatisfied } from "@/lib/editor-alignment";
 import {
-  artboardAlignAlreadySatisfied,
   placementCenterOccupied,
   pointerIsTouch,
   stepPlacementDiagonally,

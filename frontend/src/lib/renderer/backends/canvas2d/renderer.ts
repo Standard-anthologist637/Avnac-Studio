@@ -5,6 +5,7 @@ import type {
 import type { RendererBackend } from "../../types";
 import {
   renderCanvas2DEllipseCommand,
+  renderCanvas2DLineCommand,
   renderCanvas2DPolygonCommand,
   renderCanvas2DRectCommand,
 } from "./shapes";
@@ -33,6 +34,9 @@ export async function renderCanvas2DCommands(
         break;
       case "polygon":
         renderCanvas2DPolygonCommand(ctx, command);
+        break;
+      case "line":
+        renderCanvas2DLineCommand(ctx, command);
         break;
       case "text":
         renderCanvas2DTextCommand(ctx, command);

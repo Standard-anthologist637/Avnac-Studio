@@ -19,6 +19,7 @@ export function createSaraswatiRootGroup(
     type: "group",
     parentId: null,
     visible: true,
+    opacity: 1,
     children: [],
   };
 }
@@ -153,24 +154,31 @@ export function listSaraswatiNodesInRenderOrder(
   scene: SaraswatiScene,
 ): SaraswatiRenderableNode[] {
   const ordered: SaraswatiRenderableNode[] = [];
-  visitNode(scene, scene.root, ordered);
+  visitNode(scene, scene.root, 1, ordered);
   return ordered;
 }
 
 function visitNode(
   scene: SaraswatiScene,
   nodeId: SaraswatiNodeId,
+  inheritedOpacity: number,
   ordered: SaraswatiRenderableNode[],
 ) {
   const node = scene.nodes[nodeId];
   if (!node || node.visible === false) return;
   if (node.type === "group") {
+    const groupOpacity = inheritedOpacity * Math.max(0, Math.min(1, node.opacity));
     for (const childId of node.children) {
-      visitNode(scene, childId, ordered);
+      visitNode(scene, childId, groupOpacity, ordered);
     }
     return;
   }
-  ordered.push(node);
+  // Compose inherited group opacity into the node
+  if (inheritedOpacity !== 1) {
+    ordered.push({ ...node, opacity: node.opacity * inheritedOpacity });
+  } else {
+    ordered.push(node);
+  }
 }
 
 function cloneBgValue(bg: BgValue): BgValue {

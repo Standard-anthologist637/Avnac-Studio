@@ -1,1 +1,1 @@
-export * from "../preview/render";
+export * from "../../renderer/preview";

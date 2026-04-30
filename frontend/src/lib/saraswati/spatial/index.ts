@@ -60,6 +60,16 @@ export function snapDeltaToGrid(
 }
 
 export function getNodeBounds(node: SaraswatiRenderableNode): SaraswatiBounds {
+  if (node.type === "line") {
+    const x = Math.min(node.x1, node.x2);
+    const y = Math.min(node.y1, node.y2);
+    return {
+      x,
+      y,
+      width: Math.max(1, Math.abs(node.x2 - node.x1)),
+      height: Math.max(1, Math.abs(node.y2 - node.y1)),
+    };
+  }
   const width = node.type === "text" ? Math.max(1, node.width) : node.width;
   const height =
     node.type === "text"

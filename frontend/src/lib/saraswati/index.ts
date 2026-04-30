@@ -6,5 +6,4 @@ export * from "./editor/store";
 export * from "./editor/interaction";
 export * from "./spatial";
 export * from "./compat/from-fabric";
-export * from "./preview/render";
 export * from "./utils";

@@ -6,6 +6,9 @@ import {
   type SaraswatiAdapterResult,
   type SaraswatiEllipseNode,
   type SaraswatiImageNode,
+  type SaraswatiLineNode,
+  type SaraswatiLinePathType,
+  type SaraswatiLineStyle,
   type SaraswatiNode,
   type SaraswatiNodeOriginX,
   type SaraswatiNodeOriginY,
@@ -178,14 +181,40 @@ function adaptRawFabricObject(
   }
   const shapeKind = readShapeKind(raw.avnacShape);
   if (shapeKind === "arrow" || shapeKind === "line") {
-    return {
-      node: null,
-      issue: {
-        reason: "shape-meta",
-        sourceType: readSourceType(raw),
-        sourceId,
-      },
+    const eps = readArrowEndpoints(raw.avnacShape);
+    if (!eps) {
+      return {
+        node: null,
+        issue: { reason: "shape-meta", sourceType: readSourceType(raw), sourceId },
+      };
+    }
+    const node: SaraswatiLineNode = {
+      id: sourceId,
+      type: "line",
+      parentId,
+      visible: raw.visible !== false,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: clampOpacity(readNumber(raw.opacity, 1)),
+      originX: "left",
+      originY: "top",
+      x1: eps.x1,
+      y1: eps.y1,
+      x2: eps.x2,
+      y2: eps.y2,
+      stroke: readPaint(raw.avnacFill, raw.fill, { type: "solid", color: "#262626" }),
+      strokeWidth: readArrowStrokeWidth(raw.avnacShape),
+      arrowStart: false,
+      arrowEnd: shapeKind === "arrow",
+      lineStyle: readArrowLineStyle(raw.avnacShape),
+      pathType: readArrowPathType(raw.avnacShape),
+      curveBulge: readArrowCurveBulge(raw.avnacShape),
+      curveT: readArrowCurveT(raw.avnacShape),
     };
+    return { node, issue: unsupportedIssue(sourceId, shapeKind) };
   }
 
   const normalizedType = normalizeFabricObjectType(raw.type);
@@ -499,6 +528,51 @@ function readShapeKind(raw: unknown): string | null {
   if (!raw || typeof raw !== "object") return null;
   const kind = (raw as { kind?: unknown }).kind;
   return typeof kind === "string" ? kind : null;
+}
+
+function readArrowEndpoints(
+  raw: unknown,
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  if (!raw || typeof raw !== "object") return null;
+  const ep = (raw as { arrowEndpoints?: unknown }).arrowEndpoints;
+  if (!ep || typeof ep !== "object") return null;
+  const { x1, y1, x2, y2 } = ep as Record<string, unknown>;
+  if (
+    typeof x1 !== "number" || typeof y1 !== "number" ||
+    typeof x2 !== "number" || typeof y2 !== "number"
+  ) return null;
+  return { x1, y1, x2, y2 };
+}
+
+function readArrowStrokeWidth(raw: unknown): number {
+  if (!raw || typeof raw !== "object") return 2;
+  const w = (raw as { arrowStrokeWidth?: unknown }).arrowStrokeWidth;
+  return typeof w === "number" && Number.isFinite(w) && w > 0 ? w : 2;
+}
+
+function readArrowLineStyle(raw: unknown): SaraswatiLineStyle {
+  if (!raw || typeof raw !== "object") return "solid";
+  const style = (raw as { arrowLineStyle?: unknown }).arrowLineStyle;
+  if (style === "dashed" || style === "dotted") return style;
+  return "solid";
+}
+
+function readArrowPathType(raw: unknown): SaraswatiLinePathType {
+  if (!raw || typeof raw !== "object") return "straight";
+  const pathType = (raw as { arrowPathType?: unknown }).arrowPathType;
+  return pathType === "curved" ? "curved" : "straight";
+}
+
+function readArrowCurveBulge(raw: unknown): number {
+  if (!raw || typeof raw !== "object") return 0;
+  const v = (raw as { arrowCurveBulge?: unknown }).arrowCurveBulge;
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+function readArrowCurveT(raw: unknown): number {
+  if (!raw || typeof raw !== "object") return 0.5;
+  const v = (raw as { arrowCurveT?: unknown }).arrowCurveT;
+  return typeof v === "number" && Number.isFinite(v) ? v : 0.5;
 }
 
 function normalizePolygonPoints(

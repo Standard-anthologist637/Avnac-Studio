@@ -64,7 +64,7 @@ describe("fromAvnacDocument shape ingestion", () => {
     expect(commands.some((command) => command.type === "polygon")).toBe(true);
   });
 
-  it("keeps line and arrow shape-meta as unsupported for now", () => {
+  it("keeps line shape-meta as unsupported when arrowEndpoints are missing", () => {
     const doc = makeBaseDocument();
     doc.fabric = {
       objects: [
@@ -137,6 +137,68 @@ describe("fromAvnacDocument shape ingestion", () => {
     if (node?.type === "ellipse") {
       expect(node.width).toBe(72);
       expect(node.height).toBe(72);
+    }
+  });
+
+  it("ingests line with arrowEndpoints into a SaraswatiLineNode", () => {
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "group",
+          avnacLayerId: "line-ep-1",
+          avnacShape: {
+            kind: "line",
+            arrowEndpoints: { x1: 100, y1: 200, x2: 400, y2: 350 },
+            arrowStrokeWidth: 4,
+          },
+          avnacFill: { type: "solid", color: "#ef4444" },
+          opacity: 0.9,
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    const node = adapted.scene.nodes["line-ep-1"];
+
+    expect(node?.type).toBe("line");
+    if (node?.type === "line") {
+      expect(node.x1).toBe(100);
+      expect(node.y1).toBe(200);
+      expect(node.x2).toBe(400);
+      expect(node.y2).toBe(350);
+      expect(node.strokeWidth).toBe(4);
+      expect(node.arrowEnd).toBe(false);
+    }
+
+    const commands = buildRenderCommands(adapted.scene);
+    expect(commands.some((c) => c.type === "line")).toBe(true);
+  });
+
+  it("ingests arrow with arrowEndpoints and sets arrowEnd=true", () => {
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "group",
+          avnacLayerId: "arrow-1",
+          avnacShape: {
+            kind: "arrow",
+            arrowEndpoints: { x1: 50, y1: 50, x2: 300, y2: 300 },
+            arrowStrokeWidth: 3,
+          },
+          avnacFill: { type: "solid", color: "#3b82f6" },
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    const node = adapted.scene.nodes["arrow-1"];
+
+    expect(node?.type).toBe("line");
+    if (node?.type === "line") {
+      expect(node.arrowEnd).toBe(true);
+      expect(node.arrowStart).toBe(false);
     }
   });
 });

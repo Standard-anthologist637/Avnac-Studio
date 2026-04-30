@@ -1,8 +1,8 @@
-import type { AvnacDocumentV1 } from "../../avnac-document";
-import { canvas2DRendererBackend } from "../../renderer";
-import { fromAvnacDocument } from "../compat/from-fabric";
-import type { SaraswatiScene } from "../scene";
-import { buildRenderCommands } from "../render/commands";
+import type { AvnacDocumentV1 } from "../avnac-document";
+import { fromAvnacDocument } from "../saraswati/compat/from-fabric";
+import { buildRenderCommands } from "../saraswati/render/commands";
+import type { SaraswatiScene } from "../saraswati/scene";
+import { canvas2DRendererBackend } from "./index";
 
 export async function renderAvnacDocumentFastPreviewDataUrl(
   doc: AvnacDocumentV1,
