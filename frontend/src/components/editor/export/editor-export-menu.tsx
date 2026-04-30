@@ -1,7 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { FileExportIcon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import { floatingToolbarPopoverClass } from "@/components/editor/shared/floating-toolbar-shell";
@@ -37,7 +36,6 @@ export default function EditorExportMenu({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [opts, setOpts] = useState<ExportPngOptions>(DEFAULT_EXPORT);
-  const posthog = usePostHog();
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const pickPanel = useCallback(() => panelRef.current, []);
@@ -134,10 +132,6 @@ export default function EditorExportMenu({
             className="w-full rounded-lg bg-neutral-900 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-neutral-800"
             onClick={() => {
               const finalOpts = { ...opts, multiplier: mult };
-              posthog.capture("png_exported", {
-                scale: finalOpts.multiplier,
-                transparent: finalOpts.transparent,
-              });
               onExport(finalOpts);
               setOpen(false);
             }}

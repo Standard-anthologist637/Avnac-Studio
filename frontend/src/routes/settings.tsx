@@ -2,7 +2,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft01Icon, Image01Icon, ArrowReloadHorizontalIcon, CheckmarkCircle01Icon, AlertDiamondIcon } from "@hugeicons/core-free-icons";
-import { usePostHog } from "posthog-js/react";
 import { avnacconfig } from "../../wailsjs/go/models";
 import { useUpdateCheck } from "../lib/use-update-check";
 
@@ -66,7 +65,6 @@ export const Route = createFileRoute("/settings")({
   const [unsplashSaving, setUnsplashSaving] = useState(false);
   const [unsplashError, setUnsplashError] = useState<string | null>(null);
   const [unsplashNotice, setUnsplashNotice] = useState<string | null>(null);
-  const posthog = usePostHog();
   const { currentVersion, updateAvailable, isChecking, lastChecked, checkNow } = useUpdateCheck();
 
   useEffect(() => {
@@ -84,7 +82,6 @@ export const Route = createFileRoute("/settings")({
       } catch (err) {
         if (cancelled) return;
         setUnsplashError(formatConfigBridgeError(err, "load"));
-        posthog.captureException(err);
       } finally {
         if (!cancelled) setUnsplashLoading(false);
       }
@@ -93,7 +90,7 @@ export const Route = createFileRoute("/settings")({
     return () => {
       cancelled = true;
     };
-  }, [posthog]);
+  }, []);
 
   const saveUnsplashKey = useCallback(() => {
     const nextKey = unsplashKey.trim();
@@ -116,10 +113,6 @@ export const Route = createFileRoute("/settings")({
             setUnsplashNotice(
               "Unsplash API key updated for this session. Restart the Wails app to enable persistent saving.",
             );
-            posthog.capture("unsplash_config_updated", {
-              has_key: nextKey.length > 0,
-              persisted: false,
-            });
             return;
           }
           throw new Error("ConfigManager.Save bridge unavailable");
@@ -132,19 +125,14 @@ export const Route = createFileRoute("/settings")({
             ? "Unsplash API key updated."
             : "Unsplash API key cleared.",
         );
-        posthog.capture("unsplash_config_updated", {
-          has_key: nextKey.length > 0,
-          persisted: true,
-        });
       } catch (err) {
         setUnsplashError(formatConfigBridgeError(err, "save"));
-        posthog.captureException(err);
         console.error("[avnac] save unsplash config failed", err);
       } finally {
         setUnsplashSaving(false);
       }
     })();
-  }, [posthog, unsplashKey]);
+  }, [unsplashKey]);
 
   return (
     <main className="hero-page relative flex min-h-[100dvh] flex-col overflow-hidden">

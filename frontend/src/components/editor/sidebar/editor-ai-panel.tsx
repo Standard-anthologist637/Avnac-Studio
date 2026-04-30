@@ -16,7 +16,6 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { usePostHog } from "posthog-js/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -296,7 +295,6 @@ function MagicChat({ quickPrompts }: { quickPrompts: string[] }) {
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  const posthog = usePostHog();
 
   const displayMessages = useMemo(
     () => groupMessagesForDisplay(messages),
@@ -315,14 +313,9 @@ function MagicChat({ quickPrompts }: { quickPrompts: string[] }) {
     if ((!hasText && stagedImages.length === 0) || isPending || isStreaming)
       return;
     setError(null);
-    posthog.capture("ai_prompt_submitted", {
-      prompt_length: value.trim().length,
-      image_count: stagedImages.length,
-    });
     try {
       await submit();
     } catch (err) {
-      posthog.captureException(err);
       setError(err instanceof Error ? err.message : "Something went wrong.");
     }
   };

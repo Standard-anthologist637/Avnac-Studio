@@ -26,7 +26,6 @@
         "@tanstack/router-plugin": "^1.167.22",
         "fabric": "^6.6.1",
         "motion": "^12.38.0",
-        "posthog-js": "^1.369.3",
         "qrcode": "^1.5.4",
         "react": "^19.2.0",
         "react-dom": "^19.2.0",

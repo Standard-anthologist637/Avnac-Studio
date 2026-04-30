@@ -1,6 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useLayoutEffect, useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import MultiPageEditorShell from "@/features/multi-page-editor/multi-page-editor-shell";
 import { useEditorUnsupportedOnThisDevice } from "@/hooks/use-editor-device-support";
 import { idbGetEditorRecord, idbSetDocumentName } from "@/lib/avnac-editor-idb";
@@ -37,7 +36,6 @@ function CreatePage() {
   const initialW = search.w;
   const initialH = search.h;
   const navigate = Route.useNavigate();
-  const posthog = usePostHog();
   const editorUnsupported = useEditorUnsupportedOnThisDevice();
 
   useLayoutEffect(() => {
@@ -71,7 +69,6 @@ function CreatePage() {
     setDocumentTitle(t);
     if (id) {
       void idbSetDocumentName(id, t);
-      posthog.capture("document_renamed", { file_id: id, new_name: t });
     }
   };
 

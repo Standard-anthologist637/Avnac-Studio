@@ -8,7 +8,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import {
   idbDuplicateDocument,
   type AvnacEditorIdbListItem,
@@ -35,7 +34,6 @@ export default function FileCard({
 }: FileCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const posthog = usePostHog();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -60,14 +58,9 @@ export default function FileCard({
       try {
         const newId = await idbDuplicateDocument(row.id);
         if (newId) {
-          posthog.capture("file_duplicated", {
-            file_id: row.id,
-            new_file_id: newId,
-          });
           onListChange();
         }
       } catch (err) {
-        posthog.captureException(err);
         console.error("[avnac] duplicate failed", err);
       }
     })();
@@ -78,9 +71,7 @@ export default function FileCard({
     void (async () => {
       try {
         await downloadAvnacJsonForId(row.id);
-        posthog.capture("file_downloaded", { file_id: row.id, format: "json" });
       } catch (err) {
-        posthog.captureException(err);
         console.error("[avnac] download failed", err);
       }
     })();
@@ -153,12 +144,6 @@ export default function FileCard({
             to="/create"
             search={{ id: row.id }}
             className={openEditorClass}
-            onClick={() =>
-              posthog.capture("file_opened", {
-                file_id: row.id,
-                method: "thumbnail",
-              })
-            }
           >
             <div
               className={[
@@ -246,9 +231,6 @@ export default function FileCard({
           to="/create"
           search={{ id: row.id }}
           className={`${openEditorClass} flex min-h-0 flex-1 flex-col gap-2 border-t border-black/[0.05] px-4 pb-4 pt-3`}
-          onClick={() =>
-            posthog.capture("file_opened", { file_id: row.id, method: "title" })
-          }
         >
           <div className="truncate text-[15px] font-medium leading-snug tracking-[-0.01em] text-[var(--text)]">
             {row.name}

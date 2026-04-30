@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig } from "vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
@@ -12,8 +12,7 @@ const standardJsonEsm = fileURLToPath(
   ),
 );
 
-const config = defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
+const config = defineConfig(() => {
   return {
     base: "/",
     resolve: {
@@ -38,15 +37,6 @@ const config = defineConfig(({ mode }) => {
         presets: [reactCompilerPreset()],
       }),
     ],
-    server: {
-      proxy: {
-        "/ingest": {
-          target: env.VITE_PUBLIC_POSTHOG_HOST,
-          changeOrigin: true,
-          rewrite: (path: string) => path.replace(/^\/ingest/, ""),
-        },
-      },
-    },
   };
 });
 

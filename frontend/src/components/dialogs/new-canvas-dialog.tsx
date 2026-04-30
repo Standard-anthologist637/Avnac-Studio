@@ -2,7 +2,6 @@ import { StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { usePostHog } from "posthog-js/react";
 import { useEditorUnsupportedOnThisDevice } from "../../hooks/use-editor-device-support";
 import { ARTBOARD_PRESETS } from "../../data/artboard-presets";
 
@@ -19,7 +18,6 @@ export default function NewCanvasDialog({
   onClose,
 }: NewCanvasDialogProps) {
   const navigate = useNavigate();
-  const posthog = usePostHog();
   const editorUnsupported = useEditorUnsupportedOnThisDevice();
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -53,12 +51,6 @@ export default function NewCanvasDialog({
   const goCreate = (w: number, h: number, presetLabel?: string) => {
     const W = Math.min(CANVAS_MAX, Math.max(CANVAS_MIN, Math.round(w)));
     const H = Math.min(CANVAS_MAX, Math.max(CANVAS_MIN, Math.round(h)));
-    posthog.capture("canvas_created", {
-      width: W,
-      height: H,
-      creation_mode: presetLabel ? "preset" : "custom",
-      preset_label: presetLabel ?? null,
-    });
     void navigate({ to: "/create", search: { w: W, h: H } });
     onClose();
   };

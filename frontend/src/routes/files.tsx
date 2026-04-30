@@ -6,7 +6,6 @@ import {
   FileImportIcon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
-import { usePostHog } from "posthog-js/react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import DeleteConfirmDialog from "@/components/dialogs/delete-confirm-dialog";
 import FileCard from "@/components/files/file-card";
@@ -124,7 +123,6 @@ function FilesPage() {
     title: string;
     message: string;
   } | null>(null);
-  const posthog = usePostHog();
   const importInputRef = useRef<HTMLInputElement>(null);
   const {
     currentVersion,
@@ -185,7 +183,6 @@ function FilesPage() {
 
   const bulkDownload = useCallback(() => {
     const ids = [...selectedIds];
-    posthog.capture("files_bulk_downloaded", { file_count: ids.length });
     void (async () => {
       try {
         for (const id of ids) {
@@ -193,11 +190,10 @@ function FilesPage() {
           await new Promise((r) => setTimeout(r, 140));
         }
       } catch (err) {
-        posthog.captureException(err);
         console.error("[avnac] bulk download failed", err);
       }
     })();
-  }, [selectedIds, posthog]);
+  }, [selectedIds]);
 
   const bulkTrash = useCallback(() => {
     const ids = [...selectedIds];
@@ -217,7 +213,6 @@ function FilesPage() {
     if (!deleteDialog) return;
     const ids = [...deleteDialog.ids];
     setDeleteDialog(null);
-    posthog.capture("file_deleted", { file_count: ids.length, file_ids: ids });
     void (async () => {
       try {
         for (const id of ids) {
@@ -227,11 +222,10 @@ function FilesPage() {
         setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
         refreshList();
       } catch (err) {
-        posthog.captureException(err);
         console.error("[avnac] delete failed", err);
       }
     })();
-  }, [deleteDialog, refreshList, posthog]);
+  }, [deleteDialog, refreshList]);
 
   const requestDeleteFile = useCallback((id: string) => {
     setDeleteDialog({
@@ -280,18 +274,13 @@ function FilesPage() {
             await saveStoredPages(id, imported.document.pages, index);
           }
 
-          posthog.capture("workspace_imported_from_files", {
-            file_name: file.name,
-            imported_as: baseName,
-          });
           refreshList();
         } catch (err) {
-          posthog.captureException(err);
           console.error("[avnac] workspace import failed", err);
         }
       })();
     },
-    [posthog, refreshList],
+    [refreshList],
   );
 
   const selectionCount = selectedIds.length;
