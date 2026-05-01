@@ -4,15 +4,18 @@
  * the global useSceneEditorStore — no prop drilling.
  */
 import { Link } from "@tanstack/react-router";
-import { Layers02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import EditorFloatingSidebar from "@/components/editor/sidebar/editor-floating-sidebar";
 import EditorLayersPanel from "@/components/editor/sidebar/editor-layers-panel";
-import { editorSidebarTopValue } from "@/lib/editor-sidebar-panel-layout";
-import { useState } from "react";
+import EditorUploadsPanel from "@/components/editor/sidebar/editor-uploads-panel";
+import EditorImagesPanel from "@/components/editor/sidebar/editor-images-panel";
+import EditorAppsPanel from "@/components/editor/sidebar/editor-apps-panel";
+import EditorAiPanel from "@/components/editor/sidebar/editor-ai-panel";
+import EditorVectorBoardPanel from "@/components/editor/vector-boards/editor-vector-board-panel";
 import SceneEditorCanvas from "./scene-editor-canvas";
 import BottomFloatingToolbar from "./tools/bottom-floating-toolbar";
 import SceneSelectionBar from "./tools/scene-selection-bar";
 import { useLayerPanelTools } from "./tools/use-layer-panel-tools";
+import { useSceneEditorAiController } from "./use-scene-editor-ai-controller";
 import { useSceneEditorStore } from "./store";
 
 type Props = {
@@ -28,8 +31,11 @@ export default function SceneEditorPage({ documentId }: Props) {
   const scene = useSceneEditorStore((s) => s.scene);
   const renderStats = useSceneEditorStore((s) => s.renderStats);
   const focusMode = useSceneEditorStore((s) => s.focusMode);
-  const [layersOpen, setLayersOpen] = useState(false);
+  const sidebarPanel = useSceneEditorStore((s) => s.sidebarPanel);
+  const toggleSidebarPanel = useSceneEditorStore((s) => s.toggleSidebarPanel);
+  const setSidebarPanel = useSceneEditorStore((s) => s.setSidebarPanel);
   const layerTools = useLayerPanelTools();
+  const aiController = useSceneEditorAiController();
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-neutral-50">
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
@@ -108,40 +114,18 @@ export default function SceneEditorPage({ documentId }: Props) {
           <div className="relative flex min-h-0 flex-1">
             <SceneEditorCanvas />
             <BottomFloatingToolbar />
-            <nav
-              data-avnac-chrome
-              aria-label="Scene tools"
-              className={[
-                "pointer-events-auto fixed left-3 z-[95] flex flex-col gap-1 rounded-[1.75rem] border border-black/[0.08] bg-white/90 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl transition-opacity duration-150",
-                focusMode ? "pointer-events-none opacity-0" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              style={{ top: editorSidebarTopValue }}
-            >
-              <button
-                type="button"
-                aria-pressed={layersOpen}
-                title="Layers (L)"
-                aria-label="Layers"
-                onClick={() => setLayersOpen((v) => !v)}
-                className={[
-                  "flex size-10 shrink-0 items-center justify-center rounded-2xl transition-[background,color,box-shadow]",
-                  layersOpen
-                    ? "bg-neutral-900 text-white shadow-[0_6px_18px_rgba(0,0,0,0.18)]"
-                    : "text-neutral-500 hover:bg-black/[0.06] hover:text-neutral-800",
-                ].join(" ")}
-              >
-                <HugeiconsIcon
-                  icon={Layers02Icon}
-                  size={20}
-                  strokeWidth={1.75}
-                />
-              </button>
-            </nav>
+
+            {/* ── Floating sidebar ─────────────────────────────────────── */}
+            <EditorFloatingSidebar
+              activePanel={sidebarPanel}
+              onSelectPanel={toggleSidebarPanel}
+              hidden={focusMode}
+            />
+
+            {/* ── Sidebar panels ───────────────────────────────────────── */}
             <EditorLayersPanel
-              open={layersOpen}
-              onClose={() => setLayersOpen(false)}
+              open={sidebarPanel === "layers"}
+              onClose={() => setSidebarPanel(null)}
               rows={layerTools.rows}
               onSelectLayer={layerTools.onSelectLayer}
               onToggleVisible={layerTools.onToggleVisible}
@@ -149,6 +133,34 @@ export default function SceneEditorPage({ documentId }: Props) {
               onSendBackward={layerTools.onSendBackward}
               onReorder={layerTools.onReorder}
               onRenameLayer={layerTools.onRenameLayer}
+            />
+            <EditorUploadsPanel
+              open={sidebarPanel === "uploads"}
+              onClose={() => setSidebarPanel(null)}
+            />
+            <EditorImagesPanel
+              open={sidebarPanel === "images"}
+              onClose={() => setSidebarPanel(null)}
+              controller={aiController}
+            />
+            <EditorVectorBoardPanel
+              open={sidebarPanel === "vector-board"}
+              onClose={() => setSidebarPanel(null)}
+              boards={[]}
+              boardDocs={{}}
+              onCreateNew={() => {}}
+              onOpenBoard={() => {}}
+              onDeleteBoard={() => {}}
+            />
+            <EditorAppsPanel
+              open={sidebarPanel === "apps"}
+              onClose={() => setSidebarPanel(null)}
+              controller={aiController}
+            />
+            <EditorAiPanel
+              open={sidebarPanel === "ai"}
+              onClose={() => setSidebarPanel(null)}
+              controller={aiController}
             />
           </div>
         </div>

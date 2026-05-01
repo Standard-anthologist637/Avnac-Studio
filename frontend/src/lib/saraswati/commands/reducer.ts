@@ -1,4 +1,4 @@
-import type { SaraswatiColor } from "../types";
+import type { SaraswatiColor, SaraswatiShadow } from "../types";
 import {
   cloneSaraswatiScene,
   isSaraswatiRenderableNode,
@@ -68,6 +68,12 @@ export function applyCommand(
       );
     case "SET_TEXT_FORMAT":
       return setTextFormat(scene, command.id, command);
+    case "SET_NODE_OPACITY":
+      return setNodeOpacity(scene, command.id, command.opacity);
+    case "SET_NODE_SHADOW":
+      return setNodeShadow(scene, command.id, command.shadow);
+    case "SET_NODE_BLUR":
+      return setNodeBlur(scene, command.id, command.blur);
     default:
       return scene;
   }
@@ -570,5 +576,46 @@ function setTextFormat(
     ...(patch.color !== undefined && { color: patch.color }),
     ...(patch.lineHeight !== undefined && { lineHeight: patch.lineHeight }),
   };
+  return next;
+}
+
+function setNodeOpacity(
+  scene: SaraswatiScene,
+  nodeId: string,
+  opacity: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node) return scene;
+  const clamped = Math.max(0, Math.min(1, opacity));
+  if (node.opacity === clamped) return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, opacity: clamped };
+  return next;
+}
+
+function setNodeShadow(
+  scene: SaraswatiScene,
+  nodeId: string,
+  shadow: SaraswatiShadow | null,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node) return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, shadow: shadow ?? null } as SaraswatiNode;
+  return next;
+}
+
+function setNodeBlur(
+  scene: SaraswatiScene,
+  nodeId: string,
+  blur: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node) return scene;
+  const clamped = Math.max(0, Math.min(100, blur));
+  const existing = (node as { blur?: number }).blur ?? 0;
+  if (existing === clamped) return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, blur: clamped } as SaraswatiNode;
   return next;
 }

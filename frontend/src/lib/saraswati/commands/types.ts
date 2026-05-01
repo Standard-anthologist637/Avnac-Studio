@@ -1,4 +1,4 @@
-import type { SaraswatiColor } from "../types";
+import type { SaraswatiColor, SaraswatiShadow } from "../types";
 import type { SaraswatiClipPath, SaraswatiNode } from "../types";
 
 export type SaraswatiResizeHandle =
@@ -80,6 +80,24 @@ export type SaraswatiCommand =
       underline?: boolean;
       color?: SaraswatiColor;
       lineHeight?: number;
+    }
+  | {
+      /** Set opacity on any node (0–1, clamped). */
+      type: "SET_NODE_OPACITY";
+      id: string;
+      opacity: number;
+    }
+  | {
+      /** Set or clear the drop-shadow on any node. */
+      type: "SET_NODE_SHADOW";
+      id: string;
+      shadow: SaraswatiShadow | null;
+    }
+  | {
+      /** Set Gaussian blur amount (0–100 %) on any node. */
+      type: "SET_NODE_BLUR";
+      id: string;
+      blur: number;
     };
 
 export type Command = SaraswatiCommand;

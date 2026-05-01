@@ -6,6 +6,7 @@ import {
   UndoIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import CanvasZoomSlider from "@/components/editor/canvas/canvas-zoom-slider";
 import EditorFloatingCanvasControls from "@/components/editor/canvas/editor-floating-canvas-controls";
 import ShapesPopover, {
   iconForShapesQuickAdd,
@@ -52,6 +53,8 @@ export default function BottomFloatingToolbar() {
   const redo = useSceneEditorStore((s) => s.redo);
   const focusMode = useSceneEditorStore((s) => s.focusMode);
   const toggleFocusMode = useSceneEditorStore((s) => s.toggleFocusMode);
+  const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
+  const setZoomPercent = useSceneEditorStore((s) => s.setZoomPercent);
 
   const [shapesPopoverOpen, setShapesPopoverOpen] = useState(false);
   const [shapesQuickAddKind, setShapesQuickAddKind] =
@@ -106,7 +109,16 @@ export default function BottomFloatingToolbar() {
       onToggleFocusMode={toggleFocusMode}
       zoomRef={zoomRef}
       toolbarRef={toolbarRef}
-      zoomControl={null}
+      zoomControl={
+        <CanvasZoomSlider
+          value={zoomPercent}
+          min={5}
+          max={400}
+          onChange={setZoomPercent}
+          onFitRequest={() => setZoomPercent(100)}
+          disabled={!scene}
+        />
+      }
     >
       <button
         type="button"
