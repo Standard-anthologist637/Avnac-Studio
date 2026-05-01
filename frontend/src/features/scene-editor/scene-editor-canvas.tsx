@@ -15,6 +15,7 @@ export default function SceneEditorCanvas() {
   const selectedIds = useSceneEditorStore((s) => s.selectedIds);
   const lockedIds = useSceneEditorStore((s) => s.lockedIds);
   const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
+  const setZoomPercent = useSceneEditorStore((s) => s.setZoomPercent);
   const setRenderStats = useSceneEditorStore((s) => s.setRenderStats);
   const interactions = useSceneEditorInteractions();
   const actions = useSceneSelectionActions();
@@ -32,6 +33,25 @@ export default function SceneEditorCanvas() {
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  // Prevent browser/page zoom on ctrl/cmd + wheel; zoom the canvas instead.
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      let dy = e.deltaY;
+      if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) dy *= 16;
+      else if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+        dy *= el.clientHeight * 0.85;
+      }
+      const current = useSceneEditorStore.getState().zoomPercent;
+      setZoomPercent(current + -dy * 0.12);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [setZoomPercent]);
 
   if (!scene) return null;
 

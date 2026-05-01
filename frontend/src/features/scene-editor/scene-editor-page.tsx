@@ -63,17 +63,23 @@ export default function SceneEditorPage({ documentId }: Props) {
   const vectorBoardsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const vectorBoardDocsSaveTimerRef = useRef<
-    ReturnType<typeof setTimeout> | null
-  >(null);
+  const vectorBoardDocsSaveTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const createVectorBoard = useCallback(() => {
     const id = crypto.randomUUID();
     setVectorBoards((prev) => {
       const n = prev.length + 1;
-      return [...prev, { id, name: `Vector board ${n}`, createdAt: Date.now() }];
+      return [
+        ...prev,
+        { id, name: `Vector board ${n}`, createdAt: Date.now() },
+      ];
     });
-    setVectorBoardDocs((prev) => ({ ...prev, [id]: emptyVectorBoardDocument() }));
+    setVectorBoardDocs((prev) => ({
+      ...prev,
+      [id]: emptyVectorBoardDocument(),
+    }));
     setVectorWorkspaceId(id);
   }, []);
 
@@ -105,7 +111,8 @@ export default function SceneEditorPage({ documentId }: Props) {
   const vectorWorkspaceName = useMemo(() => {
     if (!vectorWorkspaceId) return "";
     return (
-      vectorBoards.find((b) => b.id === vectorWorkspaceId)?.name ?? "Vector board"
+      vectorBoards.find((b) => b.id === vectorWorkspaceId)?.name ??
+      "Vector board"
     );
   }, [vectorBoards, vectorWorkspaceId]);
 

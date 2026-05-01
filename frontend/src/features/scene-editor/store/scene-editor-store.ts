@@ -5,12 +5,14 @@
  * one scene editor page is open at a time.
  */
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
+import type { EditorSidebarPanelId } from "@/components/editor/sidebar/editor-floating-sidebar";
 import {
   createSaraswatiEditorStore,
   type SaraswatiColor,
   type SaraswatiCommand,
   type SaraswatiEditorStore,
   type SaraswatiScene,
+  type SaraswatiShadow,
 } from "@/lib/saraswati";
 import { fromAvnacDocument } from "@/lib/saraswati/compat/from-fabric";
 import { idbGetEditorRecord, idbPutDocument } from "@/lib/avnac-editor-idb";
@@ -31,7 +33,6 @@ import {
   type SceneEditorInsertContext,
 } from "./insert-store";
 import { applyClipPathCommandsToDocument } from "./persistence-store";
-import type { EditorSidebarPanelId } from "@/components/editor/sidebar/editor-floating-sidebar";
 
 type SceneEditorState = {
   documentId: string | null;
@@ -44,7 +45,7 @@ type SceneEditorState = {
   adapterIssueCount: number;
   /** Currently selected node IDs in the scene. */
   selectedIds: string[];
-  /** Editor-only lock state. Locked nodes cannot be selected or transformed. */
+  /** Editor-only lock state. Locked nodes cannot be transformed. */
   lockedIds: string[];
   isLoading: boolean;
   loadError: string | null;
@@ -113,6 +114,9 @@ type SceneEditorActions = {
   setSidebarPanel: (panel: EditorSidebarPanelId | null) => void;
   toggleSidebarPanel: (panel: EditorSidebarPanelId) => void;
   setZoomPercent: (percent: number) => void;
+  setNodeOpacity: (id: string, opacity: number) => void;
+  setNodeShadow: (id: string, shadow: SaraswatiShadow | null) => void;
+  setNodeBlur: (id: string, blur: number) => void;
   /**
    * Persist the current document back to IDB.
    * NOTE: full Saraswati→AvnacDocument serialisation is not yet implemented.
@@ -286,6 +290,18 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
 
   setZoomPercent: (zoomPercent) =>
     set({ zoomPercent: Math.max(5, Math.min(400, Math.round(zoomPercent))) }),
+
+  setNodeOpacity: (id, opacity) => {
+    get().applyCommands([{ type: "SET_NODE_OPACITY", id, opacity }]);
+  },
+
+  setNodeShadow: (id, shadow) => {
+    get().applyCommands([{ type: "SET_NODE_SHADOW", id, shadow }]);
+  },
+
+  setNodeBlur: (id, blur) => {
+    get().applyCommands([{ type: "SET_NODE_BLUR", id, blur }]);
+  },
 
   setArtboard: (width?: number, height?: number, bg?: SaraswatiColor) => {
     get().applyCommands([{ type: "SET_ARTBOARD", width, height, bg }]);

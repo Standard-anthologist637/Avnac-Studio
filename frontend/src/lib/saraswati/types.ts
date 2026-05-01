@@ -31,6 +31,15 @@ export type SaraswatiNodeId = string;
 export type SaraswatiNodeOriginX = "left" | "center" | "right";
 export type SaraswatiNodeOriginY = "top" | "center" | "bottom";
 
+/** Drop-shadow descriptor. Mirrors `FabricShadowUi` but owned by the engine. */
+export type SaraswatiShadow = {
+  blur: number;
+  offsetX: number;
+  offsetY: number;
+  colorHex: string;
+  opacityPct: number;
+};
+
 export type SaraswatiNodeBase = {
   id: SaraswatiNodeId;
   parentId: SaraswatiNodeId | null;
@@ -44,6 +53,10 @@ export type SaraswatiNodeBase = {
   opacity: number;
   originX: SaraswatiNodeOriginX;
   originY: SaraswatiNodeOriginY;
+  /** Drop shadow. Null / undefined = no shadow. */
+  shadow?: SaraswatiShadow | null;
+  /** Gaussian blur amount as a percentage (0–100). 0 = no blur. */
+  blur?: number;
 };
 
 export type SaraswatiPaintNodeBase = SaraswatiNodeBase & {
@@ -155,6 +168,8 @@ export type SaraswatiGroupNode = {
   visible: boolean;
   opacity: number;
   children: SaraswatiNodeId[];
+  shadow?: SaraswatiShadow | null;
+  blur?: number;
 };
 
 export type SaraswatiNode =
