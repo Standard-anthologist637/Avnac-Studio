@@ -6,6 +6,7 @@ import (
 
 	avnacconfig "Avnac/avnac-system/config"
 	avnacio "Avnac/avnac-system/io"
+	avnacsecrets "Avnac/avnac-system/secrets"
 	avnacserver "Avnac/avnac-system/server"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -15,6 +16,7 @@ import (
 type App struct {
 	ctx        context.Context
 	Config     *avnacconfig.ConfigManager
+	Secrets    *avnacsecrets.SecretsManager
 	ioManager  *avnacio.IOManager
 	Unsplash   *avnacserver.UnsplashService
 	mediaProxy *avnacserver.MediaProxy
@@ -23,12 +25,13 @@ type App struct {
 // NewApp creates a new App application struct
 func NewApp() *App {
 	cfgMgr := avnacconfig.NewConfigManager()
-	unsplash := avnacserver.NewUnsplashService(cfgMgr.Get())
+	secrets := avnacsecrets.NewSecretsManager()
+	unsplash := avnacserver.NewUnsplashService(secrets)
 	proxy := avnacserver.NewMediaProxy(cfgMgr.Get())
-	cfgMgr.AddWatcher(unsplash.UpdateConfig)
 	cfgMgr.AddWatcher(proxy.UpdateConfig)
 	return &App{
 		Config:     cfgMgr,
+		Secrets:    secrets,
 		ioManager:  avnacio.NewIOManager(),
 		Unsplash:   unsplash,
 		mediaProxy: proxy,
@@ -55,6 +58,19 @@ func (a *App) startup(ctx context.Context) {
 
 	a.ioManager.Startup(ctx, appDir)
 	a.Config.Startup(appDir)
+
+	// One-time migration: move any Unsplash key that was stored in plaintext
+	// config.json into the OS keyring, then clear it from the config file.
+	if cfg := a.Config.Get(); cfg.UnsplashAccessKey != "" {
+		if err := a.Secrets.SetKey("unsplash", cfg.UnsplashAccessKey); err != nil {
+			log.Printf("[avnac] migrate unsplash key to keyring: %v", err)
+		} else {
+			log.Printf("[avnac] migrated Unsplash key from config.json to OS keyring")
+			if err := a.Config.Save(&avnacconfig.AppConfig{}); err != nil {
+				log.Printf("[avnac] clear legacy unsplash key from config: %v", err)
+			}
+		}
+	}
 }
 
 // domReady is called after the frontend DOM is ready and the Wails IPC
