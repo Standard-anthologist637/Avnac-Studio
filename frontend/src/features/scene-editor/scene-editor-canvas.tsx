@@ -14,6 +14,7 @@ export default function SceneEditorCanvas() {
   const scene = useSceneEditorStore((s) => s.scene);
   const selectedIds = useSceneEditorStore((s) => s.selectedIds);
   const lockedIds = useSceneEditorStore((s) => s.lockedIds);
+  const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
   const setRenderStats = useSceneEditorStore((s) => s.setRenderStats);
   const interactions = useSceneEditorInteractions();
   const actions = useSceneSelectionActions();
@@ -35,7 +36,7 @@ export default function SceneEditorCanvas() {
   if (!scene) return null;
 
   const pad = 64;
-  const scale =
+  const fitScale =
     containerSize.w > 0 && containerSize.h > 0
       ? Math.min(
           1,
@@ -43,6 +44,7 @@ export default function SceneEditorCanvas() {
           (containerSize.h - pad) / scene.artboard.height,
         )
       : 1;
+  const scale = fitScale * (zoomPercent / 100);
   const scaledWidth = Math.round(scene.artboard.width * scale);
   const scaledHeight = Math.round(scene.artboard.height * scale);
 

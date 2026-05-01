@@ -31,6 +31,7 @@ import {
   type SceneEditorInsertContext,
 } from "./insert-store";
 import { applyClipPathCommandsToDocument } from "./persistence-store";
+import type { EditorSidebarPanelId } from "@/components/editor/sidebar/editor-floating-sidebar";
 
 type SceneEditorState = {
   documentId: string | null;
@@ -52,6 +53,8 @@ type SceneEditorState = {
   canUndo: boolean;
   canRedo: boolean;
   focusMode: boolean;
+  sidebarPanel: EditorSidebarPanelId | null;
+  zoomPercent: number;
   renderStats: {
     ms: number;
     commands: number;
@@ -107,6 +110,9 @@ type SceneEditorActions = {
     },
   ) => void;
   toggleFocusMode: () => void;
+  setSidebarPanel: (panel: EditorSidebarPanelId | null) => void;
+  toggleSidebarPanel: (panel: EditorSidebarPanelId) => void;
+  setZoomPercent: (percent: number) => void;
   /**
    * Persist the current document back to IDB.
    * NOTE: full Saraswati→AvnacDocument serialisation is not yet implemented.
@@ -135,6 +141,8 @@ const INITIAL: SceneEditorState = {
   canUndo: false,
   canRedo: false,
   focusMode: false,
+  sidebarPanel: null,
+  zoomPercent: 100,
   renderStats: {
     ms: 0,
     commands: 0,
@@ -270,6 +278,14 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   },
 
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
+
+  setSidebarPanel: (sidebarPanel) => set({ sidebarPanel }),
+
+  toggleSidebarPanel: (panel) =>
+    set((s) => ({ sidebarPanel: s.sidebarPanel === panel ? null : panel })),
+
+  setZoomPercent: (zoomPercent) =>
+    set({ zoomPercent: Math.max(5, Math.min(400, Math.round(zoomPercent))) }),
 
   setArtboard: (width?: number, height?: number, bg?: SaraswatiColor) => {
     get().applyCommands([{ type: "SET_ARTBOARD", width, height, bg }]);

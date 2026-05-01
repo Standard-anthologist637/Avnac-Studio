@@ -4,15 +4,32 @@
  * the global useSceneEditorStore — no prop drilling.
  */
 import { Link } from "@tanstack/react-router";
-import { Layers02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import EditorAiPanel from "@/components/editor/sidebar/editor-ai-panel";
+import EditorAppsPanel from "@/components/editor/sidebar/editor-apps-panel";
+import EditorFloatingSidebar from "@/components/editor/sidebar/editor-floating-sidebar";
+import EditorImagesPanel from "@/components/editor/sidebar/editor-images-panel";
 import EditorLayersPanel from "@/components/editor/sidebar/editor-layers-panel";
-import { editorSidebarTopValue } from "@/lib/editor-sidebar-panel-layout";
-import { useState } from "react";
+import EditorUploadsPanel from "@/components/editor/sidebar/editor-uploads-panel";
+import EditorVectorBoardPanel from "@/components/editor/vector-boards/editor-vector-board-panel";
+import VectorBoardWorkspace from "@/components/editor/vector-boards/vector-board-workspace";
+import {
+  emptyVectorBoardDocument,
+  type VectorBoardDocument,
+} from "@/lib/avnac-vector-board-document";
+import {
+  loadVectorBoardDocs,
+  loadVectorBoards,
+  mergeVectorBoardDocsForMeta,
+  saveVectorBoardDocs,
+  saveVectorBoards,
+  type AvnacVectorBoardMeta,
+} from "@/lib/avnac-vector-boards-storage";
 import SceneEditorCanvas from "./scene-editor-canvas";
 import BottomFloatingToolbar from "./tools/bottom-floating-toolbar";
 import SceneSelectionBar from "./tools/scene-selection-bar";
 import { useLayerPanelTools } from "./tools/use-layer-panel-tools";
+import { useSceneEditorAiController } from "./use-scene-editor-ai-controller";
 import { useSceneEditorStore } from "./store";
 
 type Props = {
@@ -28,8 +45,150 @@ export default function SceneEditorPage({ documentId }: Props) {
   const scene = useSceneEditorStore((s) => s.scene);
   const renderStats = useSceneEditorStore((s) => s.renderStats);
   const focusMode = useSceneEditorStore((s) => s.focusMode);
-  const [layersOpen, setLayersOpen] = useState(false);
+  const sidebarPanel = useSceneEditorStore((s) => s.sidebarPanel);
+  const toggleSidebarPanel = useSceneEditorStore((s) => s.toggleSidebarPanel);
+  const setSidebarPanel = useSceneEditorStore((s) => s.setSidebarPanel);
+  const insertVectorBoard = useSceneEditorStore((s) => s.insertVectorBoard);
   const layerTools = useLayerPanelTools();
+  const aiController = useSceneEditorAiController();
+
+  const [vectorBoards, setVectorBoards] = useState<AvnacVectorBoardMeta[]>([]);
+  const [vectorBoardDocs, setVectorBoardDocs] = useState<
+    Record<string, VectorBoardDocument>
+  >({});
+  const [vectorBoardListReady, setVectorBoardListReady] = useState(false);
+  const [vectorWorkspaceId, setVectorWorkspaceId] = useState<string | null>(
+    null,
+  );
+  const vectorBoardsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const vectorBoardDocsSaveTimerRef = useRef<
+    ReturnType<typeof setTimeout> | null
+  >(null);
+
+  const createVectorBoard = useCallback(() => {
+    const id = crypto.randomUUID();
+    setVectorBoards((prev) => {
+      const n = prev.length + 1;
+      return [...prev, { id, name: `Vector board ${n}`, createdAt: Date.now() }];
+    });
+    setVectorBoardDocs((prev) => ({ ...prev, [id]: emptyVectorBoardDocument() }));
+    setVectorWorkspaceId(id);
+  }, []);
+
+  const openVectorBoardWorkspace = useCallback((id: string) => {
+    setVectorWorkspaceId(id);
+  }, []);
+
+  const closeVectorWorkspace = useCallback(() => {
+    setVectorWorkspaceId(null);
+  }, []);
+
+  const onVectorBoardDocumentChange = useCallback(
+    (boardId: string, doc: VectorBoardDocument) => {
+      setVectorBoardDocs((prev) => ({ ...prev, [boardId]: doc }));
+    },
+    [],
+  );
+
+  const deleteVectorBoard = useCallback((boardId: string) => {
+    setVectorWorkspaceId((cur) => (cur === boardId ? null : cur));
+    setVectorBoards((prev) => prev.filter((b) => b.id !== boardId));
+    setVectorBoardDocs((prev) => {
+      const next = { ...prev };
+      delete next[boardId];
+      return next;
+    });
+  }, []);
+
+  const vectorWorkspaceName = useMemo(() => {
+    if (!vectorWorkspaceId) return "";
+    return (
+      vectorBoards.find((b) => b.id === vectorWorkspaceId)?.name ?? "Vector board"
+    );
+  }, [vectorBoards, vectorWorkspaceId]);
+
+  useEffect(() => {
+    setVectorWorkspaceId(null);
+    setVectorBoardListReady(false);
+    let cancelled = false;
+    if (!documentId) {
+      setVectorBoards([]);
+      setVectorBoardDocs({});
+      setVectorBoardListReady(true);
+      return;
+    }
+    void (async () => {
+      const [boards, docs] = await Promise.all([
+        loadVectorBoards(documentId),
+        loadVectorBoardDocs(documentId),
+      ]);
+      if (cancelled) return;
+      const merged = mergeVectorBoardDocsForMeta(boards, docs);
+      setVectorBoards(boards);
+      setVectorBoardDocs(merged);
+      setVectorBoardListReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId]);
+
+  useEffect(() => {
+    if (!documentId || !vectorBoardListReady) return;
+    if (vectorBoardsSaveTimerRef.current) {
+      clearTimeout(vectorBoardsSaveTimerRef.current);
+    }
+    vectorBoardsSaveTimerRef.current = setTimeout(() => {
+      vectorBoardsSaveTimerRef.current = null;
+      void saveVectorBoards(documentId, vectorBoards).catch((err) => {
+        console.error("SceneEditor: vector board save failed", err);
+      });
+    }, 800);
+
+    return () => {
+      if (vectorBoardsSaveTimerRef.current) {
+        clearTimeout(vectorBoardsSaveTimerRef.current);
+        vectorBoardsSaveTimerRef.current = null;
+      }
+    };
+  }, [documentId, vectorBoards, vectorBoardListReady]);
+
+  useEffect(() => {
+    if (!documentId || !vectorBoardListReady) return;
+    if (vectorBoardDocsSaveTimerRef.current) {
+      clearTimeout(vectorBoardDocsSaveTimerRef.current);
+    }
+    vectorBoardDocsSaveTimerRef.current = setTimeout(() => {
+      vectorBoardDocsSaveTimerRef.current = null;
+      void saveVectorBoardDocs(documentId, vectorBoardDocs).catch((err) => {
+        console.error("SceneEditor: vector board document save failed", err);
+      });
+    }, 800);
+
+    return () => {
+      if (vectorBoardDocsSaveTimerRef.current) {
+        clearTimeout(vectorBoardDocsSaveTimerRef.current);
+        vectorBoardDocsSaveTimerRef.current = null;
+      }
+    };
+  }, [documentId, vectorBoardDocs, vectorBoardListReady]);
+
+  useEffect(() => {
+    return () => {
+      if (vectorBoardsSaveTimerRef.current) {
+        clearTimeout(vectorBoardsSaveTimerRef.current);
+        vectorBoardsSaveTimerRef.current = null;
+      }
+      if (vectorBoardDocsSaveTimerRef.current) {
+        clearTimeout(vectorBoardDocsSaveTimerRef.current);
+        vectorBoardDocsSaveTimerRef.current = null;
+      }
+    };
+  }, []);
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-neutral-50">
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
@@ -108,40 +267,14 @@ export default function SceneEditorPage({ documentId }: Props) {
           <div className="relative flex min-h-0 flex-1">
             <SceneEditorCanvas />
             <BottomFloatingToolbar />
-            <nav
-              data-avnac-chrome
-              aria-label="Scene tools"
-              className={[
-                "pointer-events-auto fixed left-3 z-[95] flex flex-col gap-1 rounded-[1.75rem] border border-black/[0.08] bg-white/90 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl transition-opacity duration-150",
-                focusMode ? "pointer-events-none opacity-0" : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              style={{ top: editorSidebarTopValue }}
-            >
-              <button
-                type="button"
-                aria-pressed={layersOpen}
-                title="Layers (L)"
-                aria-label="Layers"
-                onClick={() => setLayersOpen((v) => !v)}
-                className={[
-                  "flex size-10 shrink-0 items-center justify-center rounded-2xl transition-[background,color,box-shadow]",
-                  layersOpen
-                    ? "bg-neutral-900 text-white shadow-[0_6px_18px_rgba(0,0,0,0.18)]"
-                    : "text-neutral-500 hover:bg-black/[0.06] hover:text-neutral-800",
-                ].join(" ")}
-              >
-                <HugeiconsIcon
-                  icon={Layers02Icon}
-                  size={20}
-                  strokeWidth={1.75}
-                />
-              </button>
-            </nav>
+            <EditorFloatingSidebar
+              activePanel={sidebarPanel}
+              onSelectPanel={toggleSidebarPanel}
+              hidden={focusMode}
+            />
             <EditorLayersPanel
-              open={layersOpen}
-              onClose={() => setLayersOpen(false)}
+              open={sidebarPanel === "layers"}
+              onClose={() => setSidebarPanel(null)}
               rows={layerTools.rows}
               onSelectLayer={layerTools.onSelectLayer}
               onToggleVisible={layerTools.onToggleVisible}
@@ -149,6 +282,54 @@ export default function SceneEditorPage({ documentId }: Props) {
               onSendBackward={layerTools.onSendBackward}
               onReorder={layerTools.onReorder}
               onRenameLayer={layerTools.onRenameLayer}
+            />
+            <EditorUploadsPanel
+              open={sidebarPanel === "uploads"}
+              onClose={() => setSidebarPanel(null)}
+            />
+            <EditorImagesPanel
+              open={sidebarPanel === "images"}
+              onClose={() => setSidebarPanel(null)}
+              controller={aiController}
+            />
+            <EditorVectorBoardPanel
+              open={sidebarPanel === "vector-board"}
+              onClose={() => setSidebarPanel(null)}
+              boards={vectorBoards}
+              boardDocs={vectorBoardDocs}
+              onCreateNew={createVectorBoard}
+              onOpenBoard={openVectorBoardWorkspace}
+              onDeleteBoard={deleteVectorBoard}
+            />
+            <EditorAppsPanel
+              open={sidebarPanel === "apps"}
+              onClose={() => setSidebarPanel(null)}
+              controller={aiController}
+            />
+            <EditorAiPanel
+              open={sidebarPanel === "ai"}
+              onClose={() => setSidebarPanel(null)}
+              controller={aiController}
+            />
+            <VectorBoardWorkspace
+              open={vectorWorkspaceId != null}
+              boardName={vectorWorkspaceName}
+              document={
+                vectorWorkspaceId
+                  ? (vectorBoardDocs[vectorWorkspaceId] ??
+                    emptyVectorBoardDocument())
+                  : emptyVectorBoardDocument()
+              }
+              onDocumentChange={(doc) => {
+                if (!vectorWorkspaceId) return;
+                onVectorBoardDocumentChange(vectorWorkspaceId, doc);
+              }}
+              onSave={closeVectorWorkspace}
+              onSaveAndPlace={() => {
+                insertVectorBoard();
+                closeVectorWorkspace();
+              }}
+              onClose={closeVectorWorkspace}
             />
           </div>
         </div>

@@ -218,6 +218,16 @@ function StaticLayerRow({
 }) {
   return (
     <li className={layerRowClass(row.selected)}>
+      <div
+        aria-hidden="true"
+        className="flex h-8 w-7 shrink-0 items-center justify-center rounded-md text-neutral-300"
+      >
+        <HugeiconsIcon
+          icon={DragDropVerticalIcon}
+          size={16}
+          strokeWidth={1.75}
+        />
+      </div>
       <LayerRowLabelControl
         row={row}
         onSelectLayer={onSelectLayer}
