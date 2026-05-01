@@ -130,6 +130,12 @@ function FilesPage() {
     dismiss: dismissUpdate,
   } = useUpdateCheck();
 
+  const isBirthday = (() => {
+    const now = new Date();
+    return now.getMonth() === 9 && now.getDate() === 24; // October 24
+  })();
+  const [birthdayDismissed, setBirthdayDismissed] = useState(false);
+
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
   const toggleSelect = useCallback((id: string) => {
@@ -437,6 +443,51 @@ function FilesPage() {
         >
           {currentVersion}
         </button>
+      ) : null}
+
+      {/* Birthday toast */}
+      {isBirthday && !birthdayDismissed ? (
+        <div className="fixed bottom-5 right-5 z-[300] flex max-w-sm items-start gap-3 rounded-2xl border border-black/[0.1] bg-white p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-[var(--text)]">
+              🎂 It's a special day!
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
+              Today is the birthday of @d3uc3y, co-maintainer of Avnac. Send them a wish!
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL("https://x.com/d3uc3y")}
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-4 text-xs font-medium text-white transition hover:bg-[#262626]"
+              >
+                Wish happy birthday 🎉
+              </button>
+              <button
+                type="button"
+                onClick={() => setBirthdayDismissed(true)}
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border border-black/[0.12] bg-transparent px-4 text-xs font-medium text-[var(--text)] transition hover:bg-black/[0.04]"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss birthday notification"
+            onClick={() => setBirthdayDismissed(true)}
+            className="mt-0.5 shrink-0 cursor-pointer rounded-full p-1 text-[var(--text-muted)] transition hover:bg-black/[0.06]"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path
+                d="M1 1l12 12M13 1L1 13"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       ) : null}
 
       {/* Update toast */}
