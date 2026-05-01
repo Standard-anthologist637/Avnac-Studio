@@ -450,14 +450,13 @@ function FilesPage() {
               A new version of Avnac is ready to download.
             </p>
             <div className="mt-3 flex items-center gap-2">
-              <a
-                href={updateAvailable.downloadUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL("https://avnac.design/studio#platform-downloads")}
                 className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-4 text-xs font-medium text-white transition hover:bg-[#262626]"
               >
                 Download
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={dismissUpdate}

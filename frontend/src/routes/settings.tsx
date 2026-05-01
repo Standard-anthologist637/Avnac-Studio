@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import {
   ArrowLeft01Icon,
   Image01Icon,
@@ -102,14 +103,13 @@ function ApiKeyCard({
           </h2>
           <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
             {description}{" "}
-            <a
-              href={learnMoreHref}
-              target="_blank"
-              rel="noreferrer"
-              className="font-medium underline decoration-dotted underline-offset-2"
+            <button
+              type="button"
+              onClick={() => BrowserOpenURL(learnMoreHref)}
+              className="font-medium underline decoration-dotted underline-offset-2 cursor-pointer"
             >
               {learnMoreLabel}
-            </a>
+            </button>
           </p>
         </div>
       </div>
@@ -413,14 +413,13 @@ export const Route = createFileRoute("/settings")({
                             You&apos;re on {currentVersion}. Download the latest
                             release to get new features and fixes.
                           </p>
-                          <a
-                            href={updateAvailable.downloadUrl}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            onClick={() => BrowserOpenURL("https://avnac.design/studio#platform-downloads")}
                             className="mt-3 inline-flex h-9 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-5 text-xs font-medium text-white transition hover:bg-[#262626]"
                           >
                             Download {updateAvailable.latestVersion}
-                          </a>
+                          </button>
                         </div>
                       </div>
                     ) : lastChecked ? (

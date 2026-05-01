@@ -1,5 +1,6 @@
 import { StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useEditorUnsupportedOnThisDevice } from "../../hooks/use-editor-device-support";
@@ -110,11 +111,10 @@ export default function NewCanvasDialog({
 
         {editorUnsupported ? (
           <div className="mt-6">
-            <a
-              href="https://github.com/akinloluwami/avnac"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-[#f6c56a]/60 bg-[linear-gradient(135deg,#fff7d6_0%,#ffe8a3_48%,#ffd36f_100%)] px-6 py-3 text-[15px] font-semibold text-[#3f2a00] no-underline shadow-[0_12px_30px_rgba(245,179,54,0.22),inset_0_1px_0_rgba(255,255,255,0.72)] transition-transform duration-200 hover:-translate-y-0.5 hover:text-[#2f1f00]"
+            <button
+              type="button"
+              onClick={() => BrowserOpenURL("https://github.com/akinloluwami/avnac")}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-[#f6c56a]/60 bg-[linear-gradient(135deg,#fff7d6_0%,#ffe8a3_48%,#ffd36f_100%)] px-6 py-3 text-[15px] font-semibold text-[#3f2a00] no-underline shadow-[0_12px_30px_rgba(245,179,54,0.22),inset_0_1px_0_rgba(255,255,255,0.72)] transition-transform duration-200 hover:-translate-y-0.5 hover:text-[#2f1f00] cursor-pointer"
             >
               <HugeiconsIcon
                 icon={StarIcon}
@@ -123,7 +123,7 @@ export default function NewCanvasDialog({
                 className="shrink-0"
               />
               <span>Star us on GitHub</span>
-            </a>
+            </button>
           </div>
         ) : (
           <>

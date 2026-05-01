@@ -1,5 +1,6 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { BrowserOpenURL } from "../../../../wailsjs/runtime/runtime";
 import { useCallback, useEffect, useState } from "react";
 import {
   editorSidebarPanelLeftClass,
@@ -151,14 +152,13 @@ export default function EditorImagesPanel({
         <div className="min-w-0">
           <div className="text-sm font-semibold text-neutral-800">Images</div>
           <p className="mt-0.5 text-[11px] text-neutral-500">
-            <a
-              href={unsplashReferralLink("https://unsplash.com/")}
-              target="_blank"
-              rel="noreferrer"
-              className="text-neutral-600 underline-offset-2 hover:underline"
+            <button
+              type="button"
+              onClick={() => BrowserOpenURL(unsplashReferralLink("https://unsplash.com/"))}
+              className="text-neutral-600 underline-offset-2 hover:underline cursor-pointer"
             >
               Powered by Unsplash
-            </a>
+            </button>
           </p>
         </div>
         <button
@@ -233,25 +233,21 @@ export default function EditorImagesPanel({
                       </span>
                       <span className="border-t border-black/[0.06] px-1.5 py-1.5">
                         <span className="line-clamp-2 text-[10.5px] leading-snug text-neutral-600">
-                          <a
-                            href={profileUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="font-medium text-neutral-800 underline-offset-2 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
+                          <button
+                            type="button"
+                            className="font-medium text-neutral-800 underline-offset-2 hover:underline cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); BrowserOpenURL(profileUrl); }}
                           >
                             {photo.user.name}
-                          </a>
+                          </button>
                           <span className="text-neutral-400"> on </span>
-                          <a
-                            href={unsplashReferralLink("https://unsplash.com/")}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline-offset-2 hover:underline"
-                            onClick={(e) => e.stopPropagation()}
+                          <button
+                            type="button"
+                            className="underline-offset-2 hover:underline cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); BrowserOpenURL(unsplashReferralLink("https://unsplash.com/")); }}
                           >
                             Unsplash
-                          </a>
+                          </button>
                         </span>
                       </span>
                     </button>

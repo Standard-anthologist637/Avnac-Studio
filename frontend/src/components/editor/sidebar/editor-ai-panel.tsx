@@ -1,4 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
+import { BrowserOpenURL } from "../../../../wailsjs/runtime/runtime";
 import {
   AiMagicIcon,
   Cancel01Icon,
@@ -176,14 +177,13 @@ function MissingKeyPlaceholder() {
     <div className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4 text-sm text-neutral-700">
       <p>
         Magic uses{" "}
-        <a
-          className="font-medium underline decoration-dotted underline-offset-2"
-          href="https://tambo.co"
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          className="font-medium underline decoration-dotted underline-offset-2 cursor-pointer"
+          onClick={() => BrowserOpenURL("https://tambo.co")}
         >
           Tambo
-        </a>{" "}
+        </button>{" "}
         to turn natural-language prompts into real design edits on your
         artboard.
       </p>
@@ -193,14 +193,13 @@ function MissingKeyPlaceholder() {
       </p>
       <p className="text-[12px] text-neutral-500">
         Don&apos;t have a key yet? Get a free one at{" "}
-        <a
-          className="underline decoration-dotted underline-offset-2"
-          href="https://tambo.co"
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          className="underline decoration-dotted underline-offset-2 cursor-pointer"
+          onClick={() => BrowserOpenURL("https://tambo.co")}
         >
           tambo.co
-        </a>
+        </button>
         .
       </p>
     </div>
@@ -573,16 +572,14 @@ function ChatMarkdown({ text }: { text: string }) {
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          a: ({ href, children, ...rest }) => (
-            <a
-              {...rest}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium underline decoration-dotted underline-offset-2"
+          a: ({ href, children }) => (
+            <button
+              type="button"
+              onClick={() => href && BrowserOpenURL(href)}
+              className="font-medium underline decoration-dotted underline-offset-2 cursor-pointer"
             >
               {children}
-            </a>
+            </button>
           ),
           code: ({ className, children, ...rest }) => {
             const inline = !className;
