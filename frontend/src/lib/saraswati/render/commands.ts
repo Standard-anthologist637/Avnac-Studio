@@ -1,7 +1,7 @@
 import type { BgValue } from "../../editor-paint";
 import {
+  type SaraswatiClipPath,
   type SaraswatiEllipseNode,
-  type SaraswatiImageClipPath,
   listSaraswatiNodesInRenderOrder,
   type SaraswatiImageNode,
   type SaraswatiLineNode,
@@ -48,6 +48,7 @@ export type SaraswatiRenderRectCommand = RenderTransform & {
   strokeWidth: number;
   radiusX: number;
   radiusY: number;
+  clipPath: SaraswatiClipPath | null;
 };
 
 export type SaraswatiRenderEllipseCommand = RenderTransform & {
@@ -57,6 +58,7 @@ export type SaraswatiRenderEllipseCommand = RenderTransform & {
   fill: BgValue;
   stroke: BgValue | null;
   strokeWidth: number;
+  clipPath: SaraswatiClipPath | null;
 };
 
 export type SaraswatiRenderPolygonCommand = RenderTransform & {
@@ -67,6 +69,7 @@ export type SaraswatiRenderPolygonCommand = RenderTransform & {
   stroke: BgValue | null;
   strokeWidth: number;
   points: Array<{ x: number; y: number }>;
+  clipPath: SaraswatiClipPath | null;
 };
 
 export type SaraswatiRenderLineCommand = RenderTransform & {
@@ -99,6 +102,7 @@ export type SaraswatiRenderTextCommand = RenderTransform & {
   color: BgValue;
   stroke: BgValue | null;
   strokeWidth: number;
+  clipPath: SaraswatiClipPath | null;
 };
 
 export type SaraswatiRenderImageCommand = RenderTransform & {
@@ -108,7 +112,7 @@ export type SaraswatiRenderImageCommand = RenderTransform & {
   src: string;
   cropX: number;
   cropY: number;
-  clipPath: SaraswatiImageClipPath | null;
+  clipPath: SaraswatiClipPath | null;
 };
 
 export type SaraswatiRenderCommand =
@@ -134,6 +138,7 @@ export function buildRenderCommands(
       strokeWidth: 0,
       radiusX: 0,
       radiusY: 0,
+      clipPath: null,
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
@@ -183,6 +188,7 @@ function rectNodeToCommand(
     strokeWidth: node.strokeWidth,
     radiusX: node.radiusX,
     radiusY: node.radiusY,
+    clipPath: node.clipPath ?? null,
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,
@@ -204,6 +210,7 @@ function ellipseNodeToCommand(
     fill: node.fill,
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
+    clipPath: node.clipPath ?? null,
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,
@@ -226,6 +233,7 @@ function polygonNodeToCommand(
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
     points: node.points.map((point) => ({ ...point })),
+    clipPath: node.clipPath ?? null,
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,
@@ -282,6 +290,7 @@ function textNodeToCommand(
     color: node.color,
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
+    clipPath: node.clipPath ?? null,
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,

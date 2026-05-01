@@ -1,9 +1,11 @@
 import {
   cloneSaraswatiScene,
+  isSaraswatiRenderableNode,
   type SaraswatiNode,
   type SaraswatiScene,
 } from "../scene";
 import type {
+  SaraswatiClipPath,
   SaraswatiNodeOriginX,
   SaraswatiNodeOriginY,
 } from "../types";
@@ -17,7 +19,14 @@ export function applyCommand(
     case "MOVE_NODE":
       return moveNode(scene, command.id, command.dx, command.dy);
     case "RESIZE_NODE":
-      return resizeNode(scene, command.id, command.x, command.y, command.width, command.height);
+      return resizeNode(
+        scene,
+        command.id,
+        command.x,
+        command.y,
+        command.width,
+        command.height,
+      );
     case "ADD_NODE":
       return addNode(scene, command.node);
     case "DELETE_NODE":
@@ -34,6 +43,8 @@ export function applyCommand(
       return setNodeVisible(scene, command.id, command.visible);
     case "SET_NODE_NAME":
       return setNodeName(scene, command.id, command.name);
+    case "SET_NODE_CLIP_PATH":
+      return setNodeClipPath(scene, command.id, command.clipPath);
     default:
       return scene;
   }
@@ -242,13 +253,46 @@ function resizeNode(
   bh: number,
 ): SaraswatiScene {
   const node = scene.nodes[nodeId];
-  if (!node || node.type === "group" || node.type === "line") return scene;
+  if (!node || node.type === "group") return scene;
   const clamped = { bx, by, bw: Math.max(1, bw), bh: Math.max(1, bh) };
   const next = cloneSaraswatiScene(scene);
+  if (node.type === "line") {
+    const dx = node.x2 - node.x1;
+    const dy = node.y2 - node.y1;
+    const length = Math.hypot(dx, dy);
+    const ux = length > 0 ? dx / length : 1;
+    const uy = length > 0 ? dy / length : 0;
+    const oldCenterX = (node.x1 + node.x2) / 2;
+    const oldCenterY = (node.y1 + node.y2) / 2;
+    const requestedCenterX = clamped.bx + clamped.bw / 2;
+    const requestedCenterY = clamped.by + clamped.bh / 2;
+    const centerShiftAlongLine =
+      (requestedCenterX - oldCenterX) * ux +
+      (requestedCenterY - oldCenterY) * uy;
+    const centerX = oldCenterX + centerShiftAlongLine * ux;
+    const centerY = oldCenterY + centerShiftAlongLine * uy;
+    const halfLength = Math.max(
+      0.5,
+      Math.abs(ux) * (clamped.bw / 2) + Math.abs(uy) * (clamped.bh / 2),
+    );
+    next.nodes[nodeId] = {
+      ...node,
+      x1: centerX - ux * halfLength,
+      y1: centerY - uy * halfLength,
+      x2: centerX + ux * halfLength,
+      y2: centerY + uy * halfLength,
+    };
+    return next;
+  }
   const nx = boundsToAnchorX(clamped.bx, node.originX, clamped.bw);
   const ny = boundsToAnchorY(clamped.by, node.originY, clamped.bh);
   if (node.type === "text") {
-    next.nodes[nodeId] = { ...node, x: nx, y: ny, width: clamped.bw / node.scaleX };
+    next.nodes[nodeId] = {
+      ...node,
+      x: nx,
+      y: ny,
+      width: clamped.bw / node.scaleX,
+    };
     return next;
   }
   next.nodes[nodeId] = {
@@ -304,6 +348,20 @@ function setNodeName(
   // Store name as a generic meta property; nodes that have a `name` field get it set directly.
   // All node types share SaraswatiNodeBase which doesn't define `name`, so we widen with a cast.
   next.nodes[nodeId] = { ...node, name };
+  return next;
+}
+
+function setNodeClipPath(
+  scene: SaraswatiScene,
+  nodeId: string,
+  clipPath: SaraswatiClipPath | null,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || !isSaraswatiRenderableNode(node) || node.type === "line") {
+    return scene;
+  }
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, clipPath };
   return next;
 }
 

@@ -6,7 +6,8 @@ import {
   type SaraswatiCommand,
   type SaraswatiScene,
 } from "@/lib/saraswati";
-import { useEffect, useMemo } from "react";
+import { createEmptySaraswatiScene } from "@/lib/saraswati/scene";
+import { useEffect, useMemo, useRef } from "react";
 import SceneWorkspaceStage from "./stage";
 import type { SceneWorkspacePreviewMode, SceneWorkspaceStore } from "./store";
 import { useSceneWorkspaceEditor } from "./use-scene-workspace-editor";
@@ -32,6 +33,7 @@ export default function SceneWorkspace({
   store,
   onCommandsApplied,
 }: Props) {
+  // ── derive the scene (may be null when mode is "off") ──────────────────
   const adapterResult = useMemo(() => {
     if (!document || mode === "off") return null;
     return fromAvnacDocument(document);
@@ -57,6 +59,12 @@ export default function SceneWorkspace({
     };
   }, [adapterResult, commands]);
 
+  // ── stable fallback scene — keeps hook call count constant ─────────────
+  const emptySceneRef = useRef(createEmptySaraswatiScene());
+  const isInteractive = mode === "full" && !!sceneResult;
+  const editorScene = sceneResult?.scene ?? emptySceneRef.current;
+
+  // ── ALL hooks must be unconditional — no early return before this ───────
   useEffect(() => {
     if (!onCommandsApplied || !sceneResult) return;
     if (sceneResult.appliedCommands.length === 0) return;
@@ -66,17 +74,19 @@ export default function SceneWorkspace({
     });
   }, [onCommandsApplied, sceneResult]);
 
-  if (mode === "off" || !sceneResult) return null;
-
-  const { scene, issues } = sceneResult;
-  const isInteractive = mode === "full";
   const editor = useSceneWorkspaceEditor({
     enabled: isInteractive,
-    scene,
+    scene: editorScene,
     store,
     onCommandsApplied,
   });
+
+  // ── early exit after all hooks ──────────────────────────────────────────
+  if (mode === "off" || !sceneResult) return null;
+
+  const { scene, issues } = sceneResult;
   const renderedScene = isInteractive ? editor.scene : scene;
+
   const issueSummary = useMemo(() => {
     if (issues.length === 0) return null;
     const buckets = new Map<string, number>();
@@ -161,9 +171,13 @@ export default function SceneWorkspace({
                 className={mode === "split" ? undefined : "max-w-none"}
                 interactive={isInteractive}
                 selectedIds={editor.selectedIds}
+                hoveredId={editor.hoveredId}
+                guides={editor.guides}
+                measurement={editor.measurement}
                 onScenePointerDown={editor.onPointerDown}
                 onScenePointerMove={editor.onPointerMove}
                 onScenePointerUp={editor.onPointerUp}
+                onScenePointerLeave={editor.onPointerLeave}
                 onHandlePointerDown={editor.onHandlePointerDown}
               />
             </div>

@@ -61,7 +61,20 @@ export function cloneSaraswatiScene(scene: SaraswatiScene): SaraswatiScene {
     if (node.type === "polygon") {
       nodes[id] = {
         ...node,
+        clipPath: node.clipPath ? { ...node.clipPath } : null,
         points: node.points.map((point) => ({ ...point })),
+      };
+      continue;
+    }
+    if (
+      node.type === "rect" ||
+      node.type === "ellipse" ||
+      node.type === "text" ||
+      node.type === "image"
+    ) {
+      nodes[id] = {
+        ...node,
+        clipPath: node.clipPath ? { ...node.clipPath } : null,
       };
       continue;
     }
@@ -145,6 +158,7 @@ export function isSaraswatiRenderableNode(
     node.type === "rect" ||
     node.type === "ellipse" ||
     node.type === "polygon" ||
+    node.type === "line" ||
     node.type === "text" ||
     node.type === "image"
   );
@@ -167,7 +181,8 @@ function visitNode(
   const node = scene.nodes[nodeId];
   if (!node || node.visible === false) return;
   if (node.type === "group") {
-    const groupOpacity = inheritedOpacity * Math.max(0, Math.min(1, node.opacity));
+    const groupOpacity =
+      inheritedOpacity * Math.max(0, Math.min(1, node.opacity));
     for (const childId of node.children) {
       visitNode(scene, childId, groupOpacity, ordered);
     }

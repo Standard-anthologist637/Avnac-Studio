@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SceneRouteImport } from './routes/scene'
 import { Route as FilesRouteImport } from './routes/files'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as IndexRouteImport } from './routes/index'
@@ -17,6 +18,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SceneRoute = SceneRouteImport.update({
+  id: '/scene',
+  path: '/scene',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FilesRoute = FilesRouteImport.update({
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
   '/files': typeof FilesRoute
+  '/scene': typeof SceneRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
   '/files': typeof FilesRoute
+  '/scene': typeof SceneRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/create': typeof CreateRoute
   '/files': typeof FilesRoute
+  '/scene': typeof SceneRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/create' | '/files' | '/settings'
+  fullPaths: '/' | '/create' | '/files' | '/scene' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/create' | '/files' | '/settings'
-  id: '__root__' | '/' | '/create' | '/files' | '/settings'
+  to: '/' | '/create' | '/files' | '/scene' | '/settings'
+  id: '__root__' | '/' | '/create' | '/files' | '/scene' | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CreateRoute: typeof CreateRoute
   FilesRoute: typeof FilesRoute
+  SceneRoute: typeof SceneRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scene': {
+      id: '/scene'
+      path: '/scene'
+      fullPath: '/scene'
+      preLoaderRoute: typeof SceneRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/files': {
@@ -106,6 +123,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CreateRoute: CreateRoute,
   FilesRoute: FilesRoute,
+  SceneRoute: SceneRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport

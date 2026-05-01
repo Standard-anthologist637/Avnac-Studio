@@ -7,7 +7,7 @@ import {
   type SaraswatiEllipseNode,
   type SaraswatiGroupNode,
   type SaraswatiImageNode,
-  type SaraswatiImageClipPath,
+  type SaraswatiClipPath,
   type SaraswatiLineNode,
   type SaraswatiLinePathType,
   type SaraswatiLineStyle,
@@ -314,13 +314,6 @@ function adaptRawFabricObject(
 
   const normalizedType = normalizeFabricObjectType(raw.type);
 
-  if (raw.clipPath && normalizedType !== "image") {
-    return {
-      node: null,
-      issue: { reason: "clip-path", sourceType: readSourceType(raw), sourceId },
-    };
-  }
-
   switch (normalizedType) {
     case "rect": {
       if (!isPositiveNumber(raw.width) || !isPositiveNumber(raw.height)) {
@@ -352,6 +345,7 @@ function adaptRawFabricObject(
         strokeWidth: readNumber(raw.strokeWidth, 0),
         radiusX: readNumber(raw.rx, 0),
         radiusY: readNumber(raw.ry, 0),
+        clipPath: readClipPath(raw.clipPath),
       };
       return { node, issue: unsupportedIssue(sourceId, "rect") };
     }
@@ -398,6 +392,7 @@ function adaptRawFabricObject(
         }),
         stroke: readOptionalPaint(raw.avnacStroke, raw.stroke),
         strokeWidth: readNumber(raw.strokeWidth, 0),
+        clipPath: readClipPath(raw.clipPath),
       };
       return { node, issue: unsupportedIssue(sourceId, normalizedType) };
     }
@@ -436,6 +431,7 @@ function adaptRawFabricObject(
         }),
         stroke: readOptionalPaint(raw.avnacStroke, raw.stroke),
         strokeWidth: readNumber(raw.strokeWidth, 0),
+        clipPath: readClipPath(raw.clipPath),
       };
       return {
         node,
@@ -487,6 +483,7 @@ function adaptRawFabricObject(
         }),
         stroke: readOptionalPaint(raw.avnacStroke, raw.stroke),
         strokeWidth: readNumber(raw.strokeWidth, 0),
+        clipPath: readClipPath(raw.clipPath),
       };
       return { node, issue: unsupportedIssue(sourceId, readSourceType(raw)) };
     }
@@ -524,7 +521,7 @@ function adaptRawFabricObject(
         src: raw.src,
         cropX: readNumber(raw.cropX, 0),
         cropY: readNumber(raw.cropY, 0),
-        clipPath: readImageClipPath(raw.clipPath),
+        clipPath: readClipPath(raw.clipPath),
       };
       return { node, issue: unsupportedIssue(sourceId, "image") };
     }
@@ -737,7 +734,7 @@ function readArrowCurveT(raw: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0.5;
 }
 
-function readImageClipPath(raw: unknown): SaraswatiImageClipPath | null {
+function readClipPath(raw: unknown): SaraswatiClipPath | null {
   if (!raw || typeof raw !== "object") return null;
   const clip = raw as RawFabricClipPath;
   const rawType =

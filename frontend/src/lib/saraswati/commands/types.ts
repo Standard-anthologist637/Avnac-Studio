@@ -1,4 +1,4 @@
-import type { SaraswatiNode } from "../types";
+import type { SaraswatiClipPath, SaraswatiNode } from "../types";
 
 export type SaraswatiResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
@@ -21,6 +21,7 @@ export type SaraswatiCommand =
   | { type: "GROUP_NODES"; id: string; parentId: string; children: string[] }
   | { type: "UNGROUP_NODE"; id: string }
   | { type: "SET_NODE_VISIBLE"; id: string; visible: boolean }
-  | { type: "SET_NODE_NAME"; id: string; name: string };
+  | { type: "SET_NODE_NAME"; id: string; name: string }
+  | { type: "SET_NODE_CLIP_PATH"; id: string; clipPath: SaraswatiClipPath | null };
 
 export type Command = SaraswatiCommand;

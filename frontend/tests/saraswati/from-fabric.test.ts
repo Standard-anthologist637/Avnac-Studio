@@ -373,4 +373,34 @@ describe("fromAvnacDocument shape ingestion", () => {
       false,
     );
   });
+
+  it("ingests rect clipPath without reporting clip-path unsupported", () => {
+    const doc = makeBaseDocument();
+    doc.fabric = {
+      objects: [
+        {
+          type: "rect",
+          avnacLayerId: "rect-clip-1",
+          left: 80,
+          top: 90,
+          width: 240,
+          height: 160,
+          fill: "#f97316",
+          clipPath: { type: "ellipse", rx: 60, ry: 45, left: 0, top: 0 },
+        },
+      ],
+    };
+
+    const adapted = fromAvnacDocument(doc);
+    const node = adapted.scene.nodes["rect-clip-1"];
+    expect(node?.type).toBe("rect");
+    if (node?.type === "rect") {
+      expect(node.clipPath?.type).toBe("ellipse");
+      expect(node.clipPath?.width).toBe(120);
+      expect(node.clipPath?.height).toBe(90);
+    }
+    expect(adapted.issues.some((issue) => issue.reason === "clip-path")).toBe(
+      false,
+    );
+  });
 });

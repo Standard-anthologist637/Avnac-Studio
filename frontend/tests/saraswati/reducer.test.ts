@@ -167,6 +167,62 @@ describe("saraswati reducer", () => {
     }
   });
 
+  it("sets clipPath on renderable nodes with SET_NODE_CLIP_PATH", () => {
+    const scene = createEmptySaraswatiScene({
+      width: 400,
+      height: 300,
+      bg: { type: "solid", color: "#ffffff" },
+    });
+
+    scene.nodes["rect-clip"] = {
+      id: "rect-clip",
+      type: "rect",
+      parentId: scene.root,
+      visible: true,
+      x: 50,
+      y: 40,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      originX: "left",
+      originY: "top",
+      width: 120,
+      height: 90,
+      fill: { type: "solid", color: "#111111" },
+      stroke: null,
+      strokeWidth: 0,
+      radiusX: 0,
+      radiusY: 0,
+    };
+    const root = scene.nodes[scene.root];
+    if (root?.type === "group") {
+      scene.nodes[scene.root] = { ...root, children: ["rect-clip"] };
+    }
+
+    const next = applyCommand(scene, {
+      type: "SET_NODE_CLIP_PATH",
+      id: "rect-clip",
+      clipPath: {
+        type: "rect",
+        x: 0,
+        y: 0,
+        width: 80,
+        height: 60,
+        radiusX: 8,
+        radiusY: 8,
+      },
+    });
+
+    const node = next.nodes["rect-clip"];
+    expect(node?.type).toBe("rect");
+    if (node?.type === "rect") {
+      expect(node.clipPath?.type).toBe("rect");
+      expect(node.clipPath?.width).toBe(80);
+      expect(node.clipPath?.height).toBe(60);
+    }
+  });
+
   it("groups line and shape nodes with GROUP_NODES", () => {
     const scene = createEmptySaraswatiScene({
       width: 400,

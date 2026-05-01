@@ -4,6 +4,7 @@ import {
   type GradientStop,
 } from "../../../editor-paint";
 import type {
+  SaraswatiClipPath,
   SaraswatiNodeOriginX,
   SaraswatiNodeOriginY,
 } from "../../../saraswati/scene";
@@ -167,6 +168,37 @@ export function roundedCanvas2DRectPath(
   ctx.lineTo(x, y + r);
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
+}
+
+export function applyCanvas2DClipPath(
+  ctx: CanvasRenderingContext2D,
+  clipPath: SaraswatiClipPath | null | undefined,
+) {
+  if (!clipPath) return;
+  ctx.beginPath();
+  if (clipPath.type === "ellipse") {
+    ctx.ellipse(
+      clipPath.x,
+      clipPath.y,
+      clipPath.width / 2,
+      clipPath.height / 2,
+      0,
+      0,
+      Math.PI * 2,
+    );
+  } else {
+    const x = clipPath.x - clipPath.width / 2;
+    const y = clipPath.y - clipPath.height / 2;
+    roundedCanvas2DRectPath(
+      ctx,
+      x,
+      y,
+      clipPath.width,
+      clipPath.height,
+      Math.max(clipPath.radiusX, clipPath.radiusY),
+    );
+  }
+  ctx.clip();
 }
 
 export function clampCanvas2DOpacity(value: number) {

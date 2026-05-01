@@ -42,7 +42,7 @@ export function findTopHitNodeId(
   const ordered = listSaraswatiNodesInRenderOrder(scene);
   for (let index = ordered.length - 1; index >= 0; index -= 1) {
     const node = ordered[index]!;
-    if (pointInBounds(point, getNodeBounds(node))) return node.id;
+    if (pointHitsNode(point, node)) return node.id;
   }
   return null;
 }
@@ -61,13 +61,15 @@ export function snapDeltaToGrid(
 
 export function getNodeBounds(node: SaraswatiRenderableNode): SaraswatiBounds {
   if (node.type === "line") {
+    const halfStroke =
+      Math.max(1, node.strokeWidth * Math.max(node.scaleX, node.scaleY)) / 2;
     const x = Math.min(node.x1, node.x2);
     const y = Math.min(node.y1, node.y2);
     return {
-      x,
-      y,
-      width: Math.max(1, Math.abs(node.x2 - node.x1)),
-      height: Math.max(1, Math.abs(node.y2 - node.y1)),
+      x: x - halfStroke,
+      y: y - halfStroke,
+      width: Math.max(1, Math.abs(node.x2 - node.x1) + halfStroke * 2),
+      height: Math.max(1, Math.abs(node.y2 - node.y1) + halfStroke * 2),
     };
   }
   const width = node.type === "text" ? Math.max(1, node.width) : node.width;
@@ -83,6 +85,48 @@ export function getNodeBounds(node: SaraswatiRenderableNode): SaraswatiBounds {
     width: scaledWidth,
     height: scaledHeight,
   };
+}
+
+function pointHitsNode(
+  point: SaraswatiPoint,
+  node: SaraswatiRenderableNode,
+): boolean {
+  if (node.type !== "line") {
+    return pointInBounds(point, getNodeBounds(node));
+  }
+  const tolerance = Math.max(
+    6,
+    node.strokeWidth * Math.max(node.scaleX, node.scaleY),
+  );
+  const distance = pointToSegmentDistance(
+    point.x,
+    point.y,
+    node.x1,
+    node.y1,
+    node.x2,
+    node.y2,
+  );
+  return distance <= tolerance / 2;
+}
+
+function pointToSegmentDistance(
+  px: number,
+  py: number,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(px - x1, py - y1);
+  }
+  const t = ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy);
+  const clampedT = Math.max(0, Math.min(1, t));
+  const sx = x1 + clampedT * dx;
+  const sy = y1 + clampedT * dy;
+  return Math.hypot(px - sx, py - sy);
 }
 
 function pointInBounds(

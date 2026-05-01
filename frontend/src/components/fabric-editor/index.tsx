@@ -1,4 +1,5 @@
 import { HugeiconsIcon } from "@hugeicons/react";
+import { Link } from "@tanstack/react-router";
 import {
   ArrowDown01Icon,
   Copy01Icon,
@@ -5128,6 +5129,20 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
                   : "SWS"}
             </span>
           </button>
+
+          {persistId && (
+            <Link
+              to="/scene"
+              search={{ id: persistId }}
+              className={toolbarIconBtn(!ready)}
+              title="Open in scene editor"
+              aria-label="Open in scene editor"
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
+                SCN
+              </span>
+            </Link>
+          )}
 
           {!ready ? (
             <span className="px-3 text-xs text-[var(--text-muted)]">
