@@ -37,6 +37,7 @@ func main() {
 			app.ioManager,
 			app.Unsplash,
 			app.Config,
+			app.Secrets,
 		},
 	})
 
