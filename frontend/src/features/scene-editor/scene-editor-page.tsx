@@ -224,7 +224,7 @@ export default function SceneEditorPage({ documentId }: Props) {
               strokeLinejoin="round"
             />
           </svg>
-          Fabric editor
+          Files
         </Link>
 
         <div className="h-4 w-px bg-black/10" />
@@ -245,7 +245,7 @@ export default function SceneEditorPage({ documentId }: Props) {
             </span>
           )}
           <span className="text-[11px] text-neutral-400">
-            {hasPendingChanges ? "Unsaved changes" : "In sync with Fabric"}
+            {hasPendingChanges ? "Unsaved changes" : "Saved"}
           </span>
         </div>
       </header>

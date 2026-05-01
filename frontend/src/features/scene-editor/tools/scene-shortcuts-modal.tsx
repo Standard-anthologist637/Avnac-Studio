@@ -8,9 +8,11 @@ type Row = {
 
 const ROWS: Row[] = [
   { keys: "Cmd/Ctrl + Z", action: "Undo" },
-  { keys: "Cmd/Ctrl + Shift + Z", action: "Redo" },
+  { keys: "Cmd/Ctrl + Shift + Z / Y", action: "Redo" },
   { keys: "Cmd/Ctrl + D", action: "Duplicate selection" },
   { keys: "Cmd/Ctrl + C / V", action: "Copy / paste" },
+  { keys: "Cmd/Ctrl + A", action: "Select all" },
+  { keys: "Cmd/Ctrl + L", action: "Lock / unlock selection" },
   { keys: "Delete / Backspace", action: "Delete selection" },
   { keys: "Cmd/Ctrl + ] / [", action: "Bring forward / send backward" },
   { keys: "Cmd/Ctrl + Shift + ] / [", action: "Bring to front / send back" },
@@ -18,6 +20,8 @@ const ROWS: Row[] = [
   { keys: "Cmd/Ctrl + 1", action: "Fit artboard to viewport" },
   { keys: "Cmd/Ctrl + = / -", action: "Zoom in / out" },
   { keys: "Cmd/Ctrl + wheel", action: "Zoom with mouse" },
+  { keys: "Space + drag", action: "Pan viewport" },
+  { keys: "Middle-mouse drag", action: "Pan viewport" },
   { keys: "?", action: "Toggle this shortcuts panel" },
 ];
 
@@ -45,7 +49,7 @@ export default function SceneShortcutsModal({ open, onClose }: Props) {
       >
         <div className="flex items-center justify-between border-b border-black/6 px-4 py-3">
           <h2 className="m-0 text-base font-semibold text-neutral-900">
-            Scene shortcuts
+            Keyboard shortcuts
           </h2>
           <button
             type="button"

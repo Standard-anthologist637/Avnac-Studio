@@ -1,5 +1,8 @@
 import type { SceneWorkspaceDropIntent } from "@/scene/workspace";
 import type { SaraswatiImageNode } from "@/lib/saraswati";
+import { vectorDocHasRenderableStrokes } from "@/lib/avnac-vector-board-document";
+import { loadVectorBoardDocs } from "@/lib/avnac-vector-boards-storage";
+import { renderVectorBoardDocumentPreview } from "@/components/editor/vector-boards/vector-board-workspace";
 import { useCallback } from "react";
 import { useSceneEditorStore } from "./store";
 
@@ -125,8 +128,26 @@ export function useSceneEditorDropActions() {
           return;
         }
         case "vector-board": {
-          // Vector-board insertion in Scene is deferred until scene-native vector
-          // document support lands. Silently ignore to avoid inserting a fake placeholder.
+          const { documentId } = useSceneEditorStore.getState();
+          if (!documentId) return;
+          try {
+            const docs = await loadVectorBoardDocs(documentId);
+            const doc = docs[intent.boardId];
+            if (!doc || !vectorDocHasRenderableStrokes(doc)) return;
+
+            const RENDER_W = 640;
+            const RENDER_H = 480;
+            const offscreen = document.createElement("canvas");
+            offscreen.width = RENDER_W;
+            offscreen.height = RENDER_H;
+            const ctx = offscreen.getContext("2d");
+            if (!ctx) return;
+            renderVectorBoardDocumentPreview(ctx, doc, RENDER_W, RENDER_H);
+            const dataUrl = offscreen.toDataURL("image/png");
+            await addImageAtPoint(dataUrl, point);
+          } catch {
+            // Silently drop on load/render errors.
+          }
           return;
         }
       }
