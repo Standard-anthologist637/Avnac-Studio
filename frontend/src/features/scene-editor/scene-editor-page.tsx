@@ -44,6 +44,9 @@ export default function SceneEditorPage({ documentId }: Props) {
   const loadError = useSceneEditorStore((s) => s.loadError);
   const scene = useSceneEditorStore((s) => s.scene);
   const renderStats = useSceneEditorStore((s) => s.renderStats);
+  const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
+  const canvasPan = useSceneEditorStore((s) => s.canvasPan);
+  const selectedCount = useSceneEditorStore((s) => s.selectedIds.length);
   const focusMode = useSceneEditorStore((s) => s.focusMode);
   const sidebarPanel = useSceneEditorStore((s) => s.sidebarPanel);
   const toggleSidebarPanel = useSceneEditorStore((s) => s.toggleSidebarPanel);
@@ -60,6 +63,7 @@ export default function SceneEditorPage({ documentId }: Props) {
   const [vectorWorkspaceId, setVectorWorkspaceId] = useState<string | null>(
     null,
   );
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const vectorBoardsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -272,7 +276,11 @@ export default function SceneEditorPage({ documentId }: Props) {
         <div className="relative flex min-h-0 flex-1 flex-col">
           <SceneSelectionBar />
           <div className="relative flex min-h-0 flex-1">
-            <SceneEditorCanvas />
+            <SceneEditorCanvas
+              shortcutsOpen={shortcutsOpen}
+              onOpenShortcuts={() => setShortcutsOpen(true)}
+              onCloseShortcuts={() => setShortcutsOpen(false)}
+            />
             <BottomFloatingToolbar />
             <EditorFloatingSidebar
               activePanel={sidebarPanel}
@@ -344,25 +352,42 @@ export default function SceneEditorPage({ documentId }: Props) {
 
       {/* ── Status bar ──────────────────────────────────────────────────── */}
       {scene && (
-        <footer className="flex shrink-0 items-center gap-3 border-t border-black/[0.06] bg-white/90 px-4 py-1.5 text-[11px] text-neutral-500 backdrop-blur">
-          <span>
-            {scene.artboard.width} × {scene.artboard.height}px
-          </span>
-          <span className="text-neutral-300">·</span>
-          <span>
-            {Object.keys(scene.nodes).length - 1} node
-            {Object.keys(scene.nodes).length - 1 === 1 ? "" : "s"}
-          </span>
-          <span className="text-neutral-300">·</span>
-          <span>Saraswati engine</span>
-          <span className="text-neutral-300">·</span>
-          <span>
-            Render {renderStats.ms.toFixed(1)}ms · Cmds {renderStats.commands} ·
-            Dup {renderStats.duplicateCommands}
-          </span>
-          <span className="ml-auto text-neutral-400">
-            Autosave: clip-path persistence active, full serializer pending
-          </span>
+        <footer className="flex shrink-0 items-center gap-3 border-t border-black/6 bg-white/90 px-4 py-1.5 text-[11px] text-neutral-500 backdrop-blur">
+          <div className="flex w-full items-center gap-2 overflow-x-auto whitespace-nowrap">
+            <span>
+              {scene.artboard.width} × {scene.artboard.height}px
+            </span>
+            <span className="text-neutral-300">·</span>
+            <span>Sel {selectedCount}</span>
+            <span className="text-neutral-300">·</span>
+            <span>Zoom {Math.round(zoomPercent)}%</span>
+            <span className="text-neutral-300">·</span>
+            <span className="hidden sm:inline">
+              Pan {canvasPan.x}, {canvasPan.y}
+            </span>
+            <span className="hidden md:inline text-neutral-300">·</span>
+            <span
+              className="hidden md:inline"
+              title="Latest frame render duration."
+            >
+              Render {renderStats.ms.toFixed(1)}ms
+            </span>
+            <span className="hidden md:inline text-neutral-300">·</span>
+            <span
+              className="hidden md:inline"
+              title="Total draw commands this frame."
+            >
+              Cmd {renderStats.commands}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShortcutsOpen(true)}
+              className="ml-auto rounded-md border border-neutral-300 px-2 py-0.5 text-[11px] font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-neutral-100"
+              title="Show keyboard shortcuts"
+            >
+              Shortcuts ?
+            </button>
+          </div>
         </footer>
       )}
     </div>

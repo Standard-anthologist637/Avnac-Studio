@@ -14,7 +14,9 @@ import ShapesPopover, {
   type ShapesQuickAddKind,
 } from "@/components/editor/shape/shapes-popover";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { computeFitZoomPercent } from "../scene-editor-viewport-utils";
 import { useSceneEditorStore } from "../store";
+import { useSceneEditorDropActions } from "../use-scene-editor-drop-actions";
 import ClipToolsDropdown from "./clip-tools-dropdown";
 
 function toolbarIconBtn(disabled = false) {
@@ -46,7 +48,6 @@ export default function BottomFloatingToolbar() {
   const insertLine = useSceneEditorStore((s) => s.insertLine);
   const insertArrow = useSceneEditorStore((s) => s.insertArrow);
   const insertText = useSceneEditorStore((s) => s.insertText);
-  const insertImage = useSceneEditorStore((s) => s.insertImage);
   const canUndo = useSceneEditorStore((s) => s.canUndo);
   const canRedo = useSceneEditorStore((s) => s.canRedo);
   const undo = useSceneEditorStore((s) => s.undo);
@@ -55,11 +56,14 @@ export default function BottomFloatingToolbar() {
   const toggleFocusMode = useSceneEditorStore((s) => s.toggleFocusMode);
   const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
   const setZoomPercent = useSceneEditorStore((s) => s.setZoomPercent);
+  const canvasViewport = useSceneEditorStore((s) => s.canvasViewport);
+  const dropActions = useSceneEditorDropActions();
 
   const [shapesPopoverOpen, setShapesPopoverOpen] = useState(false);
   const [shapesQuickAddKind, setShapesQuickAddKind] =
     useState<ShapesQuickAddKind>("generic");
 
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const shapeToolSplitRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -102,6 +106,49 @@ export default function BottomFloatingToolbar() {
     return () => window.removeEventListener("mousedown", onPointerDown);
   }, [shapesPopoverOpen]);
 
+  const openImagePicker = useCallback(() => {
+    imageInputRef.current?.click();
+  }, []);
+
+  const onImageInputChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      if (!scene) {
+        event.target.value = "";
+        return;
+      }
+      const files = event.target.files ? Array.from(event.target.files) : [];
+      if (files.length === 0) {
+        event.target.value = "";
+        return;
+      }
+      const centerPoint = {
+        x: scene.artboard.width / 2,
+        y: scene.artboard.height / 2,
+      };
+      void dropActions.handleDropIntent(
+        {
+          kind: "image-files",
+          files,
+        },
+        centerPoint,
+      );
+      event.target.value = "";
+    },
+    [dropActions, scene],
+  );
+
+  const fitToViewport = useCallback(() => {
+    if (!scene) return;
+    setZoomPercent(
+      computeFitZoomPercent({
+        artboardWidth: scene.artboard.width,
+        artboardHeight: scene.artboard.height,
+        viewportWidth: canvasViewport.width,
+        viewportHeight: canvasViewport.height,
+      }),
+    );
+  }, [canvasViewport.height, canvasViewport.width, scene, setZoomPercent]);
+
   return (
     <EditorFloatingCanvasControls
       ready={Boolean(scene)}
@@ -115,11 +162,20 @@ export default function BottomFloatingToolbar() {
           min={5}
           max={400}
           onChange={setZoomPercent}
-          onFitRequest={() => setZoomPercent(100)}
+          onFitRequest={fitToViewport}
           disabled={!scene}
         />
       }
     >
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={onImageInputChange}
+      />
+
       <button
         type="button"
         disabled={!canUndo}
@@ -149,7 +205,7 @@ export default function BottomFloatingToolbar() {
 
       <div
         ref={shapeToolSplitRef}
-        className="relative flex items-stretch rounded-lg border border-black/[0.06] bg-black/[0.02]"
+        className="relative flex items-stretch rounded-lg border border-black/6 bg-black/2"
       >
         <button
           type="button"
@@ -168,7 +224,7 @@ export default function BottomFloatingToolbar() {
         <button
           type="button"
           disabled={!scene}
-          className={`${toolbarIconBtn(!scene)} rounded-l-none rounded-r-lg border-0 border-l border-black/[0.06]`}
+          className={`${toolbarIconBtn(!scene)} rounded-l-none rounded-r-lg border-0 border-l border-black/6`}
           onClick={() => setShapesPopoverOpen((open) => !open)}
           aria-expanded={shapesPopoverOpen}
           aria-haspopup="menu"
@@ -205,7 +261,7 @@ export default function BottomFloatingToolbar() {
         type="button"
         disabled={!scene}
         className={toolbarIconBtn(!scene)}
-        onClick={insertImage}
+        onClick={openImagePicker}
         aria-label="Add image"
         title="Add image (I)"
       >

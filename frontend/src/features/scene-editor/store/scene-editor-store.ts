@@ -56,6 +56,14 @@ type SceneEditorState = {
   focusMode: boolean;
   sidebarPanel: EditorSidebarPanelId | null;
   zoomPercent: number;
+  canvasViewport: {
+    width: number;
+    height: number;
+  };
+  canvasPan: {
+    x: number;
+    y: number;
+  };
   renderStats: {
     ms: number;
     commands: number;
@@ -115,6 +123,8 @@ type SceneEditorActions = {
   setSidebarPanel: (panel: EditorSidebarPanelId | null) => void;
   toggleSidebarPanel: (panel: EditorSidebarPanelId) => void;
   setZoomPercent: (percent: number) => void;
+  setCanvasViewport: (width: number, height: number) => void;
+  setCanvasPan: (x: number, y: number) => void;
   setNodeOpacity: (id: string, opacity: number) => void;
   setNodeShadow: (id: string, shadow: SaraswatiShadow | null) => void;
   setNodeBlur: (id: string, blur: number) => void;
@@ -159,6 +169,14 @@ const INITIAL: SceneEditorState = {
   focusMode: false,
   sidebarPanel: null,
   zoomPercent: 100,
+  canvasViewport: {
+    width: 0,
+    height: 0,
+  },
+  canvasPan: {
+    x: 0,
+    y: 0,
+  },
   renderStats: {
     ms: 0,
     commands: 0,
@@ -302,6 +320,22 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
 
   setZoomPercent: (zoomPercent) =>
     set({ zoomPercent: Math.max(5, Math.min(400, Math.round(zoomPercent))) }),
+
+  setCanvasViewport: (width, height) =>
+    set({
+      canvasViewport: {
+        width: Math.max(0, Math.round(width)),
+        height: Math.max(0, Math.round(height)),
+      },
+    }),
+
+  setCanvasPan: (x, y) =>
+    set({
+      canvasPan: {
+        x: Math.max(0, Math.round(x)),
+        y: Math.max(0, Math.round(y)),
+      },
+    }),
 
   setNodeOpacity: (id, opacity) => {
     get().applyCommands([{ type: "SET_NODE_OPACITY", id, opacity }]);

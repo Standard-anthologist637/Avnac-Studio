@@ -8,11 +8,20 @@ import SceneWorkspaceStage from "@/components/scene-workspace/stage";
 import { AVNAC_VECTOR_BOARD_DRAG_MIME } from "@/lib/avnac-vector-board-document";
 import { findTopHitNodeId } from "@/lib/saraswati";
 import { readSceneWorkspaceDropIntent } from "@/scene/workspace";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import SceneInlineTextEditor from "./scene-inline-text-editor";
+import { reorderChildrenForSelection } from "./scene-editor-input-utils";
+import {
+  computeFitZoomPercent,
+  toClampedScenePoint,
+} from "./scene-editor-viewport-utils";
 import { useSceneEditorStore } from "./store";
+import SceneCanvasContextMenu from "./tools/scene-canvas-context-menu";
+import SceneShortcutsModal from "./tools/scene-shortcuts-modal";
+import { useSceneEditorContextMenu } from "./use-scene-editor-context-menu";
 import { useSceneEditorDropActions } from "./use-scene-editor-drop-actions";
 import { useSceneEditorInteractions } from "./use-scene-editor-interactions";
+import { useSceneEditorShortcuts } from "./use-scene-editor-shortcuts";
 import { useSceneSelectionActions } from "./use-scene-selection-actions";
 
 type InlineTextEditState = {
@@ -20,7 +29,17 @@ type InlineTextEditState = {
   value: string;
 };
 
-export default function SceneEditorCanvas() {
+type Props = {
+  shortcutsOpen: boolean;
+  onCloseShortcuts: () => void;
+  onOpenShortcuts: () => void;
+};
+
+export default function SceneEditorCanvas({
+  shortcutsOpen,
+  onCloseShortcuts,
+  onOpenShortcuts,
+}: Props) {
   const scene = useSceneEditorStore((s) => s.scene);
   const selectedIds = useSceneEditorStore((s) => s.selectedIds);
   const setSelectedIds = useSceneEditorStore((s) => s.setSelectedIds);
@@ -28,6 +47,16 @@ export default function SceneEditorCanvas() {
   const setTextContent = useSceneEditorStore((s) => s.setTextContent);
   const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
   const setZoomPercent = useSceneEditorStore((s) => s.setZoomPercent);
+  const canUndo = useSceneEditorStore((s) => s.canUndo);
+  const canRedo = useSceneEditorStore((s) => s.canRedo);
+  const undo = useSceneEditorStore((s) => s.undo);
+  const redo = useSceneEditorStore((s) => s.redo);
+  const toggleLockedSelection = useSceneEditorStore(
+    (s) => s.toggleLockedSelection,
+  );
+  const applyCommands = useSceneEditorStore((s) => s.applyCommands);
+  const setCanvasViewport = useSceneEditorStore((s) => s.setCanvasViewport);
+  const setCanvasPan = useSceneEditorStore((s) => s.setCanvasPan);
   const setRenderStats = useSceneEditorStore((s) => s.setRenderStats);
   const dropActions = useSceneEditorDropActions();
   const interactions = useSceneEditorInteractions();
@@ -44,11 +73,25 @@ export default function SceneEditorCanvas() {
     if (!element) return;
     const observer = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect;
-      if (rect) setContainerSize({ w: rect.width, h: rect.height });
+      if (rect) {
+        setContainerSize({ w: rect.width, h: rect.height });
+        setCanvasViewport(rect.width, rect.height);
+      }
     });
     observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+
+    const onScroll = () => {
+      setCanvasPan(element.scrollLeft, element.scrollTop);
+    };
+    element.addEventListener("scroll", onScroll);
+
+    return () => {
+      observer.disconnect();
+      element.removeEventListener("scroll", onScroll);
+      setCanvasViewport(0, 0);
+      setCanvasPan(0, 0);
+    };
+  }, [setCanvasPan, setCanvasViewport]);
 
   // Prevent browser/page zoom on ctrl/cmd + wheel; zoom the canvas instead.
   useEffect(() => {
@@ -130,13 +173,17 @@ export default function SceneEditorCanvas() {
     if (!intent) return;
     event.preventDefault();
     const rect = surfaceRef.current?.getBoundingClientRect();
-    if (!rect || rect.width <= 0 || rect.height <= 0 || scale <= 0) return;
-    const sceneX = (event.clientX - rect.left) / scale;
-    const sceneY = (event.clientY - rect.top) / scale;
-    await dropActions.handleDropIntent(intent, {
-      x: Math.max(0, Math.min(scene.artboard.width, sceneX)),
-      y: Math.max(0, Math.min(scene.artboard.height, sceneY)),
+    if (!rect) return;
+    const point = toClampedScenePoint({
+      clientX: event.clientX,
+      clientY: event.clientY,
+      rect,
+      scale,
+      artboardWidth: scene.artboard.width,
+      artboardHeight: scene.artboard.height,
     });
+    if (!point) return;
+    await dropActions.handleDropIntent(intent, point);
   };
 
   const onSceneDoubleClick = (x: number, y: number) => {
@@ -155,6 +202,82 @@ export default function SceneEditorCanvas() {
     setInlineTextEdit(null);
   };
 
+  const fitToViewport = useCallback(() => {
+    if (!scene) return;
+    setZoomPercent(
+      computeFitZoomPercent({
+        artboardWidth: scene.artboard.width,
+        artboardHeight: scene.artboard.height,
+        viewportWidth: containerSize.w,
+        viewportHeight: containerSize.h,
+      }),
+    );
+  }, [containerSize.h, containerSize.w, scene, setZoomPercent]);
+
+  const reorderPrimarySelection = useCallback(
+    (mode: "forward" | "backward" | "front" | "back") => {
+      if (!scene || selectedIds.length === 0) return;
+      const root = scene.nodes[scene.root];
+      if (!root || root.type !== "group") return;
+      const id = selectedIds[0]!;
+      const nextChildren = reorderChildrenForSelection({
+        children: root.children,
+        selectedId: id,
+        mode,
+      });
+      if (!nextChildren) return;
+      applyCommands([
+        {
+          type: "SET_GROUP_CHILDREN",
+          id: scene.root,
+          children: nextChildren,
+        },
+      ]);
+    },
+    [applyCommands, scene, selectedIds],
+  );
+
+  useSceneEditorShortcuts({
+    scene,
+    inlineTextEditing: Boolean(inlineTextEdit),
+    lockedIds,
+    zoomPercent,
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    setZoomPercent,
+    setSelectedIds,
+    toggleLockedSelection,
+    fitToViewport,
+    reorderPrimarySelection,
+    onCopy: actions.onCopy,
+    onPaste: actions.onPaste,
+    onDelete: actions.onDelete,
+    onDuplicate: actions.onDuplicate,
+    onImageFilesPaste: (files) => {
+      if (!scene) return;
+      void dropActions.handleDropIntent(
+        { kind: "image-files", files },
+        {
+          x: scene.artboard.width / 2,
+          y: scene.artboard.height / 2,
+        },
+      );
+    },
+    onShowShortcuts: onOpenShortcuts,
+  });
+
+  const { contextMenu, setContextMenu, onCanvasContextMenu } =
+    useSceneEditorContextMenu({
+      scene,
+      scale,
+      hasSelection: selectedIds.length > 0,
+      locked: actions.isLocked,
+      isInlineTextEditing: Boolean(inlineTextEdit),
+      surfaceRef,
+    });
+
   if (!scene) return null;
 
   return (
@@ -162,6 +285,7 @@ export default function SceneEditorCanvas() {
       ref={scrollContainerRef}
       className="flex flex-1 items-center justify-center overflow-auto bg-neutral-100/80 p-8"
       onDragOver={onDragOver}
+      onContextMenu={onCanvasContextMenu}
       onDrop={(event) => {
         void onDrop(event);
       }}
@@ -247,6 +371,40 @@ export default function SceneEditorCanvas() {
           />
         )}
       </div>
+
+      {contextMenu ? (
+        <SceneCanvasContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          hasSelection={contextMenu.hasSelection}
+          locked={contextMenu.locked}
+          onCopy={() => {
+            actions.onCopy();
+            setContextMenu(null);
+          }}
+          onDuplicate={() => {
+            actions.onDuplicate();
+            setContextMenu(null);
+          }}
+          onToggleLock={() => {
+            actions.onToggleLock();
+            setContextMenu(null);
+          }}
+          onPaste={() => {
+            actions.onPasteAt({
+              x: contextMenu.sceneX,
+              y: contextMenu.sceneY,
+            });
+            setContextMenu(null);
+          }}
+          onDelete={() => {
+            actions.onDelete();
+            setContextMenu(null);
+          }}
+        />
+      ) : null}
+
+      <SceneShortcutsModal open={shortcutsOpen} onClose={onCloseShortcuts} />
     </div>
   );
 }

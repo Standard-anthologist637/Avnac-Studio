@@ -42,6 +42,24 @@ function cloneNode(
   } as SaraswatiNode;
 }
 
+function moveNode(node: SaraswatiNode, dx: number, dy: number): SaraswatiNode {
+  if (node.type === "line") {
+    return {
+      ...node,
+      x1: node.x1 + dx,
+      y1: node.y1 + dy,
+      x2: node.x2 + dx,
+      y2: node.y2 + dy,
+    };
+  }
+  if (node.type === "group") return node;
+  return {
+    ...(node as Extract<SaraswatiNode, { x: number }>),
+    x: node.x + dx,
+    y: node.y + dy,
+  } as SaraswatiNode;
+}
+
 function flipNode(node: SaraswatiNode, axis: "x" | "y"): SaraswatiNode {
   if (node.type === "group") return node;
   if (node.type === "line") {
@@ -169,20 +187,47 @@ export function useSceneSelectionActions() {
     }
   };
 
-  const onPaste = () => {
+  const onPasteAt = (target?: { x: number; y: number }) => {
     if (sceneClipboard.length === 0) return;
-    const commands: { type: "ADD_NODE"; node: SaraswatiNode }[] = [];
-    const newIds: string[] = [];
+
+    const pastedNodes: SaraswatiNode[] = [];
     for (const node of sceneClipboard) {
       const nextId = crypto.randomUUID();
-      newIds.push(nextId);
-      commands.push({
-        type: "ADD_NODE",
-        node: cloneNode(node, nextId, PASTE_OFFSET, PASTE_OFFSET),
-      });
+      pastedNodes.push(cloneNode(node, nextId, PASTE_OFFSET, PASTE_OFFSET));
     }
+
+    let finalNodes = pastedNodes;
+    if (target) {
+      const renderableBounds = pastedNodes.flatMap((node) => {
+        if (!isSaraswatiRenderableNode(node)) return [];
+        return [getNodeBounds(node)];
+      });
+
+      if (renderableBounds.length > 0) {
+        const minX = Math.min(...renderableBounds.map((b) => b.x));
+        const minY = Math.min(...renderableBounds.map((b) => b.y));
+        const maxX = Math.max(...renderableBounds.map((b) => b.x + b.width));
+        const maxY = Math.max(...renderableBounds.map((b) => b.y + b.height));
+        const centerX = minX + (maxX - minX) / 2;
+        const centerY = minY + (maxY - minY) / 2;
+        const dx = target.x - centerX;
+        const dy = target.y - centerY;
+        finalNodes = pastedNodes.map((node) => moveNode(node, dx, dy));
+      }
+    }
+
+    const commands = finalNodes.map((node) => ({
+      type: "ADD_NODE" as const,
+      node,
+    }));
+    const newIds = finalNodes.map((node) => node.id);
+
     applyCommands(commands);
     setSelectedIds(newIds);
+  };
+
+  const onPaste = () => {
+    onPasteAt();
   };
 
   const onFlipH = () => {
@@ -321,6 +366,7 @@ export function useSceneSelectionActions() {
     onDelete,
     onCopy,
     onPaste,
+    onPasteAt,
     onAlign,
     onGroup,
     onAlignElements,
