@@ -10,7 +10,7 @@ import {
   renderCanvas2DRectCommand,
 } from "./shapes";
 import {
-  applyCanvas2DClipPath,
+  applyCanvas2DClipPaths,
   loadCanvas2DImage,
   withCanvas2DTransform,
 } from "./shared";
@@ -62,7 +62,7 @@ async function renderCanvas2DImageCommand(
 ) {
   const image = await loadCanvas2DImage(command.src);
   withCanvas2DTransform(ctx, command, command.width, command.height, () => {
-    applyCanvas2DClipPath(ctx, command.clipPath);
+    applyCanvas2DClipPaths(ctx, command.clipPathStack, command.clipPath);
     const targetX = -command.width / 2;
     const targetY = -command.height / 2;
     const cropX = Math.max(0, Math.round(command.cropX));

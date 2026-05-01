@@ -45,6 +45,8 @@ export function applyCommand(
       return setNodeName(scene, command.id, command.name);
     case "SET_NODE_CLIP_PATH":
       return setNodeClipPath(scene, command.id, command.clipPath);
+    case "SET_NODE_CLIP_STACK":
+      return setNodeClipStack(scene, command.id, command.clipPathStack);
     default:
       return scene;
   }
@@ -362,6 +364,23 @@ function setNodeClipPath(
   }
   const next = cloneSaraswatiScene(scene);
   next.nodes[nodeId] = { ...node, clipPath };
+  return next;
+}
+
+function setNodeClipStack(
+  scene: SaraswatiScene,
+  nodeId: string,
+  clipPathStack: SaraswatiClipPath[],
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || !isSaraswatiRenderableNode(node) || node.type === "line") {
+    return scene;
+  }
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = {
+    ...node,
+    clipPathStack: clipPathStack.map((clipPath) => ({ ...clipPath })),
+  };
   return next;
 }
 

@@ -62,6 +62,7 @@ export function cloneSaraswatiScene(scene: SaraswatiScene): SaraswatiScene {
       nodes[id] = {
         ...node,
         clipPath: node.clipPath ? { ...node.clipPath } : null,
+        clipPathStack: node.clipPathStack?.map((clipPath) => ({ ...clipPath })),
         points: node.points.map((point) => ({ ...point })),
       };
       continue;
@@ -75,6 +76,7 @@ export function cloneSaraswatiScene(scene: SaraswatiScene): SaraswatiScene {
       nodes[id] = {
         ...node,
         clipPath: node.clipPath ? { ...node.clipPath } : null,
+        clipPathStack: node.clipPathStack?.map((clipPath) => ({ ...clipPath })),
       };
       continue;
     }

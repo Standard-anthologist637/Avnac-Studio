@@ -49,6 +49,7 @@ export type SaraswatiRenderRectCommand = RenderTransform & {
   radiusX: number;
   radiusY: number;
   clipPath: SaraswatiClipPath | null;
+  clipPathStack: SaraswatiClipPath[];
 };
 
 export type SaraswatiRenderEllipseCommand = RenderTransform & {
@@ -59,6 +60,7 @@ export type SaraswatiRenderEllipseCommand = RenderTransform & {
   stroke: BgValue | null;
   strokeWidth: number;
   clipPath: SaraswatiClipPath | null;
+  clipPathStack: SaraswatiClipPath[];
 };
 
 export type SaraswatiRenderPolygonCommand = RenderTransform & {
@@ -70,6 +72,7 @@ export type SaraswatiRenderPolygonCommand = RenderTransform & {
   strokeWidth: number;
   points: Array<{ x: number; y: number }>;
   clipPath: SaraswatiClipPath | null;
+  clipPathStack: SaraswatiClipPath[];
 };
 
 export type SaraswatiRenderLineCommand = RenderTransform & {
@@ -103,6 +106,7 @@ export type SaraswatiRenderTextCommand = RenderTransform & {
   stroke: BgValue | null;
   strokeWidth: number;
   clipPath: SaraswatiClipPath | null;
+  clipPathStack: SaraswatiClipPath[];
 };
 
 export type SaraswatiRenderImageCommand = RenderTransform & {
@@ -113,6 +117,7 @@ export type SaraswatiRenderImageCommand = RenderTransform & {
   cropX: number;
   cropY: number;
   clipPath: SaraswatiClipPath | null;
+  clipPathStack: SaraswatiClipPath[];
 };
 
 export type SaraswatiRenderCommand =
@@ -139,6 +144,7 @@ export function buildRenderCommands(
       radiusX: 0,
       radiusY: 0,
       clipPath: null,
+      clipPathStack: [],
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
@@ -189,6 +195,8 @@ function rectNodeToCommand(
     radiusX: node.radiusX,
     radiusY: node.radiusY,
     clipPath: node.clipPath ?? null,
+    clipPathStack:
+      node.clipPathStack?.map((clipPath) => ({ ...clipPath })) ?? [],
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,
@@ -211,6 +219,8 @@ function ellipseNodeToCommand(
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
     clipPath: node.clipPath ?? null,
+    clipPathStack:
+      node.clipPathStack?.map((clipPath) => ({ ...clipPath })) ?? [],
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,
@@ -234,6 +244,8 @@ function polygonNodeToCommand(
     strokeWidth: node.strokeWidth,
     points: node.points.map((point) => ({ ...point })),
     clipPath: node.clipPath ?? null,
+    clipPathStack:
+      node.clipPathStack?.map((clipPath) => ({ ...clipPath })) ?? [],
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,
@@ -291,6 +303,8 @@ function textNodeToCommand(
     stroke: node.stroke,
     strokeWidth: node.strokeWidth,
     clipPath: node.clipPath ?? null,
+    clipPathStack:
+      node.clipPathStack?.map((clipPath) => ({ ...clipPath })) ?? [],
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,
@@ -313,6 +327,8 @@ function imageNodeToCommand(
     cropX: node.cropX,
     cropY: node.cropY,
     clipPath: node.clipPath,
+    clipPathStack:
+      node.clipPathStack?.map((clipPath) => ({ ...clipPath })) ?? [],
     rotation: node.rotation,
     scaleX: node.scaleX,
     scaleY: node.scaleY,

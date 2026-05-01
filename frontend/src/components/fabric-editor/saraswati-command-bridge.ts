@@ -43,7 +43,14 @@ function samePoints(
 }
 
 function sameImageClipPath(a: SaraswatiNode, b: SaraswatiNode) {
-  if (a.type !== "image" || b.type !== "image") return false;
+  if (
+    a.type === "group" ||
+    b.type === "group" ||
+    a.type === "line" ||
+    b.type === "line"
+  ) {
+    return false;
+  }
   if (!a.clipPath && !b.clipPath) return true;
   if (!a.clipPath || !b.clipPath || a.clipPath.type !== b.clipPath.type) {
     return false;
@@ -65,6 +72,42 @@ function sameImageClipPath(a: SaraswatiNode, b: SaraswatiNode) {
   return true;
 }
 
+function sameClipPathStack(a: SaraswatiNode, b: SaraswatiNode) {
+  if (
+    a.type === "group" ||
+    b.type === "group" ||
+    a.type === "line" ||
+    b.type === "line"
+  ) {
+    return false;
+  }
+  const sa = a.clipPathStack ?? [];
+  const sb = b.clipPathStack ?? [];
+  if (sa.length !== sb.length) return false;
+  for (let i = 0; i < sa.length; i += 1) {
+    const ca = sa[i]!;
+    const cb = sb[i]!;
+    if (ca.type !== cb.type) return false;
+    if (
+      !sameNumber(ca.x, cb.x) ||
+      !sameNumber(ca.y, cb.y) ||
+      !sameNumber(ca.width, cb.width) ||
+      !sameNumber(ca.height, cb.height)
+    ) {
+      return false;
+    }
+    if (ca.type === "rect" && cb.type === "rect") {
+      if (
+        !sameNumber(ca.radiusX, cb.radiusX) ||
+        !sameNumber(ca.radiusY, cb.radiusY)
+      ) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 function sameNode(a: SaraswatiNode, b: SaraswatiNode) {
   if (!sameNodeCommon(a, b)) return false;
   if (a.type === "group" && b.type === "group") return true;
@@ -79,7 +122,9 @@ function sameNode(a: SaraswatiNode, b: SaraswatiNode) {
         (a.stroke !== null &&
           b.stroke !== null &&
           bgValuesShallowEqual(a.stroke, b.stroke))) &&
-      sameNumber(a.strokeWidth, b.strokeWidth)
+      sameNumber(a.strokeWidth, b.strokeWidth) &&
+      sameImageClipPath(a, b) &&
+      sameClipPathStack(a, b)
     );
   }
   if (a.type === "ellipse" && b.type === "ellipse") {
@@ -91,7 +136,9 @@ function sameNode(a: SaraswatiNode, b: SaraswatiNode) {
         (a.stroke !== null &&
           b.stroke !== null &&
           bgValuesShallowEqual(a.stroke, b.stroke))) &&
-      sameNumber(a.strokeWidth, b.strokeWidth)
+      sameNumber(a.strokeWidth, b.strokeWidth) &&
+      sameImageClipPath(a, b) &&
+      sameClipPathStack(a, b)
     );
   }
   if (a.type === "polygon" && b.type === "polygon") {
@@ -104,7 +151,9 @@ function sameNode(a: SaraswatiNode, b: SaraswatiNode) {
         (a.stroke !== null &&
           b.stroke !== null &&
           bgValuesShallowEqual(a.stroke, b.stroke))) &&
-      sameNumber(a.strokeWidth, b.strokeWidth)
+      sameNumber(a.strokeWidth, b.strokeWidth) &&
+      sameImageClipPath(a, b) &&
+      sameClipPathStack(a, b)
     );
   }
   if (a.type === "line" && b.type === "line") {
@@ -139,7 +188,9 @@ function sameNode(a: SaraswatiNode, b: SaraswatiNode) {
         (a.stroke !== null &&
           b.stroke !== null &&
           bgValuesShallowEqual(a.stroke, b.stroke))) &&
-      sameNumber(a.strokeWidth, b.strokeWidth)
+      sameNumber(a.strokeWidth, b.strokeWidth) &&
+      sameImageClipPath(a, b) &&
+      sameClipPathStack(a, b)
     );
   }
   if (a.type === "image" && b.type === "image") {

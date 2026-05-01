@@ -1,6 +1,14 @@
 import type { SaraswatiClipPath, SaraswatiNode } from "../types";
 
-export type SaraswatiResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
+export type SaraswatiResizeHandle =
+  | "nw"
+  | "n"
+  | "ne"
+  | "e"
+  | "se"
+  | "s"
+  | "sw"
+  | "w";
 
 export type SaraswatiCommand =
   | { type: "MOVE_NODE"; id: string; dx: number; dy: number }
@@ -22,6 +30,15 @@ export type SaraswatiCommand =
   | { type: "UNGROUP_NODE"; id: string }
   | { type: "SET_NODE_VISIBLE"; id: string; visible: boolean }
   | { type: "SET_NODE_NAME"; id: string; name: string }
-  | { type: "SET_NODE_CLIP_PATH"; id: string; clipPath: SaraswatiClipPath | null };
+  | {
+      type: "SET_NODE_CLIP_PATH";
+      id: string;
+      clipPath: SaraswatiClipPath | null;
+    }
+  | {
+      type: "SET_NODE_CLIP_STACK";
+      id: string;
+      clipPathStack: SaraswatiClipPath[];
+    };
 
 export type Command = SaraswatiCommand;

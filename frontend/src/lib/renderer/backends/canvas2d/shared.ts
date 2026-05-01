@@ -201,6 +201,19 @@ export function applyCanvas2DClipPath(
   ctx.clip();
 }
 
+export function applyCanvas2DClipPaths(
+  ctx: CanvasRenderingContext2D,
+  clipPathStack: readonly SaraswatiClipPath[] | null | undefined,
+  clipPath: SaraswatiClipPath | null | undefined,
+) {
+  if (Array.isArray(clipPathStack)) {
+    for (const entry of clipPathStack) {
+      applyCanvas2DClipPath(ctx, entry);
+    }
+  }
+  applyCanvas2DClipPath(ctx, clipPath);
+}
+
 export function clampCanvas2DOpacity(value: number) {
   return Math.max(0, Math.min(1, value));
 }

@@ -1,6 +1,6 @@
 import type { SaraswatiRenderTextCommand } from "../../../saraswati/render/commands";
 import {
-  applyCanvas2DClipPath,
+  applyCanvas2DClipPaths,
   centeredCanvas2DBox,
   normalizeCanvas2DTextAlign,
   paintCanvas2DStyle,
@@ -43,7 +43,7 @@ export function renderCanvas2DTextCommand(
   ctx.restore();
 
   withCanvas2DTransform(ctx, command, box.width, box.height, () => {
-    applyCanvas2DClipPath(ctx, command.clipPath);
+    applyCanvas2DClipPaths(ctx, command.clipPathStack, command.clipPath);
     ctx.font = font;
     ctx.textBaseline = "top";
     ctx.textAlign = align;

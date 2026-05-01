@@ -64,6 +64,7 @@ export type SaraswatiRectNode = SaraswatiPaintNodeBase & {
   radiusX: number;
   radiusY: number;
   clipPath?: SaraswatiClipPath | null;
+  clipPathStack?: SaraswatiClipPath[];
 };
 
 export type SaraswatiEllipseNode = SaraswatiPaintNodeBase & {
@@ -71,6 +72,7 @@ export type SaraswatiEllipseNode = SaraswatiPaintNodeBase & {
   width: number;
   height: number;
   clipPath?: SaraswatiClipPath | null;
+  clipPathStack?: SaraswatiClipPath[];
 };
 
 export type SaraswatiPolygonNode = SaraswatiPaintNodeBase & {
@@ -79,6 +81,7 @@ export type SaraswatiPolygonNode = SaraswatiPaintNodeBase & {
   height: number;
   points: Array<{ x: number; y: number }>;
   clipPath?: SaraswatiClipPath | null;
+  clipPathStack?: SaraswatiClipPath[];
 };
 
 export type SaraswatiLineStyle = "solid" | "dashed" | "dotted";
@@ -117,6 +120,7 @@ export type SaraswatiTextNode = SaraswatiNodeBase & {
   stroke: BgValue | null;
   strokeWidth: number;
   clipPath?: SaraswatiClipPath | null;
+  clipPathStack?: SaraswatiClipPath[];
 };
 
 export type SaraswatiImageNode = SaraswatiNodeBase & {
@@ -127,6 +131,7 @@ export type SaraswatiImageNode = SaraswatiNodeBase & {
   cropX: number;
   cropY: number;
   clipPath: SaraswatiClipPath | null;
+  clipPathStack?: SaraswatiClipPath[];
 };
 
 export type SaraswatiGroupNode = {

@@ -15,6 +15,10 @@ import {
   type SaraswatiEditorStore,
 } from "@/lib/saraswati";
 import {
+  boundsToClipPath,
+  resizeBoundsFromHandle,
+} from "@/lib/editor/clip-edit";
+import {
   getRenderableNodeBounds,
   measurementFromBounds,
   snapMoveBounds,
@@ -23,8 +27,19 @@ import {
   type SaraswatiMeasurement,
 } from "@/lib/editor/overlays";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
+import type { SaraswatiClipPath } from "@/lib/saraswati/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SceneWorkspaceStore } from "./store";
+
+type ClipResizeState = {
+  pointerId: number;
+  nodeId: string;
+  handle: SaraswatiResizeHandle;
+  startBounds: SaraswatiBounds;
+  startClipPath: SaraswatiClipPath;
+  startX: number;
+  startY: number;
+};
 
 type UseSceneWorkspaceEditorInput = {
   enabled: boolean;
@@ -56,6 +71,7 @@ export function useSceneWorkspaceEditor({
   const pointerStateRef = useRef<SaraswatiPointerState>(
     createIdlePointerState(),
   );
+  const clipResizeRef = useRef<ClipResizeState | null>(null);
   const onCommandsAppliedRef = useRef(onCommandsApplied);
   onCommandsAppliedRef.current = onCommandsApplied;
   const sharedStoreRef = useRef(sharedStore);
@@ -73,6 +89,7 @@ export function useSceneWorkspaceEditor({
     if (!enabled) {
       storeRef.current = null;
       pointerStateRef.current = createIdlePointerState();
+      clipResizeRef.current = null;
       setEditorState({
         scene,
         selectedIds: [],
@@ -88,6 +105,7 @@ export function useSceneWorkspaceEditor({
     const saraswatiStore = createSaraswatiEditorStore(scene);
     storeRef.current = saraswatiStore;
     pointerStateRef.current = createIdlePointerState();
+    clipResizeRef.current = null;
     setEditorState({
       scene: saraswatiStore.getState().scene,
       selectedIds: [],
@@ -117,14 +135,12 @@ export function useSceneWorkspaceEditor({
         y,
       );
       pointerStateRef.current = result.state;
+      clipResizeRef.current = null;
       selectedIdsRef.current = result.selectedIds;
       sharedStoreRef.current?.getState().setSelectedIds(result.selectedIds);
       setEditorState((prev) => ({
         ...prev,
         selectedIds: result.selectedIds,
-      }));
-      setEditorState((prev) => ({
-        ...prev,
         hoveredId: null,
         guides: [],
         measurement: null,
@@ -139,6 +155,41 @@ export function useSceneWorkspaceEditor({
       const saraswatiStore = storeRef.current;
       if (!saraswatiStore) return;
       const scene = saraswatiStore.getState().scene;
+      const clipResize = clipResizeRef.current;
+      if (clipResize && clipResize.pointerId === pointerId) {
+        const dx = x - clipResize.startX;
+        const dy = y - clipResize.startY;
+        let bounds = resizeBoundsFromHandle(
+          clipResize.startBounds,
+          clipResize.handle,
+          dx,
+          dy,
+        );
+        const snapped = snapResizeBounds(
+          scene,
+          bounds,
+          clipResize.handle,
+          selectedIdsRef.current,
+        );
+        bounds = snapped.bounds;
+        const command = {
+          type: "SET_NODE_CLIP_PATH" as const,
+          id: clipResize.nodeId,
+          clipPath: boundsToClipPath(clipResize.startClipPath, bounds),
+        };
+        saraswatiStore.dispatch(command);
+        setEditorState((prev) => ({
+          ...prev,
+          hoveredId: null,
+          guides: snapped.guides,
+          measurement: measurementFromBounds(bounds),
+        }));
+        onCommandsAppliedRef.current?.({
+          commands: [command],
+          scene: saraswatiStore.getState().scene,
+        });
+        return;
+      }
       const activePointer = pointerStateRef.current.pointerId;
       if (activePointer === null) {
         const hoveredId = findTopHitNodeId(scene, { x, y });
@@ -254,6 +305,12 @@ export function useSceneWorkspaceEditor({
   const onPointerUp = useCallback(
     (pointerId: number) => {
       if (!enabled) return;
+      if (
+        clipResizeRef.current &&
+        clipResizeRef.current.pointerId === pointerId
+      ) {
+        clipResizeRef.current = null;
+      }
       pointerStateRef.current = pointerUp(pointerStateRef.current, pointerId);
       setEditorState((prev) => ({
         ...prev,
@@ -293,7 +350,12 @@ export function useSceneWorkspaceEditor({
 
   const onPointerLeave = useCallback(() => {
     if (!enabled) return;
-    if (pointerStateRef.current.pointerId !== null) return;
+    if (
+      pointerStateRef.current.pointerId !== null ||
+      clipResizeRef.current !== null
+    ) {
+      return;
+    }
     setEditorState((prev) => ({
       ...prev,
       hoveredId: null,
@@ -301,6 +363,74 @@ export function useSceneWorkspaceEditor({
       measurement: null,
     }));
   }, [enabled]);
+
+  const onClipHandlePointerDown = useCallback(
+    (
+      pointerId: number,
+      nodeId: string,
+      handle: SaraswatiResizeHandle,
+      startBounds: SaraswatiBounds,
+      x: number,
+      y: number,
+    ) => {
+      if (!enabled) return;
+      const node = storeRef.current?.getState().scene.nodes[nodeId];
+      if (!node || !isSaraswatiRenderableNode(node) || node.type === "line") {
+        return;
+      }
+      if (!node.clipPath) return;
+      clipResizeRef.current = {
+        pointerId,
+        nodeId,
+        handle,
+        startBounds,
+        startClipPath: node.clipPath,
+        startX: x,
+        startY: y,
+      };
+      setEditorState((prev) => ({
+        ...prev,
+        hoveredId: null,
+        measurement: measurementFromBounds(startBounds),
+      }));
+    },
+    [enabled],
+  );
+
+  const onCreateClipPath = useCallback(
+    (nodeId: string, bounds: SaraswatiBounds) => {
+      if (!enabled) return;
+      const command = {
+        type: "SET_NODE_CLIP_PATH" as const,
+        id: nodeId,
+        clipPath: boundsToClipPath(
+          {
+            type: "rect",
+            x: bounds.x + bounds.width / 2,
+            y: bounds.y + bounds.height / 2,
+            width: bounds.width,
+            height: bounds.height,
+            radiusX: 0,
+            radiusY: 0,
+          },
+          bounds,
+        ),
+      };
+      storeRef.current?.dispatch(command);
+      setEditorState((prev) => ({
+        ...prev,
+        selectedIds: [nodeId],
+        hoveredId: null,
+      }));
+      selectedIdsRef.current = [nodeId];
+      sharedStoreRef.current?.getState().setSelectedIds([nodeId]);
+      onCommandsAppliedRef.current?.({
+        commands: [command],
+        scene: storeRef.current?.getState().scene ?? scene,
+      });
+    },
+    [enabled, scene],
+  );
 
   return {
     scene: editorState.scene,
@@ -312,6 +442,8 @@ export function useSceneWorkspaceEditor({
     onPointerMove,
     onPointerUp,
     onHandlePointerDown,
+    onClipHandlePointerDown,
+    onCreateClipPath,
     onPointerLeave,
   };
 }

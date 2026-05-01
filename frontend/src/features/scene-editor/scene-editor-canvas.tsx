@@ -28,6 +28,8 @@ export default function SceneEditorCanvas() {
         onScenePointerUp={interactions.onPointerUp}
         onScenePointerLeave={interactions.onPointerLeave}
         onHandlePointerDown={interactions.onHandlePointerDown}
+        onClipHandlePointerDown={interactions.onClipHandlePointerDown}
+        onCreateClipPath={interactions.onCreateClipPath}
       />
     </div>
   );

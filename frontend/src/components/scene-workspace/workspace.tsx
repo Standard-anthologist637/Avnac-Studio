@@ -179,6 +179,8 @@ export default function SceneWorkspace({
                 onScenePointerUp={editor.onPointerUp}
                 onScenePointerLeave={editor.onPointerLeave}
                 onHandlePointerDown={editor.onHandlePointerDown}
+                onClipHandlePointerDown={editor.onClipHandlePointerDown}
+                onCreateClipPath={editor.onCreateClipPath}
               />
             </div>
           </div>

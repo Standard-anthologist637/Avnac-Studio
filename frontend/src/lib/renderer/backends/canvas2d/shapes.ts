@@ -5,7 +5,7 @@ import type {
   SaraswatiRenderRectCommand,
 } from "../../../saraswati/render/commands";
 import {
-  applyCanvas2DClipPath,
+  applyCanvas2DClipPaths,
   centeredCanvas2DBox,
   fillAndStrokeCanvas2DPath,
   paintCanvas2DStyle,
@@ -18,7 +18,7 @@ export function renderCanvas2DRectCommand(
   command: SaraswatiRenderRectCommand,
 ) {
   withCanvas2DTransform(ctx, command, command.width, command.height, () => {
-    applyCanvas2DClipPath(ctx, command.clipPath);
+    applyCanvas2DClipPaths(ctx, command.clipPathStack, command.clipPath);
     const box = centeredCanvas2DBox(command.width, command.height);
     ctx.beginPath();
     roundedCanvas2DRectPath(
@@ -44,7 +44,7 @@ export function renderCanvas2DEllipseCommand(
   command: SaraswatiRenderEllipseCommand,
 ) {
   withCanvas2DTransform(ctx, command, command.width, command.height, () => {
-    applyCanvas2DClipPath(ctx, command.clipPath);
+    applyCanvas2DClipPaths(ctx, command.clipPathStack, command.clipPath);
     const box = centeredCanvas2DBox(command.width, command.height);
     ctx.beginPath();
     ctx.ellipse(0, 0, command.width / 2, command.height / 2, 0, 0, Math.PI * 2);
@@ -64,7 +64,7 @@ export function renderCanvas2DPolygonCommand(
 ) {
   if (command.points.length < 2) return;
   withCanvas2DTransform(ctx, command, command.width, command.height, () => {
-    applyCanvas2DClipPath(ctx, command.clipPath);
+    applyCanvas2DClipPaths(ctx, command.clipPathStack, command.clipPath);
     const box = centeredCanvas2DBox(command.width, command.height);
     ctx.beginPath();
     ctx.moveTo(command.points[0]!.x, command.points[0]!.y);
