@@ -15,6 +15,7 @@ import {
   type SaraswatiScene,
   type SaraswatiTextNode,
 } from "../scene";
+import type { SaraswatiShadow } from "../types";
 
 export const SARASWATI_RENDER_COMMAND_TYPES = [
   "rect",
@@ -29,6 +30,7 @@ export type SaraswatiRenderCommandType =
   (typeof SARASWATI_RENDER_COMMAND_TYPES)[number];
 
 type RenderTransform = {
+  id: string;
   x: number;
   y: number;
   rotation: number;
@@ -37,6 +39,8 @@ type RenderTransform = {
   opacity: number;
   originX: SaraswatiNodeOriginX;
   originY: SaraswatiNodeOriginY;
+  shadow: SaraswatiShadow | null;
+  blur: number;
 };
 
 export type SaraswatiRenderRectCommand = RenderTransform & {
@@ -113,9 +117,12 @@ export type SaraswatiRenderImageCommand = RenderTransform & {
   type: "image";
   width: number;
   height: number;
+  borderRadius: number;
   src: string;
   cropX: number;
   cropY: number;
+  cropWidth?: number;
+  cropHeight?: number;
   clipPath: SaraswatiClipPath | null;
   clipPathStack: SaraswatiClipPath[];
 };
@@ -134,6 +141,7 @@ export function buildRenderCommands(
   const commands: SaraswatiRenderCommand[] = [
     {
       type: "rect",
+      id: "__artboard__",
       x: 0,
       y: 0,
       width: scene.artboard.width,
@@ -151,6 +159,8 @@ export function buildRenderCommands(
       opacity: 1,
       originX: "left",
       originY: "top",
+      shadow: null,
+      blur: 0,
     },
   ];
 
@@ -185,6 +195,7 @@ function rectNodeToCommand(
 ): SaraswatiRenderRectCommand {
   return {
     type: "rect",
+    id: node.id,
     x: node.x,
     y: node.y,
     width: node.width,
@@ -203,6 +214,8 @@ function rectNodeToCommand(
     opacity: node.opacity,
     originX: node.originX,
     originY: node.originY,
+    shadow: node.shadow ?? null,
+    blur: node.blur ?? 0,
   };
 }
 
@@ -211,6 +224,7 @@ function ellipseNodeToCommand(
 ): SaraswatiRenderEllipseCommand {
   return {
     type: "ellipse",
+    id: node.id,
     x: node.x,
     y: node.y,
     width: node.width,
@@ -227,6 +241,8 @@ function ellipseNodeToCommand(
     opacity: node.opacity,
     originX: node.originX,
     originY: node.originY,
+    shadow: node.shadow ?? null,
+    blur: node.blur ?? 0,
   };
 }
 
@@ -235,6 +251,7 @@ function polygonNodeToCommand(
 ): SaraswatiRenderPolygonCommand {
   return {
     type: "polygon",
+    id: node.id,
     x: node.x,
     y: node.y,
     width: node.width,
@@ -252,6 +269,8 @@ function polygonNodeToCommand(
     opacity: node.opacity,
     originX: node.originX,
     originY: node.originY,
+    shadow: node.shadow ?? null,
+    blur: node.blur ?? 0,
   };
 }
 
@@ -260,6 +279,7 @@ function lineNodeToCommand(
 ): SaraswatiRenderLineCommand {
   return {
     type: "line",
+    id: node.id,
     x: node.x,
     y: node.y,
     x1: node.x1,
@@ -280,6 +300,8 @@ function lineNodeToCommand(
     opacity: node.opacity,
     originX: node.originX,
     originY: node.originY,
+    shadow: node.shadow ?? null,
+    blur: node.blur ?? 0,
   };
 }
 
@@ -288,6 +310,7 @@ function textNodeToCommand(
 ): SaraswatiRenderTextCommand {
   return {
     type: "text",
+    id: node.id,
     x: node.x,
     y: node.y,
     text: node.text,
@@ -311,6 +334,8 @@ function textNodeToCommand(
     opacity: node.opacity,
     originX: node.originX,
     originY: node.originY,
+    shadow: node.shadow ?? null,
+    blur: node.blur ?? 0,
   };
 }
 
@@ -319,13 +344,17 @@ function imageNodeToCommand(
 ): SaraswatiRenderImageCommand {
   return {
     type: "image",
+    id: node.id,
     x: node.x,
     y: node.y,
     width: node.width,
     height: node.height,
+    borderRadius: node.borderRadius ?? 0,
     src: node.src,
     cropX: node.cropX,
     cropY: node.cropY,
+    cropWidth: node.cropWidth,
+    cropHeight: node.cropHeight,
     clipPath: node.clipPath,
     clipPathStack:
       node.clipPathStack?.map((clipPath) => ({ ...clipPath })) ?? [],
@@ -335,5 +364,7 @@ function imageNodeToCommand(
     opacity: node.opacity,
     originX: node.originX,
     originY: node.originY,
+    shadow: node.shadow ?? null,
+    blur: node.blur ?? 0,
   };
 }

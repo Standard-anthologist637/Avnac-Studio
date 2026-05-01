@@ -12,6 +12,7 @@ import {
 import {
   applyCanvas2DClipPaths,
   loadCanvas2DImage,
+  roundedCanvas2DRectPath,
   withCanvas2DTransform,
 } from "./shared";
 import { renderCanvas2DTextCommand } from "./text";
@@ -61,14 +62,39 @@ async function renderCanvas2DImageCommand(
   command: SaraswatiRenderImageCommand,
 ) {
   const image = await loadCanvas2DImage(command.src);
+  const sourceSize = readCanvasImageSourceSize(image);
   withCanvas2DTransform(ctx, command, command.width, command.height, () => {
     applyCanvas2DClipPaths(ctx, command.clipPathStack, command.clipPath);
     const targetX = -command.width / 2;
     const targetY = -command.height / 2;
+    const radius = Math.max(
+      0,
+      Math.min(command.borderRadius, command.width / 2, command.height / 2),
+    );
+    if (radius > 0) {
+      ctx.beginPath();
+      roundedCanvas2DRectPath(
+        ctx,
+        targetX,
+        targetY,
+        command.width,
+        command.height,
+        radius,
+      );
+      ctx.clip();
+    }
     const cropX = Math.max(0, Math.round(command.cropX));
     const cropY = Math.max(0, Math.round(command.cropY));
-    const sourceWidth = Math.max(1, image.naturalWidth - cropX);
-    const sourceHeight = Math.max(1, image.naturalHeight - cropY);
+    const maxSourceWidth = Math.max(1, sourceSize.width - cropX);
+    const maxSourceHeight = Math.max(1, sourceSize.height - cropY);
+    const sourceWidth =
+      command.cropWidth != null
+        ? Math.max(1, Math.min(maxSourceWidth, Math.round(command.cropWidth)))
+        : maxSourceWidth;
+    const sourceHeight =
+      command.cropHeight != null
+        ? Math.max(1, Math.min(maxSourceHeight, Math.round(command.cropHeight)))
+        : maxSourceHeight;
     ctx.drawImage(
       image,
       cropX,
@@ -81,4 +107,32 @@ async function renderCanvas2DImageCommand(
       command.height,
     );
   });
+}
+
+function readCanvasImageSourceSize(image: CanvasImageSource): {
+  width: number;
+  height: number;
+} {
+  if (image instanceof ImageBitmap) {
+    return { width: image.width, height: image.height };
+  }
+  if (image instanceof HTMLImageElement) {
+    return {
+      width: image.naturalWidth || image.width,
+      height: image.naturalHeight || image.height,
+    };
+  }
+  if (image instanceof HTMLCanvasElement) {
+    return { width: image.width, height: image.height };
+  }
+  if (
+    typeof OffscreenCanvas !== "undefined" &&
+    image instanceof OffscreenCanvas
+  ) {
+    return { width: image.width, height: image.height };
+  }
+  if (image instanceof HTMLVideoElement) {
+    return { width: image.videoWidth, height: image.videoHeight };
+  }
+  return { width: 1, height: 1 };
 }

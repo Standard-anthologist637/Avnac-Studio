@@ -7,7 +7,7 @@ import './styles.css'
 
 // Suppress the browser/WebView2 context menu everywhere — this is a desktop
 // app and the native menu would expose Inspect, Reload, Save as, etc.
-document.addEventListener('contextmenu', (e) => e.preventDefault())
+// document.addEventListener('contextmenu', (e) => e.preventDefault())
 
 const router = getRouter()
 

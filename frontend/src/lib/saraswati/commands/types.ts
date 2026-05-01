@@ -83,6 +83,12 @@ export type SaraswatiCommand =
       lineHeight?: number;
     }
   | {
+      /** Replace text content on a text node. */
+      type: "SET_TEXT_CONTENT";
+      id: string;
+      text: string;
+    }
+  | {
       /** Set opacity on any node (0–1, clamped). */
       type: "SET_NODE_OPACITY";
       id: string;
@@ -99,6 +105,28 @@ export type SaraswatiCommand =
       type: "SET_NODE_BLUR";
       id: string;
       blur: number;
+    }
+  | {
+      /** Update image crop source rectangle. */
+      type: "SET_IMAGE_CROP";
+      id: string;
+      cropX: number;
+      cropY: number;
+      cropWidth?: number;
+      cropHeight?: number;
+    }
+  | {
+      /** Round image corners by applying a rectangular clip-path radius. */
+      type: "SET_IMAGE_BORDER_RADIUS";
+      id: string;
+      radius: number;
+    }
+  | {
+      /** Rebuild polygon points using a side/point count. */
+      type: "SET_POLYGON_SIDES";
+      id: string;
+      sides: number;
+      star?: boolean;
     };
 
 export type Command = SaraswatiCommand;

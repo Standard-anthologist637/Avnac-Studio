@@ -7,6 +7,7 @@ import type {
   SaraswatiClipPath,
   SaraswatiNodeOriginX,
   SaraswatiNodeOriginY,
+  SaraswatiShadow,
 } from "../../../saraswati/scene";
 
 export type Canvas2DPreviewBox = {
@@ -25,9 +26,11 @@ export type Canvas2DTransformCommand = {
   opacity: number;
   originX: SaraswatiNodeOriginX;
   originY: SaraswatiNodeOriginY;
+  shadow: SaraswatiShadow | null;
+  blur: number;
 };
 
-const imageCache = new Map<string, Promise<HTMLImageElement>>();
+const imageCache = new Map<string, Promise<CanvasImageSource>>();
 
 export function withCanvas2DTransform(
   ctx: CanvasRenderingContext2D,
@@ -50,11 +53,33 @@ export function withCanvas2DTransform(
   );
   ctx.save();
   ctx.globalAlpha *= clampCanvas2DOpacity(command.opacity);
+  applyCanvas2DEffects(ctx, command);
   ctx.translate(centerX, centerY);
   if (command.rotation) ctx.rotate((command.rotation * Math.PI) / 180);
   ctx.scale(command.scaleX, command.scaleY);
   draw();
   ctx.restore();
+}
+
+export function applyCanvas2DEffects(
+  ctx: CanvasRenderingContext2D,
+  command: Pick<Canvas2DTransformCommand, "shadow" | "blur">,
+) {
+  const blurPx = Math.max(0, Math.min(100, command.blur ?? 0)) * 0.4;
+  // `filter` is the canvas-level primitive for post-process blur.
+  ctx.filter = blurPx > 0 ? `blur(${blurPx.toFixed(2)}px)` : "none";
+  if (command.shadow) {
+    const alpha = Math.max(0, Math.min(1, command.shadow.opacityPct / 100));
+    ctx.shadowColor = shadowHexToRgba(command.shadow.colorHex, alpha);
+    ctx.shadowBlur = Math.max(0, command.shadow.blur);
+    ctx.shadowOffsetX = command.shadow.offsetX;
+    ctx.shadowOffsetY = command.shadow.offsetY;
+  } else {
+    ctx.shadowColor = "rgba(0,0,0,0)";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
 }
 
 export function fillAndStrokeCanvas2DPath(
@@ -123,13 +148,21 @@ export function paintCanvas2DStyle(
   return linearGradientForCanvas2DBox(ctx, paint.stops, paint.angle, box);
 }
 
-export function loadCanvas2DImage(src: string): Promise<HTMLImageElement> {
+export function loadCanvas2DImage(src: string): Promise<CanvasImageSource> {
   const existing = imageCache.get(src);
   if (existing) return existing;
-  const pending = new Promise<HTMLImageElement>((resolve, reject) => {
+  const pending = new Promise<CanvasImageSource>((resolve, reject) => {
     const image = new Image();
     image.decoding = "async";
-    image.onload = () => resolve(image);
+    image.onload = () => {
+      if (typeof createImageBitmap === "function") {
+        createImageBitmap(image)
+          .then((bitmap) => resolve(bitmap))
+          .catch(() => resolve(image));
+        return;
+      }
+      resolve(image);
+    };
     image.onerror = () => reject(new Error(`Failed to load image: ${src}`));
     image.src = src;
   });
@@ -216,6 +249,23 @@ export function applyCanvas2DClipPaths(
 
 export function clampCanvas2DOpacity(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+function shadowHexToRgba(input: string, alpha: number): string {
+  const hex = input.trim();
+  if (/^#[0-9a-fA-F]{3}$/.test(hex)) {
+    const r = parseInt(hex[1]! + hex[1]!, 16);
+    const g = parseInt(hex[2]! + hex[2]!, 16);
+    const b = parseInt(hex[3]! + hex[3]!, 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  if (/^#[0-9a-fA-F]{6}$/.test(hex)) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgba(0, 0, 0, ${alpha})`;
 }
 
 function linearGradientForCanvas2DBox(

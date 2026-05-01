@@ -110,6 +110,7 @@ type SceneEditorActions = {
       lineHeight?: number;
     },
   ) => void;
+  setTextContent: (id: string, text: string) => void;
   toggleFocusMode: () => void;
   setSidebarPanel: (panel: EditorSidebarPanelId | null) => void;
   toggleSidebarPanel: (panel: EditorSidebarPanelId) => void;
@@ -117,6 +118,17 @@ type SceneEditorActions = {
   setNodeOpacity: (id: string, opacity: number) => void;
   setNodeShadow: (id: string, shadow: SaraswatiShadow | null) => void;
   setNodeBlur: (id: string, blur: number) => void;
+  setImageCrop: (
+    id: string,
+    crop: {
+      cropX: number;
+      cropY: number;
+      cropWidth?: number;
+      cropHeight?: number;
+    },
+  ) => void;
+  setImageBorderRadius: (id: string, radius: number) => void;
+  setPolygonSides: (id: string, sides: number, star?: boolean) => void;
   /**
    * Persist the current document back to IDB.
    * NOTE: full Saraswati→AvnacDocument serialisation is not yet implemented.
@@ -327,6 +339,22 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
 
   setTextFormat: (id, patch) => {
     get().applyCommands([{ type: "SET_TEXT_FORMAT", id, ...patch }]);
+  },
+
+  setTextContent: (id, text) => {
+    get().applyCommands([{ type: "SET_TEXT_CONTENT", id, text }]);
+  },
+
+  setImageCrop: (id, crop) => {
+    get().applyCommands([{ type: "SET_IMAGE_CROP", id, ...crop }]);
+  },
+
+  setImageBorderRadius: (id, radius) => {
+    get().applyCommands([{ type: "SET_IMAGE_BORDER_RADIUS", id, radius }]);
+  },
+
+  setPolygonSides: (id, sides, star) => {
+    get().applyCommands([{ type: "SET_POLYGON_SIDES", id, sides, star }]);
   },
 
   save: async () => {

@@ -25,13 +25,21 @@ type Props = {
   scene: SaraswatiScene;
   backend?: RendererBackend<CanvasRenderingContext2D>;
   className?: string;
+  viewScale?: number;
   interactive?: boolean;
   selectedIds?: readonly string[];
+  hiddenNodeIds?: readonly string[];
   lockedIds?: readonly string[];
-  onScenePointerDown?: (pointerId: number, x: number, y: number) => void;
+  onScenePointerDown?: (
+    pointerId: number,
+    x: number,
+    y: number,
+    options?: { additive?: boolean },
+  ) => void;
   onScenePointerMove?: (pointerId: number, x: number, y: number) => void;
   onScenePointerUp?: (pointerId: number) => void;
   onScenePointerLeave?: () => void;
+  onSceneDoubleClick?: (x: number, y: number) => void;
   onHandlePointerDown?: (
     pointerId: number,
     nodeId: string,
@@ -60,6 +68,7 @@ type Props = {
   hoveredId?: string | null;
   guides?: readonly SaraswatiGuideLine[];
   measurement?: SaraswatiMeasurement | null;
+  marqueeBounds?: SaraswatiBounds | null;
 };
 
 // Handle positions: {id, cx, cy} as fractions of the bounding box (0=left/top, 1=right/bottom)
@@ -83,13 +92,16 @@ export default function SceneWorkspaceStage({
   scene,
   backend = canvas2DRendererBackend,
   className,
+  viewScale = 1,
   interactive = false,
   selectedIds = [],
+  hiddenNodeIds = [],
   lockedIds = [],
   onScenePointerDown,
   onScenePointerMove,
   onScenePointerUp,
   onScenePointerLeave,
+  onSceneDoubleClick,
   onHandlePointerDown,
   onRotateHandlePointerDown,
   onClipHandlePointerDown,
@@ -98,26 +110,40 @@ export default function SceneWorkspaceStage({
   hoveredId,
   guides = [],
   measurement,
+  marqueeBounds,
 }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
+  const contentCanvasRef = useRef<HTMLCanvasElement>(null);
   const lockedIdSet = useMemo(() => new Set(lockedIds), [lockedIds]);
+  const hiddenNodeIdSet = useMemo(
+    () => new Set(hiddenNodeIds),
+    [hiddenNodeIds],
+  );
+  const handleSize = Math.max(8, Math.min(48, 10 / Math.max(0.2, viewScale)));
+  const borderWidth = Math.max(1, Math.min(6, 2 / Math.max(0.25, viewScale)));
+  const rotateHandleOffset = Math.max(
+    24,
+    Math.min(72, 28 / Math.max(0.25, viewScale)),
+  );
 
   const selectedBounds = useMemo(() => {
     const result: { id: string; bounds: SaraswatiBounds }[] = [];
     for (const id of selectedIds) {
+      if (hiddenNodeIdSet.has(id)) continue;
       const node = scene.nodes[id];
       if (!node || !isSaraswatiRenderableNode(node)) continue;
       result.push({ id, bounds: getNodeBounds(node) });
     }
     return result;
-  }, [scene, selectedIds]);
+  }, [hiddenNodeIdSet, scene, selectedIds]);
 
   const hoveredBounds = useMemo(() => {
     if (!hoveredId || selectedIds.includes(hoveredId)) return null;
+    if (hiddenNodeIdSet.has(hoveredId)) return null;
     const node = scene.nodes[hoveredId];
     if (!node || !isSaraswatiRenderableNode(node)) return null;
     return getNodeBounds(node);
-  }, [hoveredId, scene, selectedIds]);
+  }, [hiddenNodeIdSet, hoveredId, scene, selectedIds]);
 
   const editableClip = useMemo(() => {
     if (!interactive || selectedIds.length !== 1) return null;
@@ -145,7 +171,7 @@ export default function SceneWorkspaceStage({
 
   const toScenePoint = useMemo(() => {
     return (clientX: number, clientY: number) => {
-      const canvas = canvasRef.current;
+      const canvas = contentCanvasRef.current;
       if (!canvas) return null;
       const rect = canvas.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return null;
@@ -157,25 +183,61 @@ export default function SceneWorkspaceStage({
   }, [scene.artboard.height, scene.artboard.width]);
 
   useEffect(() => {
+    const dpr = window.devicePixelRatio || 1;
+    const syncCanvas = (canvas: HTMLCanvasElement | null) => {
+      if (!canvas) return;
+      canvas.width = Math.max(1, Math.round(scene.artboard.width * dpr));
+      canvas.height = Math.max(1, Math.round(scene.artboard.height * dpr));
+      canvas.style.width = `${scene.artboard.width}px`;
+      canvas.style.height = `${scene.artboard.height}px`;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    syncCanvas(backgroundCanvasRef.current);
+    syncCanvas(contentCanvasRef.current);
+  }, [scene.artboard.height, scene.artboard.width]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let frameId = 0;
+
+    const paintBackground = async () => {
+      if (cancelled) return;
+      const canvas = backgroundCanvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.clearRect(0, 0, scene.artboard.width, scene.artboard.height);
+      const bgCommand = buildRenderCommands(scene)[0];
+      if (!bgCommand) return;
+      await backend.render(ctx, [bgCommand]);
+    };
+
+    frameId = window.requestAnimationFrame(() => {
+      void paintBackground();
+    });
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [backend, scene.artboard.bg, scene.artboard.height, scene.artboard.width]);
+
+  useEffect(() => {
     let cancelled = false;
     let frameId = 0;
 
     async function paint() {
       if (cancelled) return;
-      const canvas = canvasRef.current;
+      const canvas = contentCanvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(1, Math.round(scene.artboard.width * dpr));
-      canvas.height = Math.max(1, Math.round(scene.artboard.height * dpr));
-      canvas.style.width = `${scene.artboard.width}px`;
-      canvas.style.height = `${scene.artboard.height}px`;
-
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const commands = buildRenderCommands(scene)
+        .slice(1)
+        .filter((command) => !hiddenNodeIdSet.has(command.id));
       ctx.clearRect(0, 0, scene.artboard.width, scene.artboard.height);
-      const commands = buildRenderCommands(scene);
       const start = performance.now();
       await backend.render(ctx, commands);
       const end = performance.now();
@@ -207,14 +269,16 @@ export default function SceneWorkspaceStage({
       cancelled = true;
       window.cancelAnimationFrame(frameId);
     };
-  }, [backend, onRenderStats, scene]);
+  }, [backend, hiddenNodeIdSet, onRenderStats, scene]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!interactive) return;
     const point = toScenePoint(event.clientX, event.clientY);
     if (!point) return;
     event.currentTarget.setPointerCapture(event.pointerId);
-    onScenePointerDown?.(event.pointerId, point.x, point.y);
+    onScenePointerDown?.(event.pointerId, point.x, point.y, {
+      additive: event.shiftKey || event.metaKey || event.ctrlKey,
+    });
   };
 
   const handlePointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -232,6 +296,13 @@ export default function SceneWorkspaceStage({
     onScenePointerUp?.(event.pointerId);
   };
 
+  const handleDoubleClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!interactive) return;
+    const point = toScenePoint(event.clientX, event.clientY);
+    if (!point) return;
+    onSceneDoubleClick?.(point.x, point.y);
+  };
+
   return (
     <div
       className={[
@@ -242,15 +313,23 @@ export default function SceneWorkspaceStage({
         .join(" ")}
     >
       <canvas
-        ref={canvasRef}
+        ref={backgroundCanvasRef}
+        className="pointer-events-none absolute inset-0"
+      />
+      <canvas
+        ref={contentCanvasRef}
         onPointerDown={interactive ? handlePointerDown : undefined}
         onPointerMove={interactive ? handlePointerMove : undefined}
         onPointerUp={interactive ? handlePointerUp : undefined}
         onPointerCancel={interactive ? handlePointerUp : undefined}
         onPointerLeave={interactive ? onScenePointerLeave : undefined}
-        className={
-          interactive ? "cursor-grab active:cursor-grabbing" : undefined
-        }
+        onDoubleClick={interactive ? handleDoubleClick : undefined}
+        className={[
+          "relative z-[1]",
+          interactive ? "cursor-grab active:cursor-grabbing" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       />
       <div
         className="pointer-events-none absolute inset-0"
@@ -271,6 +350,15 @@ export default function SceneWorkspaceStage({
             />
           ),
         )}
+
+        {guides.length > 0 ? (
+          <div
+            className="absolute rounded-md border border-sky-300/60 bg-sky-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow"
+            style={{ left: "12px", top: "12px" }}
+          >
+            Snap
+          </div>
+        ) : null}
 
         {hoveredBounds ? (
           <div
@@ -301,13 +389,15 @@ export default function SceneWorkspaceStage({
                 style={{
                   left: `${cx * 100}%`,
                   top: `${cy * 100}%`,
+                  width: `${handleSize}px`,
+                  height: `${handleSize}px`,
                   cursor,
                 }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   const point = toScenePoint(e.clientX, e.clientY);
                   if (!point) return;
-                  canvasRef.current?.setPointerCapture(e.pointerId);
+                  contentCanvasRef.current?.setPointerCapture(e.pointerId);
                   onClipHandlePointerDown?.(
                     e.pointerId,
                     editableClip.nodeId,
@@ -372,6 +462,19 @@ export default function SceneWorkspaceStage({
             </div>
           </>
         ) : null}
+
+        {marqueeBounds && marqueeBounds.width > 1 && marqueeBounds.height > 1 ? (
+          <div
+            className="absolute rounded border border-sky-500/85 bg-sky-200/20"
+            style={{
+              left: `${marqueeBounds.x}px`,
+              top: `${marqueeBounds.y}px`,
+              width: `${marqueeBounds.width}px`,
+              height: `${marqueeBounds.height}px`,
+              borderWidth: `${borderWidth}px`,
+            }}
+          />
+        ) : null}
       </div>
       {selectedBounds.map(({ id: nodeId, bounds }) => (
         <div
@@ -387,9 +490,11 @@ export default function SceneWorkspaceStage({
               top: `${bounds.y}px`,
               width: `${Math.max(1, bounds.width)}px`,
               height: `${Math.max(1, bounds.height)}px`,
+              borderWidth: `${borderWidth}px`,
             }}
           >
-            {interactive && !lockedIdSet.has(nodeId) &&
+            {interactive &&
+              !lockedIdSet.has(nodeId) &&
               HANDLES.map(({ id: handle, cx, cy, cursor }) => (
                 <div
                   key={handle}
@@ -397,13 +502,15 @@ export default function SceneWorkspaceStage({
                   style={{
                     left: `${cx * 100}%`,
                     top: `${cy * 100}%`,
+                    width: `${handleSize}px`,
+                    height: `${handleSize}px`,
                     cursor,
                   }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
                     const point = toScenePoint(e.clientX, e.clientY);
                     if (!point) return;
-                    canvasRef.current?.setPointerCapture(e.pointerId);
+                    contentCanvasRef.current?.setPointerCapture(e.pointerId);
                     onHandlePointerDown?.(
                       e.pointerId,
                       nodeId,
@@ -425,8 +532,8 @@ export default function SceneWorkspaceStage({
                 className="pointer-events-none absolute w-px bg-sky-400/60"
                 style={{
                   left: `${bounds.x + bounds.width / 2}px`,
-                  top: `${bounds.y - 24}px`,
-                  height: "24px",
+                  top: `${bounds.y - rotateHandleOffset}px`,
+                  height: `${rotateHandleOffset}px`,
                 }}
               />
               {/* Handle circle */}
@@ -434,14 +541,16 @@ export default function SceneWorkspaceStage({
                 className="pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-sky-500/90 bg-white shadow-md active:cursor-grabbing"
                 style={{
                   left: `${bounds.x + bounds.width / 2}px`,
-                  top: `${bounds.y - 24}px`,
+                  top: `${bounds.y - rotateHandleOffset}px`,
+                  width: `${Math.max(12, handleSize + 4)}px`,
+                  height: `${Math.max(12, handleSize + 4)}px`,
                 }}
                 title="Rotate"
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   const point = toScenePoint(e.clientX, e.clientY);
                   if (!point) return;
-                  canvasRef.current?.setPointerCapture(e.pointerId);
+                  contentCanvasRef.current?.setPointerCapture(e.pointerId);
                   onRotateHandlePointerDown?.(
                     e.pointerId,
                     nodeId,

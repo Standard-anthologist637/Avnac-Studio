@@ -5,23 +5,39 @@
  */
 import CanvasSelectionToolbar from "@/components/editor/canvas/canvas-selection-toolbar";
 import SceneWorkspaceStage from "@/components/scene-workspace/stage";
+import { AVNAC_VECTOR_BOARD_DRAG_MIME } from "@/lib/avnac-vector-board-document";
+import { findTopHitNodeId } from "@/lib/saraswati";
+import { readSceneWorkspaceDropIntent } from "@/scene/workspace";
 import { useEffect, useRef, useState } from "react";
+import SceneInlineTextEditor from "./scene-inline-text-editor";
 import { useSceneEditorStore } from "./store";
+import { useSceneEditorDropActions } from "./use-scene-editor-drop-actions";
 import { useSceneEditorInteractions } from "./use-scene-editor-interactions";
 import { useSceneSelectionActions } from "./use-scene-selection-actions";
+
+type InlineTextEditState = {
+  nodeId: string;
+  value: string;
+};
 
 export default function SceneEditorCanvas() {
   const scene = useSceneEditorStore((s) => s.scene);
   const selectedIds = useSceneEditorStore((s) => s.selectedIds);
+  const setSelectedIds = useSceneEditorStore((s) => s.setSelectedIds);
   const lockedIds = useSceneEditorStore((s) => s.lockedIds);
+  const setTextContent = useSceneEditorStore((s) => s.setTextContent);
   const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
   const setZoomPercent = useSceneEditorStore((s) => s.setZoomPercent);
   const setRenderStats = useSceneEditorStore((s) => s.setRenderStats);
+  const dropActions = useSceneEditorDropActions();
   const interactions = useSceneEditorInteractions();
   const actions = useSceneSelectionActions();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const surfaceRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+  const [inlineTextEdit, setInlineTextEdit] =
+    useState<InlineTextEditState | null>(null);
 
   useEffect(() => {
     const element = scrollContainerRef.current;
@@ -53,20 +69,20 @@ export default function SceneEditorCanvas() {
     return () => el.removeEventListener("wheel", onWheel);
   }, [setZoomPercent]);
 
-  if (!scene) return null;
-
+  const artboardWidth = scene?.artboard.width ?? 1;
+  const artboardHeight = scene?.artboard.height ?? 1;
   const pad = 64;
   const fitScale =
     containerSize.w > 0 && containerSize.h > 0
       ? Math.min(
           1,
-          (containerSize.w - pad) / scene.artboard.width,
-          (containerSize.h - pad) / scene.artboard.height,
+          (containerSize.w - pad) / artboardWidth,
+          (containerSize.h - pad) / artboardHeight,
         )
       : 1;
   const scale = fitScale * (zoomPercent / 100);
-  const scaledWidth = Math.round(scene.artboard.width * scale);
-  const scaledHeight = Math.round(scene.artboard.height * scale);
+  const scaledWidth = Math.round(artboardWidth * scale);
+  const scaledHeight = Math.round(artboardHeight * scale);
 
   const rotateHandleClearance = 36;
   const toolbarPlacement: "above" | "below" =
@@ -87,12 +103,71 @@ export default function SceneEditorCanvas() {
       }
     : undefined;
 
+  useEffect(() => {
+    if (!scene || !inlineTextEdit) return;
+    const node = scene.nodes[inlineTextEdit.nodeId];
+    if (!node || node.type !== "text") {
+      setInlineTextEdit(null);
+    }
+  }, [inlineTextEdit, scene]);
+
+  const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    const intent = readSceneWorkspaceDropIntent(
+      event.dataTransfer,
+      AVNAC_VECTOR_BOARD_DRAG_MIME,
+    );
+    if (!intent) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  };
+
+  const onDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    if (!scene) return;
+    const intent = readSceneWorkspaceDropIntent(
+      event.dataTransfer,
+      AVNAC_VECTOR_BOARD_DRAG_MIME,
+    );
+    if (!intent) return;
+    event.preventDefault();
+    const rect = surfaceRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0 || scale <= 0) return;
+    const sceneX = (event.clientX - rect.left) / scale;
+    const sceneY = (event.clientY - rect.top) / scale;
+    await dropActions.handleDropIntent(intent, {
+      x: Math.max(0, Math.min(scene.artboard.width, sceneX)),
+      y: Math.max(0, Math.min(scene.artboard.height, sceneY)),
+    });
+  };
+
+  const onSceneDoubleClick = (x: number, y: number) => {
+    if (!scene) return;
+    const hitId = findTopHitNodeId(scene, { x, y });
+    if (!hitId) return;
+    const hitNode = scene.nodes[hitId];
+    if (!hitNode || hitNode.type !== "text") return;
+    setSelectedIds([hitId]);
+    setInlineTextEdit({ nodeId: hitId, value: hitNode.text });
+  };
+
+  const commitInlineText = () => {
+    if (!inlineTextEdit) return;
+    setTextContent(inlineTextEdit.nodeId, inlineTextEdit.value);
+    setInlineTextEdit(null);
+  };
+
+  if (!scene) return null;
+
   return (
     <div
       ref={scrollContainerRef}
       className="flex flex-1 items-center justify-center overflow-auto bg-neutral-100/80 p-8"
+      onDragOver={onDragOver}
+      onDrop={(event) => {
+        void onDrop(event);
+      }}
     >
       <div
+        ref={surfaceRef}
         className="relative"
         style={{ width: scaledWidth, height: scaledHeight }}
       >
@@ -109,8 +184,12 @@ export default function SceneEditorCanvas() {
         >
           <SceneWorkspaceStage
             scene={scene}
-            interactive
+            viewScale={scale}
+            interactive={!inlineTextEdit}
             selectedIds={selectedIds}
+            hiddenNodeIds={
+              inlineTextEdit ? [inlineTextEdit.nodeId] : undefined
+            }
             lockedIds={lockedIds}
             hoveredId={interactions.hoveredId}
             guides={interactions.guides}
@@ -123,9 +202,26 @@ export default function SceneEditorCanvas() {
             onRotateHandlePointerDown={interactions.onRotateHandlePointerDown}
             onClipHandlePointerDown={interactions.onClipHandlePointerDown}
             onCreateClipPath={interactions.onCreateClipPath}
+            onSceneDoubleClick={onSceneDoubleClick}
+            marqueeBounds={interactions.marqueeBounds}
             onRenderStats={setRenderStats}
           />
         </div>
+
+        {inlineTextEdit ? (
+          <SceneInlineTextEditor
+            scene={scene}
+            edit={inlineTextEdit}
+            scale={scale}
+            onChange={(value) =>
+              setInlineTextEdit((current) =>
+                current ? { ...current, value } : current,
+              )
+            }
+            onCommit={commitInlineText}
+            onCancel={() => setInlineTextEdit(null)}
+          />
+        ) : null}
 
         {actions.selectionBounds && toolbarStyle && (
           <CanvasSelectionToolbar

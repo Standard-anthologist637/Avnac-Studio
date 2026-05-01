@@ -5,6 +5,7 @@ import type {
   SaraswatiRenderRectCommand,
 } from "../../../saraswati/render/commands";
 import {
+  applyCanvas2DEffects,
   applyCanvas2DClipPaths,
   centeredCanvas2DBox,
   fillAndStrokeCanvas2DPath,
@@ -120,6 +121,7 @@ export function renderCanvas2DLineCommand(
 
   ctx.save();
   ctx.globalAlpha *= Math.max(0, Math.min(1, command.opacity));
+  applyCanvas2DEffects(ctx, command);
   ctx.strokeStyle = strokeStyle;
   ctx.lineWidth = command.strokeWidth;
   ctx.lineCap = "round";

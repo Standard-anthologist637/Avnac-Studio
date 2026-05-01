@@ -153,9 +153,12 @@ export type SaraswatiImageNode = SaraswatiNodeBase & {
   type: "image";
   width: number;
   height: number;
+  borderRadius?: number;
   src: string;
   cropX: number;
   cropY: number;
+  cropWidth?: number;
+  cropHeight?: number;
   clipPath: SaraswatiClipPath | null;
   clipPathStack?: SaraswatiClipPath[];
 };

@@ -70,12 +70,27 @@ export function applyCommand(
       );
     case "SET_TEXT_FORMAT":
       return setTextFormat(scene, command.id, command);
+    case "SET_TEXT_CONTENT":
+      return setTextContent(scene, command.id, command.text);
     case "SET_NODE_OPACITY":
       return setNodeOpacity(scene, command.id, command.opacity);
     case "SET_NODE_SHADOW":
       return setNodeShadow(scene, command.id, command.shadow);
     case "SET_NODE_BLUR":
       return setNodeBlur(scene, command.id, command.blur);
+    case "SET_IMAGE_CROP":
+      return setImageCrop(
+        scene,
+        command.id,
+        command.cropX,
+        command.cropY,
+        command.cropWidth,
+        command.cropHeight,
+      );
+    case "SET_IMAGE_BORDER_RADIUS":
+      return setImageBorderRadius(scene, command.id, command.radius);
+    case "SET_POLYGON_SIDES":
+      return setPolygonSides(scene, command.id, command.sides, command.star);
     default:
       return scene;
   }
@@ -633,4 +648,118 @@ function setNodeBlur(
   const next = cloneSaraswatiScene(scene);
   next.nodes[nodeId] = { ...node, blur: clamped } as SaraswatiNode;
   return next;
+}
+
+function setTextContent(
+  scene: SaraswatiScene,
+  nodeId: string,
+  text: string,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type !== "text") return scene;
+  if (node.text === text) return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, text };
+  return next;
+}
+
+function setImageCrop(
+  scene: SaraswatiScene,
+  nodeId: string,
+  cropX: number,
+  cropY: number,
+  cropWidth?: number,
+  cropHeight?: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type !== "image") return scene;
+  const nextCropX = Math.max(0, Math.round(cropX));
+  const nextCropY = Math.max(0, Math.round(cropY));
+  const nextCropWidth =
+    cropWidth == null ? undefined : Math.max(1, Math.round(cropWidth));
+  const nextCropHeight =
+    cropHeight == null ? undefined : Math.max(1, Math.round(cropHeight));
+  if (
+    node.cropX === nextCropX &&
+    node.cropY === nextCropY &&
+    node.cropWidth === nextCropWidth &&
+    node.cropHeight === nextCropHeight
+  ) {
+    return scene;
+  }
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = {
+    ...node,
+    cropX: nextCropX,
+    cropY: nextCropY,
+    cropWidth: nextCropWidth,
+    cropHeight: nextCropHeight,
+  };
+  return next;
+}
+
+function setImageBorderRadius(
+  scene: SaraswatiScene,
+  nodeId: string,
+  radius: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type !== "image") return scene;
+  const clamped = Math.max(
+    0,
+    Math.min(radius, node.width / 2, node.height / 2),
+  );
+  if ((node.borderRadius ?? 0) === clamped) return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, borderRadius: clamped };
+  return next;
+}
+
+function setPolygonSides(
+  scene: SaraswatiScene,
+  nodeId: string,
+  sides: number,
+  star?: boolean,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type !== "polygon") return scene;
+  const isStar = star ?? /star/i.test(node.name ?? "");
+  const points = isStar
+    ? starPolygonPoints(sides, node.width / 2)
+    : regularPolygonPoints(sides, node.width / 2);
+  if (
+    points.length === node.points.length &&
+    points.every(
+      (point, index) =>
+        point.x === node.points[index]?.x && point.y === node.points[index]?.y,
+    )
+  ) {
+    return scene;
+  }
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, points };
+  return next;
+}
+
+function regularPolygonPoints(sides: number, radius: number) {
+  const n = Math.max(3, Math.min(32, Math.round(sides)));
+  const points: Array<{ x: number; y: number }> = [];
+  for (let index = 0; index < n; index += 1) {
+    const angle = -Math.PI / 2 + (index * 2 * Math.PI) / n;
+    points.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
+  }
+  return points;
+}
+
+function starPolygonPoints(pointsCount: number, outerRadius: number) {
+  const n = Math.max(3, Math.min(24, Math.round(pointsCount)));
+  const innerRadius = outerRadius * 0.45;
+  const points: Array<{ x: number; y: number }> = [];
+  const step = Math.PI / n;
+  for (let index = 0; index < n * 2; index += 1) {
+    const angle = -Math.PI / 2 + index * step;
+    const radius = index % 2 === 0 ? outerRadius : innerRadius;
+    points.push({ x: radius * Math.cos(angle), y: radius * Math.sin(angle) });
+  }
+  return points;
 }

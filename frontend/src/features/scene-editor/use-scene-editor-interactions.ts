@@ -41,6 +41,16 @@ type ClipResizeState = {
   startY: number;
 };
 
+type MarqueeState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+  additive: boolean;
+  baseSelectedIds: string[];
+};
+
 function commandNodeIdFromCommand(command: {
   type: string;
   id?: string;
@@ -60,17 +70,63 @@ export function useSceneEditorInteractions() {
     createIdlePointerState(),
   );
   const clipResizeRef = useRef<ClipResizeState | null>(null);
+  const marqueeRef = useRef<MarqueeState | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [guides, setGuides] = useState<SaraswatiGuideLine[]>([]);
   const [measurement, setMeasurement] = useState<SaraswatiMeasurement | null>(
     null,
   );
+  const [marqueeBounds, setMarqueeBounds] = useState<SaraswatiBounds | null>(
+    null,
+  );
 
   const onPointerDown = useCallback(
-    (pointerId: number, x: number, y: number) => {
-      const { scene } = useSceneEditorStore.getState();
+    (
+      pointerId: number,
+      x: number,
+      y: number,
+      options?: { additive?: boolean },
+    ) => {
+      const { scene, selectedIds } = useSceneEditorStore.getState();
       if (!scene) return;
+      const additive = Boolean(options?.additive);
       const hitId = findTopHitNodeId(scene, { x, y });
+      marqueeRef.current = null;
+      setMarqueeBounds(null);
+
+      if (!hitId) {
+        if (!additive) {
+          setSelectedIds([]);
+        }
+        marqueeRef.current = {
+          pointerId,
+          startX: x,
+          startY: y,
+          currentX: x,
+          currentY: y,
+          additive,
+          baseSelectedIds: additive ? [...selectedIds] : [],
+        };
+        pointerStateRef.current = createIdlePointerState();
+        setHoveredId(null);
+        setGuides([]);
+        setMeasurement(null);
+        return;
+      }
+
+      if (additive) {
+        const next = new Set(selectedIds);
+        if (next.has(hitId)) next.delete(hitId);
+        else next.add(hitId);
+        setSelectedIds([...next]);
+        pointerStateRef.current = createIdlePointerState();
+        clipResizeRef.current = null;
+        setHoveredId(null);
+        setGuides([]);
+        setMeasurement(null);
+        return;
+      }
+
       const result = hitId
         ? {
             state: {
@@ -86,6 +142,7 @@ export function useSceneEditorInteractions() {
         : { state: createIdlePointerState(), selectedIds: [] };
       pointerStateRef.current = result.state;
       clipResizeRef.current = null;
+      marqueeRef.current = null;
       setSelectedIds(result.selectedIds);
       setHoveredId(null);
       setGuides([]);
@@ -99,6 +156,35 @@ export function useSceneEditorInteractions() {
       const store = useSceneEditorStore.getState();
       const scene = store.scene;
       if (!scene) return;
+
+      const marquee = marqueeRef.current;
+      if (marquee && marquee.pointerId === pointerId) {
+        marquee.currentX = x;
+        marquee.currentY = y;
+        const bounds = normalizeBounds(
+          marquee.startX,
+          marquee.startY,
+          marquee.currentX,
+          marquee.currentY,
+        );
+        setMarqueeBounds(bounds);
+        const hits: string[] = [];
+        for (const [nodeId, node] of Object.entries(scene.nodes)) {
+          if (!isSaraswatiRenderableNode(node)) continue;
+          const nodeBounds = getNodeBounds(node);
+          if (boundsIntersect(bounds, nodeBounds)) {
+            hits.push(nodeId);
+          }
+        }
+        const nextSelected = marquee.additive
+          ? Array.from(new Set([...marquee.baseSelectedIds, ...hits]))
+          : hits;
+        setSelectedIds(nextSelected);
+        setHoveredId(null);
+        setGuides([]);
+        setMeasurement(null);
+        return;
+      }
 
       const clipResize = clipResizeRef.current;
       if (clipResize && clipResize.pointerId === pointerId) {
@@ -204,7 +290,25 @@ export function useSceneEditorInteractions() {
         }
       }
 
-      applyCommands([command]);
+      if (command.type === "MOVE_NODE") {
+        const moveIds =
+          store.selectedIds.length > 1 && store.selectedIds.includes(command.id)
+            ? store.selectedIds.filter((id) => {
+                const node = scene.nodes[id];
+                return Boolean(node && isSaraswatiRenderableNode(node));
+              })
+            : [command.id];
+        applyCommands(
+          moveIds.map((id) => ({
+            type: "MOVE_NODE" as const,
+            id,
+            dx: command.dx,
+            dy: command.dy,
+          })),
+        );
+      } else {
+        applyCommands([command]);
+      }
       const nextScene = useSceneEditorStore.getState().scene;
       const commandNodeId = commandNodeIdFromCommand(command);
 
@@ -227,6 +331,10 @@ export function useSceneEditorInteractions() {
   );
 
   const onPointerUp = useCallback((pointerId: number) => {
+    if (marqueeRef.current && marqueeRef.current.pointerId === pointerId) {
+      marqueeRef.current = null;
+      setMarqueeBounds(null);
+    }
     if (
       clipResizeRef.current &&
       clipResizeRef.current.pointerId === pointerId
@@ -349,7 +457,8 @@ export function useSceneEditorInteractions() {
   const onPointerLeave = useCallback(() => {
     if (
       pointerStateRef.current.pointerId !== null ||
-      clipResizeRef.current !== null
+      clipResizeRef.current !== null ||
+      marqueeRef.current !== null
     ) {
       return;
     }
@@ -362,6 +471,7 @@ export function useSceneEditorInteractions() {
     hoveredId,
     guides,
     measurement,
+    marqueeBounds,
     onPointerDown,
     onPointerMove,
     onPointerUp,
@@ -371,4 +481,27 @@ export function useSceneEditorInteractions() {
     onCreateClipPath,
     onPointerLeave,
   };
+}
+
+function normalizeBounds(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+): SaraswatiBounds {
+  return {
+    x: Math.min(x1, x2),
+    y: Math.min(y1, y2),
+    width: Math.abs(x2 - x1),
+    height: Math.abs(y2 - y1),
+  };
+}
+
+function boundsIntersect(a: SaraswatiBounds, b: SaraswatiBounds): boolean {
+  return (
+    a.x <= b.x + b.width &&
+    a.x + a.width >= b.x &&
+    a.y <= b.y + b.height &&
+    a.y + a.height >= b.y
+  );
 }
