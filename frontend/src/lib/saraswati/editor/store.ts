@@ -4,7 +4,6 @@ import type { SaraswatiScene } from "../scene";
 
 export type SaraswatiEditorState = {
   scene: SaraswatiScene;
-  selectedIds: string[];
 };
 
 type Listener = (state: SaraswatiEditorState) => void;
@@ -13,7 +12,6 @@ export type SaraswatiEditorStore = {
   getState: () => SaraswatiEditorState;
   subscribe: (listener: Listener) => () => void;
   dispatch: (command: SaraswatiCommand) => void;
-  setSelectedIds: (selectedIds: string[]) => void;
 };
 
 export function createSaraswatiEditorStore(
@@ -21,7 +19,6 @@ export function createSaraswatiEditorStore(
 ): SaraswatiEditorStore {
   let state: SaraswatiEditorState = {
     scene: initialScene,
-    selectedIds: [],
   };
   const listeners = new Set<Listener>();
 
@@ -41,10 +38,6 @@ export function createSaraswatiEditorStore(
       const nextScene = applyCommand(state.scene, command);
       if (nextScene === state.scene) return;
       state = { ...state, scene: nextScene };
-      emit();
-    },
-    setSelectedIds(selectedIds) {
-      state = { ...state, selectedIds: [...selectedIds] };
       emit();
     },
   };

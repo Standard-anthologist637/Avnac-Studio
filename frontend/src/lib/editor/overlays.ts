@@ -1,6 +1,9 @@
-import { isSaraswatiRenderableNode, type SaraswatiScene } from "../scene";
-import type { SaraswatiResizeHandle } from "../commands/types";
-import { getNodeBounds, type SaraswatiBounds } from "../spatial";
+import {
+  isSaraswatiRenderableNode,
+  type SaraswatiScene,
+} from "../saraswati/scene";
+import type { SaraswatiResizeHandle } from "../saraswati/commands/types";
+import { getNodeBounds, type SaraswatiBounds } from "../saraswati/spatial";
 
 export type SaraswatiGuideLine = {
   axis: "x" | "y";

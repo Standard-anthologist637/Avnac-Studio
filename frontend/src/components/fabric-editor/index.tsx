@@ -260,11 +260,11 @@ import {
 import {
   applyCommand,
   createSaraswatiEditorStore,
-  fromAvnacDocument,
   type SaraswatiCommand,
   type SaraswatiEditorStore,
   type SaraswatiScene,
 } from "@/lib/saraswati";
+import { fromAvnacDocument } from "@/lib/saraswati/compat/from-fabric";
 import { deriveSaraswatiCommands } from "./saraswati-command-bridge";
 
 export type { FabricEditorHandle } from "./types";
@@ -4435,11 +4435,13 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         const o = c.getObjects()[stackIndex];
         if (!o) return;
         const sceneCommands = saraswatiLiveSceneRef.current
-          ? [{
-              type: "SET_NODE_VISIBLE" as const,
-              id: ensureAvnacLayerId(o),
-              visible: !o.visible,
-            }]
+          ? [
+              {
+                type: "SET_NODE_VISIBLE" as const,
+                id: ensureAvnacLayerId(o),
+                visible: !o.visible,
+              },
+            ]
           : [];
         applySceneWorkspaceCommands(sceneCommands);
         o.set("visible", !o.visible);
@@ -4501,11 +4503,13 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         const o = c.getObjects()[stackIndex];
         if (!o) return;
         const sceneCommands = saraswatiLiveSceneRef.current
-          ? [{
-              type: "SET_NODE_NAME" as const,
-              id: ensureAvnacLayerId(o),
-              name,
-            }]
+          ? [
+              {
+                type: "SET_NODE_NAME" as const,
+                id: ensureAvnacLayerId(o),
+                name,
+              },
+            ]
           : [];
         applySceneWorkspaceCommands(sceneCommands);
         setAvnacLayerName(o, name);
@@ -4513,7 +4517,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         selectionTick();
         persistAfterMutation(c, o);
       },
-       [applySceneWorkspaceCommands, persistAfterMutation],
+      [applySceneWorkspaceCommands, persistAfterMutation],
     );
 
     const onLayerReorder = useCallback(

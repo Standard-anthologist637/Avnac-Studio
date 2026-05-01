@@ -6,20 +6,22 @@ import {
   createIdlePointerState,
   findTopHitNodeId,
   getNodeBounds,
-  getRenderableNodeBounds,
   isSaraswatiRenderableNode,
-  measurementFromBounds,
   pointerDown,
   pointerMove,
   pointerUp,
   resizeHandlePointerDown,
+  type SaraswatiPointerState,
+  type SaraswatiResizeHandle,
+} from "@/lib/saraswati";
+import {
+  getRenderableNodeBounds,
+  measurementFromBounds,
   snapMoveBounds,
   snapResizeBounds,
   type SaraswatiGuideLine,
   type SaraswatiMeasurement,
-  type SaraswatiPointerState,
-  type SaraswatiResizeHandle,
-} from "@/lib/saraswati";
+} from "@/lib/editor/overlays";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import { useCallback, useRef, useState } from "react";
 import { useSceneEditorStore } from "./store";

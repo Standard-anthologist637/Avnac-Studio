@@ -3,23 +3,25 @@ import {
   createSaraswatiEditorStore,
   findTopHitNodeId,
   getNodeBounds,
-  getRenderableNodeBounds,
   isSaraswatiRenderableNode,
-  measurementFromBounds,
   pointerDown,
   pointerMove,
   pointerUp,
   resizeHandlePointerDown,
-  snapMoveBounds,
-  snapResizeBounds,
   type SaraswatiCommand,
-  type SaraswatiGuideLine,
-  type SaraswatiMeasurement,
   type SaraswatiPointerState,
   type SaraswatiResizeHandle,
   type SaraswatiScene,
   type SaraswatiEditorStore,
 } from "@/lib/saraswati";
+import {
+  getRenderableNodeBounds,
+  measurementFromBounds,
+  snapMoveBounds,
+  snapResizeBounds,
+  type SaraswatiGuideLine,
+  type SaraswatiMeasurement,
+} from "@/lib/editor/overlays";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SceneWorkspaceStore } from "./store";
@@ -50,6 +52,7 @@ export function useSceneWorkspaceEditor({
   onCommandsApplied,
 }: UseSceneWorkspaceEditorInput) {
   const storeRef = useRef<SaraswatiEditorStore | null>(null);
+  const selectedIdsRef = useRef<string[]>([]);
   const pointerStateRef = useRef<SaraswatiPointerState>(
     createIdlePointerState(),
   );
@@ -77,6 +80,7 @@ export function useSceneWorkspaceEditor({
         guides: [],
         measurement: null,
       });
+      selectedIdsRef.current = [];
       sharedStoreRef.current?.getState().setSelectedIds([]);
       return;
     }
@@ -85,19 +89,19 @@ export function useSceneWorkspaceEditor({
     storeRef.current = saraswatiStore;
     pointerStateRef.current = createIdlePointerState();
     setEditorState({
-      ...saraswatiStore.getState(),
+      scene: saraswatiStore.getState().scene,
+      selectedIds: [],
       hoveredId: null,
       guides: [],
       measurement: null,
     });
+    selectedIdsRef.current = [];
 
     return saraswatiStore.subscribe((nextState) => {
       setEditorState((prev) => ({
         ...prev,
         scene: nextState.scene,
-        selectedIds: nextState.selectedIds,
       }));
-      sharedStoreRef.current?.getState().setSelectedIds(nextState.selectedIds);
     });
   }, [enabled, scene]);
 
@@ -113,7 +117,12 @@ export function useSceneWorkspaceEditor({
         y,
       );
       pointerStateRef.current = result.state;
-      saraswatiStore.setSelectedIds(result.selectedIds);
+      selectedIdsRef.current = result.selectedIds;
+      sharedStoreRef.current?.getState().setSelectedIds(result.selectedIds);
+      setEditorState((prev) => ({
+        ...prev,
+        selectedIds: result.selectedIds,
+      }));
       setEditorState((prev) => ({
         ...prev,
         hoveredId: null,
@@ -162,7 +171,7 @@ export function useSceneWorkspaceEditor({
               width: startBounds.width,
               height: startBounds.height,
             },
-            saraswatiStore.getState().selectedIds,
+            selectedIdsRef.current,
           );
           command = {
             ...command,
@@ -184,7 +193,7 @@ export function useSceneWorkspaceEditor({
               height: command.height,
             },
             resizeState.handle,
-            saraswatiStore.getState().selectedIds,
+            selectedIdsRef.current,
           );
           command = {
             ...command,

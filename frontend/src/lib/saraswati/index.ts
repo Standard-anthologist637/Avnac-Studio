@@ -4,7 +4,5 @@ export * from "./commands/reducer";
 export * from "./render/commands";
 export * from "./editor/store";
 export * from "./editor/interaction";
-export * from "./editor/overlays";
 export * from "./spatial";
-export * from "./compat/from-fabric";
 export * from "./utils";

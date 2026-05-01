@@ -3,10 +3,12 @@ import { canvas2DRendererBackend } from "@/lib/renderer";
 import {
   buildRenderCommands,
   isSaraswatiRenderableNode,
-  type SaraswatiGuideLine,
-  type SaraswatiMeasurement,
   type SaraswatiScene,
 } from "@/lib/saraswati";
+import type {
+  SaraswatiGuideLine,
+  SaraswatiMeasurement,
+} from "@/lib/editor/overlays";
 import type { SaraswatiResizeHandle } from "@/lib/saraswati/commands/types";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import { getNodeBounds } from "@/lib/saraswati/spatial";

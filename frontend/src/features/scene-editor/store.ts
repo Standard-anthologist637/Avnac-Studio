@@ -6,11 +6,12 @@
  */
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import {
-  applyCommand,
-  fromAvnacDocument,
+  createSaraswatiEditorStore,
   type SaraswatiCommand,
+  type SaraswatiEditorStore,
   type SaraswatiScene,
 } from "@/lib/saraswati";
+import { fromAvnacDocument } from "@/lib/saraswati/compat/from-fabric";
 import {
   idbGetEditorRecord,
   idbPutDocument,
@@ -74,11 +75,21 @@ const INITIAL: SceneEditorState = {
   hasPendingChanges: false,
 };
 
+let sceneEngineStore: SaraswatiEditorStore | null = null;
+let detachSceneEngineSubscription: (() => void) | null = null;
+
+function resetSceneEngineBinding() {
+  detachSceneEngineSubscription?.();
+  detachSceneEngineSubscription = null;
+  sceneEngineStore = null;
+}
+
 export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   ...INITIAL,
 
   load: async (id: string) => {
     set({ ...INITIAL, isLoading: true, documentId: id });
+    resetSceneEngineBinding();
     try {
       const record = await idbGetEditorRecord(id);
       if (!record) {
@@ -86,11 +97,15 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         return;
       }
       const { scene, issues } = fromAvnacDocument(record.document);
+      sceneEngineStore = createSaraswatiEditorStore(scene);
+      detachSceneEngineSubscription = sceneEngineStore.subscribe((nextState) => {
+        set({ scene: nextState.scene });
+      });
       set({
         isLoading: false,
         documentName: record.name ?? "Untitled",
         baseDocument: record.document,
-        scene,
+        scene: sceneEngineStore.getState().scene,
         adapterIssueCount: issues.length,
       });
     } catch (err) {
@@ -99,11 +114,14 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   },
 
   applyCommands: (commands: SaraswatiCommand[]) => {
-    const { scene } = get();
-    if (!scene || commands.length === 0) return;
-    let next = scene;
-    for (const cmd of commands) next = applyCommand(next, cmd);
-    set({ scene: next, hasPendingChanges: true });
+    if (!sceneEngineStore || commands.length === 0) return;
+    for (const cmd of commands) {
+      sceneEngineStore.dispatch(cmd);
+    }
+    set({
+      hasPendingChanges: true,
+      scene: sceneEngineStore.getState().scene,
+    });
   },
 
   setSelectedIds: (selectedIds: string[]) => set({ selectedIds }),
@@ -116,5 +134,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     set({ hasPendingChanges: false });
   },
 
-  reset: () => set(INITIAL),
+  reset: () => {
+    resetSceneEngineBinding();
+    set(INITIAL);
+  },
 }));

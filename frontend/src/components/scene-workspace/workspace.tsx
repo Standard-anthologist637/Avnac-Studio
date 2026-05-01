@@ -2,10 +2,10 @@ import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import type { RendererBackend } from "@/lib/renderer";
 import {
   applyCommand,
-  fromAvnacDocument,
   type SaraswatiCommand,
   type SaraswatiScene,
 } from "@/lib/saraswati";
+import { fromAvnacDocument } from "@/lib/saraswati/compat/from-fabric";
 import { createEmptySaraswatiScene } from "@/lib/saraswati/scene";
 import { useEffect, useMemo, useRef } from "react";
 import SceneWorkspaceStage from "./stage";
