@@ -4,7 +4,7 @@ import {
   type AvnacDocumentV1,
 } from "../../src/lib/avnac-document";
 import { buildRenderCommands } from "../../src/lib/saraswati/render/commands";
-import { fromAvnacDocument } from "../../src/lib/saraswati/compat/from-fabric";
+import { fromAvnacDocument } from "../../src/lib/saraswati/compat/legacy/from-fabric";
 
 function makeBaseDocument(): AvnacDocumentV1 {
   return {

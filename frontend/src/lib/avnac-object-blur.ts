@@ -1,6 +1,7 @@
 import type { Canvas, FabricObject, Group } from 'fabric'
 
 const PATCH_KEY = '__avnacObjectCanvasBlurInstalled__'
+const installedFabricModules = new WeakSet<object>()
 
 /** Same scale previously used for FabricImage `filters.Blur` (0–1 → UI %). */
 const LEGACY_IMAGE_BLUR_UI_MAX = 0.35
@@ -97,6 +98,8 @@ export function installAvnacObjectCanvasBlur(
   mod: typeof import('fabric'),
 ): void {
   try {
+    if (installedFabricModules.has(mod as unknown as object)) return
+
     const bag = mod as typeof mod & { [PATCH_KEY]?: boolean }
     if (bag[PATCH_KEY]) return
 
@@ -126,7 +129,14 @@ export function installAvnacObjectCanvasBlur(
       patchDrawObject(mod.Group.prototype)
     }
 
-    bag[PATCH_KEY] = true
+    installedFabricModules.add(mod as unknown as object)
+
+    // Backward-compat marker for older code paths; tolerate readonly module bags.
+    try {
+      bag[PATCH_KEY] = true
+    } catch {
+      /* ignore */
+    }
   } catch (err) {
     console.error('[avnac] installAvnacObjectCanvasBlur failed', err)
   }

@@ -1,5 +1,7 @@
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import { AVNAC_DOC_VERSION, parseAvnacDocument } from "@/lib/avnac-document";
+import { fromAvnacV2Document } from "@/lib/saraswati/compat/from-avnac-v2";
+import { toAvnacDocument } from "@/lib/saraswati/compat/to-avnac";
 
 export const AVNAC_MULTI_PAGE_DOC_KIND = "avnac-multi-page-document" as const;
 export const AVNAC_MULTI_PAGE_DOC_VERSION = 1 as const;
@@ -75,6 +77,13 @@ export function parseAvnacImport(raw: unknown): ParsedAvnacImport | null {
 
   const multi = parseMultiPageDocument(raw);
   if (multi) return { kind: "multi", document: multi };
+
+  // Try V2 (web schema) — convert to V1 for desktop storage
+  const v2Scene = fromAvnacV2Document(raw);
+  if (v2Scene) {
+    const v1Doc = toAvnacDocument(v2Scene);
+    return { kind: "single", document: v1Doc };
+  }
 
   return null;
 }

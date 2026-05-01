@@ -39,6 +39,10 @@ type Props = {
 export default function SceneEditorPage({ documentId }: Props) {
   const documentName = useSceneEditorStore((s) => s.documentName);
   const adapterIssueCount = useSceneEditorStore((s) => s.adapterIssueCount);
+  const adapterPipeline = useSceneEditorStore((s) => s.adapterPipeline);
+  const adapterSchemaVersion = useSceneEditorStore(
+    (s) => s.adapterSchemaVersion,
+  );
   const hasPendingChanges = useSceneEditorStore((s) => s.hasPendingChanges);
   const isLoading = useSceneEditorStore((s) => s.isLoading);
   const loadError = useSceneEditorStore((s) => s.loadError);
@@ -201,7 +205,13 @@ export default function SceneEditorPage({ documentId }: Props) {
   }, []);
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-neutral-50">
+    <div
+      className="flex h-screen flex-col overflow-hidden bg-neutral-50"
+      data-avnac-adapter-pipeline={adapterPipeline}
+      data-avnac-adapter-schema={
+        adapterSchemaVersion != null ? String(adapterSchemaVersion) : "unknown"
+      }
+    >
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <header className="flex shrink-0 items-center gap-3 border-b border-black/[0.07] bg-white/95 px-4 py-2.5 backdrop-blur">
         <Link
@@ -235,6 +245,17 @@ export default function SceneEditorPage({ documentId }: Props) {
 
         <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-sky-700">
           Scene workspace
+        </span>
+
+        <span
+          className={
+            adapterPipeline === "direct-avnac"
+              ? "rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-emerald-700"
+              : "rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-amber-700"
+          }
+          title="Active Avnac adapter pipeline"
+        >
+          Adapter {adapterPipeline}
         </span>
 
         <div className="ml-auto flex items-center gap-2">
@@ -378,6 +399,14 @@ export default function SceneEditorPage({ documentId }: Props) {
               title="Total draw commands this frame."
             >
               Cmd {renderStats.commands}
+            </span>
+            <span className="hidden md:inline text-neutral-300">·</span>
+            <span
+              className="hidden md:inline"
+              title="Adapter pipeline and Avnac schema version."
+            >
+              {adapterPipeline} · schema v
+              {adapterSchemaVersion != null ? adapterSchemaVersion : "?"}
             </span>
             <button
               type="button"

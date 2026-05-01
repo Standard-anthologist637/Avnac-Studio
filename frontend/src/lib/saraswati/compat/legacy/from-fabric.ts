@@ -1,5 +1,5 @@
-import type { AvnacDocumentV1 } from "../../avnac-document";
-import type { BgValue } from "../../editor-paint";
+import type { AvnacDocumentV1 } from "../../../avnac-document";
+import type { BgValue } from "../../../editor-paint";
 import {
   createEmptySaraswatiScene,
   type SaraswatiAdapterIssue,
@@ -17,7 +17,7 @@ import {
   type SaraswatiPolygonNode,
   type SaraswatiRectNode,
   type SaraswatiTextNode,
-} from "../scene";
+} from "../../scene";
 
 const FABRIC_SERIAL_KEYS = [
   "avnacFill",

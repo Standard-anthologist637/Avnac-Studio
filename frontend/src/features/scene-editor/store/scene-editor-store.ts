@@ -14,7 +14,11 @@ import {
   type SaraswatiScene,
   type SaraswatiShadow,
 } from "@/lib/saraswati";
-import { fromAvnacDocument } from "@/lib/saraswati/compat/from-fabric";
+import {
+  fromAvnacDocumentWithDiagnostics,
+  type AvnacAdapterPipeline,
+} from "@/lib/saraswati/compat/from-avnac";
+import { toAvnacDocument } from "@/lib/saraswati/compat/to-avnac";
 import { idbGetEditorRecord, idbPutDocument } from "@/lib/avnac-editor-idb";
 import { create } from "zustand";
 import {
@@ -31,17 +35,20 @@ import {
   insertVectorBoard,
   type SceneEditorInsertContext,
 } from "./insert-store";
-import { applyClipPathCommandsToDocument } from "./persistence-store";
 
 type SceneEditorState = {
   documentId: string | null;
   documentName: string;
-  /** Original document as loaded from IDB — never mutated after load. */
+  /** Latest serializer snapshot corresponding to scene state. */
   baseDocument: AvnacDocumentV1 | null;
   /** Live scene — updated by every applied command. */
   scene: SaraswatiScene | null;
-  /** Issues from the Fabric→Saraswati adapter at load time. */
+  /** Issues emitted by the active Avnac adapter at load time. */
   adapterIssueCount: number;
+  /** Adapter pipeline used for the current loaded document. */
+  adapterPipeline: AvnacAdapterPipeline;
+  /** Avnac schema version observed at adapter boundary. */
+  adapterSchemaVersion: number | null;
   /** Currently selected node IDs in the scene. */
   selectedIds: string[];
   /** Editor-only lock state. Locked nodes cannot be transformed. */
@@ -139,14 +146,7 @@ type SceneEditorActions = {
   ) => void;
   setImageBorderRadius: (id: string, radius: number) => void;
   setPolygonSides: (id: string, sides: number, star?: boolean) => void;
-  /**
-   * Persist the current document back to IDB.
-   * NOTE: full Saraswati→AvnacDocument serialisation is not yet implemented.
-   * This currently writes the original baseDocument back (updating updatedAt)
-   * so the file stays visible in the recent list.  Scene-mutation persistence
-   * is tracked in task.md under "Connect scene workspace commands back to
-   * document persistence/history".
-   */
+  /** Persist the current scene snapshot back to IDB via serializer. */
   save: () => Promise<void>;
   reset: () => void;
 };
@@ -159,6 +159,8 @@ const INITIAL: SceneEditorState = {
   baseDocument: null,
   scene: null,
   adapterIssueCount: 0,
+  adapterPipeline: "direct-avnac",
+  adapterSchemaVersion: null,
   selectedIds: [],
   lockedIds: [],
   isLoading: false,
@@ -186,11 +188,34 @@ const INITIAL: SceneEditorState = {
 
 let sceneEngineStore: SaraswatiEditorStore | null = null;
 let detachSceneEngineSubscription: (() => void) | null = null;
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+const AUTOSAVE_DELAY_MS = 1500;
+
+function scheduleAutosave(
+  documentId: string,
+  scene: SaraswatiScene,
+): void {
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+  }
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null;
+    const doc = toAvnacDocument(scene);
+    idbPutDocument(documentId, doc).catch((err) => {
+      console.warn("[avnac] autosave failed", err);
+    });
+  }, AUTOSAVE_DELAY_MS);
+}
 
 function resetSceneEngineBinding() {
   detachSceneEngineSubscription?.();
   detachSceneEngineSubscription = null;
   sceneEngineStore = null;
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
 }
 
 function asInsertContext(state: SceneEditorStore): SceneEditorInsertContext {
@@ -214,7 +239,10 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         set({ isLoading: false, loadError: "Document not found." });
         return;
       }
-      const { scene, issues } = fromAvnacDocument(record.document);
+      const { result: adapted, diagnostics } = fromAvnacDocumentWithDiagnostics(
+        record.document,
+      );
+      const { scene, issues } = adapted;
       sceneEngineStore = createSaraswatiEditorStore(scene);
       detachSceneEngineSubscription = sceneEngineStore.subscribe(
         (nextState) => {
@@ -231,6 +259,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         baseDocument: record.document,
         scene: sceneEngineStore.getState().scene,
         adapterIssueCount: issues.length,
+        adapterPipeline: diagnostics.pipeline,
+        adapterSchemaVersion: diagnostics.schemaVersion,
         lockedIds: [],
       });
     } catch (err) {
@@ -243,11 +273,9 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     for (const cmd of commands) {
       sceneEngineStore.dispatch(cmd);
     }
-    const current = get();
-    const nextBaseDocument = current.baseDocument
-      ? applyClipPathCommandsToDocument(current.baseDocument, commands)
-      : current.baseDocument;
     const engineState = sceneEngineStore.getState();
+    const nextBaseDocument = toAvnacDocument(engineState.scene);
+    const { documentId } = get();
     set({
       hasPendingChanges: true,
       scene: engineState.scene,
@@ -255,6 +283,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       canRedo: engineState.canRedo,
       baseDocument: nextBaseDocument,
     });
+    if (documentId) scheduleAutosave(documentId, engineState.scene);
   },
 
   beginHistoryBatch: () => {
@@ -266,12 +295,15 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     if (!sceneEngineStore) return;
     sceneEngineStore.endBatch();
     const engineState = sceneEngineStore.getState();
+    const { documentId } = get();
     set({
       scene: engineState.scene,
       canUndo: engineState.canUndo,
       canRedo: engineState.canRedo,
+      baseDocument: toAvnacDocument(engineState.scene),
       hasPendingChanges: true,
     });
+    if (documentId) scheduleAutosave(documentId, engineState.scene);
   },
 
   setSelectedIds: (selectedIds: string[]) => set({ selectedIds }),
@@ -307,24 +339,30 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     if (!sceneEngineStore) return;
     sceneEngineStore.undo();
     const engineState = sceneEngineStore.getState();
+    const { documentId } = get();
     set({
       scene: engineState.scene,
       canUndo: engineState.canUndo,
       canRedo: engineState.canRedo,
+      baseDocument: toAvnacDocument(engineState.scene),
       hasPendingChanges: true,
     });
+    if (documentId) scheduleAutosave(documentId, engineState.scene);
   },
 
   redo: () => {
     if (!sceneEngineStore) return;
     sceneEngineStore.redo();
     const engineState = sceneEngineStore.getState();
+    const { documentId } = get();
     set({
       scene: engineState.scene,
       canUndo: engineState.canUndo,
       canRedo: engineState.canRedo,
+      baseDocument: toAvnacDocument(engineState.scene),
       hasPendingChanges: true,
     });
+    if (documentId) scheduleAutosave(documentId, engineState.scene);
   },
 
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
@@ -408,11 +446,12 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   },
 
   save: async () => {
-    const { documentId, baseDocument } = get();
-    if (!documentId || !baseDocument) return;
-    // Writes latest document snapshot, including scene-authored clip-path edits.
-    await idbPutDocument(documentId, baseDocument);
-    set({ hasPendingChanges: false });
+    const { documentId, scene, baseDocument } = get();
+    if (!documentId) return;
+    const documentToSave = scene ? toAvnacDocument(scene) : baseDocument;
+    if (!documentToSave) return;
+    await idbPutDocument(documentId, documentToSave);
+    set({ baseDocument: documentToSave, hasPendingChanges: false });
   },
 
   reset: () => {

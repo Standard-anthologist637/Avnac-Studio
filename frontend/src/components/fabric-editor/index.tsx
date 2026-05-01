@@ -264,7 +264,7 @@ import {
   type SaraswatiEditorStore,
   type SaraswatiScene,
 } from "@/lib/saraswati";
-import { fromAvnacDocument } from "@/lib/saraswati/compat/from-fabric";
+import { fromAvnacDocument } from "@/lib/saraswati/compat/legacy/from-fabric";
 import { deriveSaraswatiCommands } from "./saraswati-command-bridge";
 
 export type { FabricEditorHandle } from "./types";

@@ -1,5 +1,5 @@
 import type { AvnacDocumentV1 } from "../avnac-document";
-import { fromAvnacDocument } from "../saraswati/compat/from-fabric";
+import { fromAvnacDocument } from "../saraswati/compat/from-avnac";
 import { buildRenderCommands } from "../saraswati/render/commands";
 import type { SaraswatiScene } from "../saraswati/scene";
 import { canvas2DRendererBackend } from "./index";
