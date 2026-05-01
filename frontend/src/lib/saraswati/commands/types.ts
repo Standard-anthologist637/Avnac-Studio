@@ -1,3 +1,4 @@
+import type { SaraswatiColor } from "../types";
 import type { SaraswatiClipPath, SaraswatiNode } from "../types";
 
 export type SaraswatiResizeHandle =
@@ -39,6 +40,46 @@ export type SaraswatiCommand =
       type: "SET_NODE_CLIP_STACK";
       id: string;
       clipPathStack: SaraswatiClipPath[];
+    }
+  | {
+      /** Resize the artboard and/or change its background. Omit fields to leave them unchanged. */
+      type: "SET_ARTBOARD";
+      width?: number;
+      height?: number;
+      bg?: SaraswatiColor;
+    }
+  | {
+      /** Set fill color/gradient on any paint node (rect, ellipse, polygon, star, text). */
+      type: "SET_NODE_FILL";
+      id: string;
+      fill: SaraswatiColor;
+    }
+  | {
+      /** Set stroke color/gradient + width on any paint node or line. */
+      type: "SET_NODE_STROKE";
+      id: string;
+      stroke: SaraswatiColor | null;
+      strokeWidth?: number;
+    }
+  | {
+      /** Set corner radius on a rect node. */
+      type: "SET_NODE_CORNER_RADIUS";
+      id: string;
+      radiusX: number;
+      radiusY: number;
+    }
+  | {
+      /** Set text formatting properties on a text node. */
+      type: "SET_TEXT_FORMAT";
+      id: string;
+      fontFamily?: string;
+      fontSize?: number;
+      fontWeight?: string;
+      fontStyle?: "normal" | "italic";
+      textAlign?: "left" | "center" | "right";
+      underline?: boolean;
+      color?: SaraswatiColor;
+      lineHeight?: number;
     };
 
 export type Command = SaraswatiCommand;

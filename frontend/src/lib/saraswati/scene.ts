@@ -1,4 +1,4 @@
-import type { BgValue } from "../editor-paint";
+import type { SaraswatiColor } from "./types";
 import {
   SARASWATI_SCENE_VERSION,
   type SaraswatiGroupNode,
@@ -27,7 +27,7 @@ export function createSaraswatiRootGroup(
 export function createEmptySaraswatiScene(input?: {
   width?: number;
   height?: number;
-  bg?: BgValue;
+  bg?: SaraswatiColor;
 }): SaraswatiScene {
   const root = createSaraswatiRootGroup();
   return {
@@ -198,7 +198,7 @@ function visitNode(
   }
 }
 
-function cloneBgValue(bg: BgValue): BgValue {
+function cloneBgValue(bg: SaraswatiColor): SaraswatiColor {
   if (bg.type === "solid") return { ...bg };
   return {
     type: "gradient",

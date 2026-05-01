@@ -1,6 +1,19 @@
-import type { BgValue } from "../editor-paint";
-
 export const SARASWATI_SCENE_VERSION = 1 as const;
+
+/**
+ * Engine-owned color/paint type. Structurally identical to `BgValue` in the
+ * UI layer — but the engine must not import from UI or renderer packages.
+ * The UI casts `BgValue` to `SaraswatiColor` at dispatch boundaries.
+ */
+export type SaraswatiColorStop = { color: string; offset: number };
+export type SaraswatiColor =
+  | { type: "solid"; color: string }
+  | {
+      type: "gradient";
+      css: string;
+      stops: SaraswatiColorStop[];
+      angle: number;
+    };
 
 export const SARASWATI_NODE_TYPES = [
   "rect",
@@ -34,8 +47,8 @@ export type SaraswatiNodeBase = {
 };
 
 export type SaraswatiPaintNodeBase = SaraswatiNodeBase & {
-  fill: BgValue;
-  stroke: BgValue | null;
+  fill: SaraswatiColor;
+  stroke: SaraswatiColor | null;
   strokeWidth: number;
 };
 
@@ -93,7 +106,7 @@ export type SaraswatiLineNode = SaraswatiNodeBase & {
   y1: number;
   x2: number;
   y2: number;
-  stroke: BgValue;
+  stroke: SaraswatiColor;
   strokeWidth: number;
   arrowStart: boolean;
   arrowEnd: boolean;
@@ -116,8 +129,8 @@ export type SaraswatiTextNode = SaraswatiNodeBase & {
   textAlign: "left" | "center" | "right";
   lineHeight: number;
   underline: boolean;
-  color: BgValue;
-  stroke: BgValue | null;
+  color: SaraswatiColor;
+  stroke: SaraswatiColor | null;
   strokeWidth: number;
   clipPath?: SaraswatiClipPath | null;
   clipPathStack?: SaraswatiClipPath[];
@@ -164,7 +177,7 @@ export type SaraswatiRenderableNode =
 export type SaraswatiSceneArtboard = {
   width: number;
   height: number;
-  bg: BgValue;
+  bg: SaraswatiColor;
 };
 
 export type SaraswatiScene = {

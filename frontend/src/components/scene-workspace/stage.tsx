@@ -13,7 +13,13 @@ import type {
 import type { SaraswatiResizeHandle } from "@/lib/saraswati/commands/types";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import { getNodeBounds } from "@/lib/saraswati/spatial";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
+
+export type SceneWorkspaceRenderStats = {
+  ms: number;
+  commands: number;
+  duplicateCommands: number;
+};
 
 type Props = {
   scene: SaraswatiScene;
@@ -42,6 +48,7 @@ type Props = {
     y: number,
   ) => void;
   onCreateClipPath?: (nodeId: string, bounds: SaraswatiBounds) => void;
+  onRenderStats?: (stats: SceneWorkspaceRenderStats) => void;
   hoveredId?: string | null;
   guides?: readonly SaraswatiGuideLine[];
   measurement?: SaraswatiMeasurement | null;
@@ -77,16 +84,12 @@ export default function SceneWorkspaceStage({
   onHandlePointerDown,
   onClipHandlePointerDown,
   onCreateClipPath,
+  onRenderStats,
   hoveredId,
   guides = [],
   measurement,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [renderStats, setRenderStats] = useState({
-    ms: 0,
-    commands: 0,
-    duplicateCommands: 0,
-  });
 
   const selectedBounds = useMemo(() => {
     const result: { id: string; bounds: SaraswatiBounds }[] = [];
@@ -173,7 +176,7 @@ export default function SceneWorkspaceStage({
         if (count > 1) duplicateCommands += count - 1;
       }
       if (!cancelled) {
-        setRenderStats({
+        onRenderStats?.({
           ms: end - start,
           commands: commands.length,
           duplicateCommands,
@@ -191,7 +194,7 @@ export default function SceneWorkspaceStage({
       cancelled = true;
       window.cancelAnimationFrame(frameId);
     };
-  }, [backend, scene]);
+  }, [backend, onRenderStats, scene]);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
     if (!interactive) return;
@@ -356,10 +359,6 @@ export default function SceneWorkspaceStage({
             </div>
           </>
         ) : null}
-      </div>
-      <div className="pointer-events-none absolute bottom-2 right-2 rounded-md border border-black/10 bg-black/70 px-2 py-1 text-[10px] font-medium tracking-wide text-white">
-        Render {renderStats.ms.toFixed(1)}ms · Cmds {renderStats.commands} · Dup{" "}
-        {renderStats.duplicateCommands}
       </div>
       {selectedBounds.map(({ id: nodeId, bounds }) => (
         <div

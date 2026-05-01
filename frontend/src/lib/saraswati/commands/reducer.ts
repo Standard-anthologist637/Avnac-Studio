@@ -1,3 +1,4 @@
+import type { SaraswatiColor } from "../types";
 import {
   cloneSaraswatiScene,
   isSaraswatiRenderableNode,
@@ -47,6 +48,26 @@ export function applyCommand(
       return setNodeClipPath(scene, command.id, command.clipPath);
     case "SET_NODE_CLIP_STACK":
       return setNodeClipStack(scene, command.id, command.clipPathStack);
+    case "SET_ARTBOARD":
+      return setArtboard(scene, command.width, command.height, command.bg);
+    case "SET_NODE_FILL":
+      return setNodeFill(scene, command.id, command.fill);
+    case "SET_NODE_STROKE":
+      return setNodeStroke(
+        scene,
+        command.id,
+        command.stroke,
+        command.strokeWidth,
+      );
+    case "SET_NODE_CORNER_RADIUS":
+      return setNodeCornerRadius(
+        scene,
+        command.id,
+        command.radiusX,
+        command.radiusY,
+      );
+    case "SET_TEXT_FORMAT":
+      return setTextFormat(scene, command.id, command);
     default:
       return scene;
   }
@@ -384,6 +405,28 @@ function setNodeClipStack(
   return next;
 }
 
+function setArtboard(
+  scene: SaraswatiScene,
+  width?: number,
+  height?: number,
+  bg?: SaraswatiColor,
+): SaraswatiScene {
+  const nextW = width != null && width > 0 ? width : scene.artboard.width;
+  const nextH = height != null && height > 0 ? height : scene.artboard.height;
+  const nextBg = bg ?? scene.artboard.bg;
+  if (
+    nextW === scene.artboard.width &&
+    nextH === scene.artboard.height &&
+    nextBg === scene.artboard.bg
+  ) {
+    return scene;
+  }
+  return {
+    ...scene,
+    artboard: { ...scene.artboard, width: nextW, height: nextH, bg: nextBg },
+  };
+}
+
 function moveNodeRecursive(
   nodes: Record<string, SaraswatiNode>,
   nodeId: string,
@@ -438,4 +481,94 @@ function collectSubtreeIds(
     nodeId,
     ...node.children.flatMap((childId) => collectSubtreeIds(nodes, childId)),
   ];
+}
+
+function setNodeFill(
+  scene: SaraswatiScene,
+  nodeId: string,
+  fill: SaraswatiColor,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node) return scene;
+  if (node.type === "image" || node.type === "group" || node.type === "line") {
+    return scene;
+  }
+  const next = cloneSaraswatiScene(scene);
+  // Safe: we've already excluded image, group, and line above.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  next.nodes[nodeId] = { ...(node as any), fill } as SaraswatiNode;
+  return next;
+}
+
+function setNodeStroke(
+  scene: SaraswatiScene,
+  nodeId: string,
+  stroke: SaraswatiColor | null,
+  strokeWidth?: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type === "image" || node.type === "group") return scene;
+  const next = cloneSaraswatiScene(scene);
+  if (node.type === "line") {
+    const nextStroke = stroke ?? node.stroke;
+    next.nodes[nodeId] = {
+      ...node,
+      stroke: nextStroke,
+      strokeWidth: strokeWidth ?? node.strokeWidth,
+    };
+  } else {
+    next.nodes[nodeId] = {
+      ...node,
+      stroke: stroke,
+      strokeWidth: strokeWidth ?? node.strokeWidth,
+    };
+  }
+  return next;
+}
+
+function setNodeCornerRadius(
+  scene: SaraswatiScene,
+  nodeId: string,
+  radiusX: number,
+  radiusY: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type !== "rect") return scene;
+  const clampedX = Math.max(0, radiusX);
+  const clampedY = Math.max(0, radiusY);
+  if (node.radiusX === clampedX && node.radiusY === clampedY) return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, radiusX: clampedX, radiusY: clampedY };
+  return next;
+}
+
+function setTextFormat(
+  scene: SaraswatiScene,
+  nodeId: string,
+  patch: {
+    fontFamily?: string;
+    fontSize?: number;
+    fontWeight?: string;
+    fontStyle?: "normal" | "italic";
+    textAlign?: "left" | "center" | "right";
+    underline?: boolean;
+    color?: SaraswatiColor;
+    lineHeight?: number;
+  },
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type !== "text") return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = {
+    ...node,
+    ...(patch.fontFamily !== undefined && { fontFamily: patch.fontFamily }),
+    ...(patch.fontSize !== undefined && { fontSize: patch.fontSize }),
+    ...(patch.fontWeight !== undefined && { fontWeight: patch.fontWeight }),
+    ...(patch.fontStyle !== undefined && { fontStyle: patch.fontStyle }),
+    ...(patch.textAlign !== undefined && { textAlign: patch.textAlign }),
+    ...(patch.underline !== undefined && { underline: patch.underline }),
+    ...(patch.color !== undefined && { color: patch.color }),
+    ...(patch.lineHeight !== undefined && { lineHeight: patch.lineHeight }),
+  };
+  return next;
 }
