@@ -10,6 +10,7 @@ import type {
   SaraswatiNodeOriginX,
   SaraswatiNodeOriginY,
 } from "../types";
+import { getNodeBounds, type SaraswatiBounds } from "../spatial";
 import type { SaraswatiCommand } from "./types";
 
 export function applyCommand(
@@ -118,6 +119,26 @@ function rotateNode(
   const node = scene.nodes[nodeId];
   if (!node || nodeId === scene.root) return scene;
   const next = cloneSaraswatiScene(scene);
+  if (node.type === "line") {
+    const centerX = (node.x1 + node.x2) / 2;
+    const centerY = (node.y1 + node.y2) / 2;
+    const halfDx = (node.x2 - node.x1) / 2;
+    const halfDy = (node.y2 - node.y1) / 2;
+    const length = Math.hypot(halfDx * 2, halfDy * 2);
+    const halfLength = Math.max(0.5, length / 2);
+    const rad = (rotation * Math.PI) / 180;
+    const ux = Math.cos(rad);
+    const uy = Math.sin(rad);
+    next.nodes[nodeId] = {
+      ...node,
+      rotation,
+      x1: centerX - ux * halfLength,
+      y1: centerY - uy * halfLength,
+      x2: centerX + ux * halfLength,
+      y2: centerY + uy * halfLength,
+    };
+    return next;
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   next.nodes[nodeId] = { ...(node as any), rotation } as SaraswatiNode;
   return next;
@@ -312,7 +333,10 @@ function resizeNode(
   bh: number,
 ): SaraswatiScene {
   const node = scene.nodes[nodeId];
-  if (!node || node.type === "group") return scene;
+  if (!node) return scene;
+  if (node.type === "group") {
+    return resizeGroupNode(scene, nodeId, bx, by, bw, bh);
+  }
   const clamped = { bx, by, bw: Math.max(1, bw), bh: Math.max(1, bh) };
   const next = cloneSaraswatiScene(scene);
   if (node.type === "line") {
@@ -354,6 +378,26 @@ function resizeNode(
     };
     return next;
   }
+  if (node.type === "polygon") {
+    const prevW = Math.max(1, node.width);
+    const prevH = Math.max(1, node.height);
+    const nextW = clamped.bw / node.scaleX;
+    const nextH = clamped.bh / node.scaleY;
+    const sx = nextW / prevW;
+    const sy = nextH / prevH;
+    next.nodes[nodeId] = {
+      ...node,
+      x: nx,
+      y: ny,
+      width: nextW,
+      height: nextH,
+      points: node.points.map((point) => ({
+        x: point.x * sx,
+        y: point.y * sy,
+      })),
+    };
+    return next;
+  }
   next.nodes[nodeId] = {
     ...node,
     x: nx,
@@ -362,6 +406,144 @@ function resizeNode(
     height: clamped.bh / node.scaleY,
   } as SaraswatiNode;
   return next;
+}
+
+function resizeGroupNode(
+  scene: SaraswatiScene,
+  groupId: string,
+  bx: number,
+  by: number,
+  bw: number,
+  bh: number,
+): SaraswatiScene {
+  const group = scene.nodes[groupId];
+  if (!group || group.type !== "group") return scene;
+  const sourceBounds = getGroupBounds(scene, groupId, new Set<string>());
+  if (!sourceBounds || sourceBounds.width <= 0 || sourceBounds.height <= 0) {
+    return scene;
+  }
+
+  const target = {
+    x: bx,
+    y: by,
+    width: Math.max(1, bw),
+    height: Math.max(1, bh),
+  };
+  const sx = target.width / sourceBounds.width;
+  const sy = target.height / sourceBounds.height;
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return scene;
+
+  const next = cloneSaraswatiScene(scene);
+  const descendants = collectRenderableDescendants(scene, groupId, new Set());
+
+  for (const id of descendants) {
+    const node = next.nodes[id];
+    if (!node || !isSaraswatiRenderableNode(node)) continue;
+    if (node.type === "line") {
+      next.nodes[id] = {
+        ...node,
+        x1: target.x + (node.x1 - sourceBounds.x) * sx,
+        y1: target.y + (node.y1 - sourceBounds.y) * sy,
+        x2: target.x + (node.x2 - sourceBounds.x) * sx,
+        y2: target.y + (node.y2 - sourceBounds.y) * sy,
+      };
+      continue;
+    }
+
+    const nodeBounds = getNodeBounds(node);
+    const mappedBounds = {
+      x: target.x + (nodeBounds.x - sourceBounds.x) * sx,
+      y: target.y + (nodeBounds.y - sourceBounds.y) * sy,
+      width: Math.max(1, nodeBounds.width * sx),
+      height: Math.max(1, nodeBounds.height * sy),
+    };
+
+    const nx = boundsToAnchorX(
+      mappedBounds.x,
+      node.originX,
+      mappedBounds.width,
+    );
+    const ny = boundsToAnchorY(
+      mappedBounds.y,
+      node.originY,
+      mappedBounds.height,
+    );
+
+    if (node.type === "text") {
+      next.nodes[id] = {
+        ...node,
+        x: nx,
+        y: ny,
+        width: mappedBounds.width / node.scaleX,
+      };
+      continue;
+    }
+
+    next.nodes[id] = {
+      ...node,
+      x: nx,
+      y: ny,
+      width: mappedBounds.width / node.scaleX,
+      height: mappedBounds.height / node.scaleY,
+    } as SaraswatiNode;
+  }
+
+  return next;
+}
+
+function collectRenderableDescendants(
+  scene: SaraswatiScene,
+  nodeId: string,
+  visited: Set<string>,
+): string[] {
+  if (visited.has(nodeId)) return [];
+  visited.add(nodeId);
+  const node = scene.nodes[nodeId];
+  if (!node || node.visible === false) return [];
+  if (isSaraswatiRenderableNode(node)) return [nodeId];
+  if (node.type !== "group") return [];
+
+  const result: string[] = [];
+  for (const childId of node.children) {
+    result.push(...collectRenderableDescendants(scene, childId, visited));
+  }
+  return result;
+}
+
+function getGroupBounds(
+  scene: SaraswatiScene,
+  nodeId: string,
+  visited: Set<string>,
+): SaraswatiBounds | null {
+  if (visited.has(nodeId)) return null;
+  visited.add(nodeId);
+
+  const node = scene.nodes[nodeId];
+  if (!node || node.visible === false) return null;
+  if (isSaraswatiRenderableNode(node)) return getNodeBounds(node);
+  if (node.type !== "group") return null;
+
+  let bounds: SaraswatiBounds | null = null;
+  for (const childId of node.children) {
+    const childBounds = getGroupBounds(scene, childId, visited);
+    if (!childBounds) continue;
+    if (!bounds) {
+      bounds = childBounds;
+      continue;
+    }
+    const x1 = Math.min(bounds.x, childBounds.x);
+    const y1 = Math.min(bounds.y, childBounds.y);
+    const x2 = Math.max(
+      bounds.x + bounds.width,
+      childBounds.x + childBounds.width,
+    );
+    const y2 = Math.max(
+      bounds.y + bounds.height,
+      childBounds.y + childBounds.height,
+    );
+    bounds = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+  }
+  return bounds;
 }
 
 function boundsToAnchorX(

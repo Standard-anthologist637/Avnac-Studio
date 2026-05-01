@@ -187,13 +187,12 @@ export default function SceneEditorCanvas() {
             viewScale={scale}
             interactive={!inlineTextEdit}
             selectedIds={selectedIds}
-            hiddenNodeIds={
-              inlineTextEdit ? [inlineTextEdit.nodeId] : undefined
-            }
+            hiddenNodeIds={inlineTextEdit ? [inlineTextEdit.nodeId] : undefined}
             lockedIds={lockedIds}
             hoveredId={interactions.hoveredId}
             guides={interactions.guides}
             measurement={interactions.measurement}
+            interactionCursor={interactions.activeCursor}
             onScenePointerDown={interactions.onPointerDown}
             onScenePointerMove={interactions.onPointerMove}
             onScenePointerUp={interactions.onPointerUp}
@@ -201,6 +200,7 @@ export default function SceneEditorCanvas() {
             onHandlePointerDown={interactions.onHandlePointerDown}
             onRotateHandlePointerDown={interactions.onRotateHandlePointerDown}
             onClipHandlePointerDown={interactions.onClipHandlePointerDown}
+            onCurveHandlePointerDown={interactions.onCurveHandlePointerDown}
             onCreateClipPath={interactions.onCreateClipPath}
             onSceneDoubleClick={onSceneDoubleClick}
             marqueeBounds={interactions.marqueeBounds}

@@ -12,8 +12,9 @@
  *
  * All mutations go through Saraswati commands — no direct state ownership.
  */
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  ArrowDown01Icon,
   CropIcon,
   Delete02Icon,
   UngroupItemsIcon,
@@ -111,7 +112,29 @@ export default function SceneSelectionBar() {
   );
   const setPolygonSides = useSceneEditorStore((s) => s.setPolygonSides);
   const barRef = useRef<HTMLDivElement>(null);
+  const lineMenuRef = useRef<HTMLDivElement>(null);
   const [cropModalNodeId, setCropModalNodeId] = useState<string | null>(null);
+  const [lineMenuOpen, setLineMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!lineMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target || !lineMenuRef.current) return;
+      if (!lineMenuRef.current.contains(target)) {
+        setLineMenuOpen(false);
+      }
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setLineMenuOpen(false);
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onEscape);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onEscape);
+    };
+  }, [lineMenuOpen]);
 
   if (!scene) return null;
 
@@ -225,7 +248,7 @@ export default function SceneSelectionBar() {
       return (
         <BarShell barRef={barRef} focusMode={focusMode}>
           <FloatingToolbarShell role="toolbar" aria-label="Rectangle options">
-            <div className="flex items-center py-1 pl-2 pr-1">
+            <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
               <PaintPopoverControl
                 compact
                 value={toPaint(rectNode.fill)}
@@ -308,7 +331,7 @@ export default function SceneSelectionBar() {
             role="toolbar"
             aria-label={`${NODE_TYPE_LABEL[node.type] ?? node.type} options`}
           >
-            <div className="flex items-center py-1 pl-2 pr-1">
+            <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
               <PaintPopoverControl
                 compact
                 value={toPaint(paintNode.fill)}
@@ -387,10 +410,42 @@ export default function SceneSelectionBar() {
     if (node.type === "line") {
       const lineNode = node as SaraswatiLineNode;
       const opacityPct = Math.round((lineNode.opacity ?? 1) * 100);
+      const applyLinePatch = (
+        patch: Partial<
+          Pick<
+            SaraswatiLineNode,
+            | "pathType"
+            | "curveBulge"
+            | "curveT"
+            | "strokeWidth"
+            | "arrowStart"
+            | "arrowEnd"
+          >
+        >,
+      ) => {
+        const nextPathType = patch.pathType ?? lineNode.pathType;
+        applyCommands([
+          {
+            type: "REPLACE_NODE",
+            node: {
+              ...lineNode,
+              ...patch,
+              lineStyle: "solid",
+              pathType: nextPathType,
+              curveBulge:
+                nextPathType === "straight"
+                  ? 0
+                  : (patch.curveBulge ?? lineNode.curveBulge ?? 60),
+              curveT: patch.curveT ?? lineNode.curveT ?? 0.5,
+            },
+          },
+        ]);
+      };
+
       return (
         <BarShell barRef={barRef} focusMode={focusMode}>
           <FloatingToolbarShell role="toolbar" aria-label="Line options">
-            <div className="flex items-center py-1 pl-2 pr-1">
+            <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
               <PaintPopoverControl
                 compact
                 value={toPaint(lineNode.stroke)}
@@ -401,24 +456,170 @@ export default function SceneSelectionBar() {
                 ariaLabel="Stroke color and gradient"
               />
               <FloatingToolbarDivider />
-              <BlurToolbarControl
-                blurPct={lineNode.blur ?? 0}
-                onChange={(b) => setNodeBlur(nodeId, b)}
-              />
+              <div className="flex items-center gap-2 px-2">
+                <label
+                  htmlFor="scene-line-mode"
+                  className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
+                >
+                  Mode
+                </label>
+                <select
+                  id="scene-line-mode"
+                  value={lineNode.pathType}
+                  onChange={(e) =>
+                    applyLinePatch({
+                      pathType: e.target.value as "straight" | "curved",
+                    })
+                  }
+                  className="h-8 rounded-lg border border-black/10 bg-white px-2 text-xs text-neutral-800 outline-none focus:border-black/20"
+                  aria-label="Line mode"
+                >
+                  <option value="straight">Straight</option>
+                  <option value="curved">Curved</option>
+                </select>
+              </div>
               <FloatingToolbarDivider />
-              <TransparencyToolbarPopover
-                opacityPct={opacityPct}
-                onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
-              />
+              <div className="flex items-center gap-2 px-2">
+                <label
+                  htmlFor="scene-line-weight"
+                  className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
+                >
+                  Weight
+                </label>
+                <input
+                  id="scene-line-weight"
+                  type="range"
+                  min={1}
+                  max={32}
+                  step={1}
+                  value={Math.max(1, Math.round(lineNode.strokeWidth))}
+                  onChange={(e) =>
+                    applyLinePatch({ strokeWidth: Number(e.target.value) })
+                  }
+                  className="h-7 w-24"
+                  aria-label="Line weight"
+                />
+              </div>
               <FloatingToolbarDivider />
-              <ShadowToolbarPopover
-                value={toFabricShadow(
-                  lineNode.shadow ??
-                    (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
-                )}
-                shadowActive={Boolean(lineNode.shadow)}
-                onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
-              />
+              <div ref={lineMenuRef} className="relative">
+                <button
+                  type="button"
+                  title="More line controls"
+                  aria-label="More line controls"
+                  aria-expanded={lineMenuOpen}
+                  aria-haspopup="menu"
+                  className={floatingToolbarIconButton(lineMenuOpen)}
+                  onClick={() => setLineMenuOpen((open) => !open)}
+                >
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    size={16}
+                    strokeWidth={1.75}
+                  />
+                </button>
+                {lineMenuOpen ? (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-black/8 bg-white p-3 shadow-[0_12px_30px_rgba(0,0,0,0.14)]">
+                    <div className="mb-2 grid gap-2">
+                      <BlurToolbarControl
+                        blurPct={lineNode.blur ?? 0}
+                        onChange={(b) => setNodeBlur(nodeId, b)}
+                      />
+                      <TransparencyToolbarPopover
+                        opacityPct={opacityPct}
+                        onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                      />
+                      <ShadowToolbarPopover
+                        value={toFabricShadow(
+                          lineNode.shadow ??
+                            (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                        )}
+                        shadowActive={Boolean(lineNode.shadow)}
+                        onChange={(s) =>
+                          setNodeShadow(nodeId, fromFabricShadow(s))
+                        }
+                      />
+                    </div>
+                    {lineNode.pathType === "curved" ? (
+                      <>
+                        <div className="mb-2 flex items-center gap-2">
+                          <label
+                            htmlFor="scene-line-bulge"
+                            className="w-12 text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
+                          >
+                            Bulge
+                          </label>
+                          <input
+                            id="scene-line-bulge"
+                            type="range"
+                            min={-2400}
+                            max={2400}
+                            step={1}
+                            value={Math.round(lineNode.curveBulge ?? 0)}
+                            onChange={(e) =>
+                              applyLinePatch({
+                                curveBulge: Number(e.target.value),
+                              })
+                            }
+                            className="h-7 w-full"
+                            aria-label="Line curve bulge"
+                          />
+                        </div>
+                        <div className="mb-2 flex items-center gap-2">
+                          <label
+                            htmlFor="scene-line-t"
+                            className="w-12 text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
+                          >
+                            T
+                          </label>
+                          <input
+                            id="scene-line-t"
+                            type="range"
+                            min={-4}
+                            max={5}
+                            step={0.01}
+                            value={lineNode.curveT ?? 0.5}
+                            onChange={(e) =>
+                              applyLinePatch({ curveT: Number(e.target.value) })
+                            }
+                            className="h-7 w-full"
+                            aria-label="Line curve position"
+                          />
+                        </div>
+                      </>
+                    ) : null}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className={[
+                          "h-8 rounded-md border px-2 text-[11px] font-semibold",
+                          lineNode.arrowStart
+                            ? "border-sky-500/70 bg-sky-50 text-sky-700"
+                            : "border-black/10 bg-white text-neutral-600 hover:bg-neutral-50",
+                        ].join(" ")}
+                        onClick={() =>
+                          applyLinePatch({ arrowStart: !lineNode.arrowStart })
+                        }
+                      >
+                        Start head
+                      </button>
+                      <button
+                        type="button"
+                        className={[
+                          "h-8 rounded-md border px-2 text-[11px] font-semibold",
+                          lineNode.arrowEnd
+                            ? "border-sky-500/70 bg-sky-50 text-sky-700"
+                            : "border-black/10 bg-white text-neutral-600 hover:bg-neutral-50",
+                        ].join(" ")}
+                        onClick={() =>
+                          applyLinePatch({ arrowEnd: !lineNode.arrowEnd })
+                        }
+                      >
+                        End head
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <FloatingToolbarDivider />
               <DeleteBtn onClick={handleDelete} />
             </div>
@@ -433,7 +634,7 @@ export default function SceneSelectionBar() {
       return (
         <BarShell barRef={barRef} focusMode={focusMode}>
           <FloatingToolbarShell role="toolbar" aria-label="Selection">
-            <div className="flex items-center py-1 pl-2 pr-1">
+            <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
               <span className="px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
                 {node.name ?? "Group"}
               </span>
@@ -494,7 +695,7 @@ export default function SceneSelectionBar() {
         <>
           <BarShell barRef={barRef} focusMode={focusMode}>
             <FloatingToolbarShell role="toolbar" aria-label="Image options">
-              <div className="flex items-center py-1 pl-2 pr-1">
+              <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
                 <button
                   type="button"
                   onClick={() => setCropModalNodeId(nodeId)}
@@ -567,7 +768,7 @@ export default function SceneSelectionBar() {
     return (
       <BarShell barRef={barRef} focusMode={focusMode}>
         <FloatingToolbarShell role="toolbar" aria-label="Selection">
-          <div className="flex items-center py-1 pl-2 pr-1">
+          <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
             <span className="px-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
               {label}
             </span>
@@ -603,7 +804,7 @@ export default function SceneSelectionBar() {
     return (
       <BarShell barRef={barRef} focusMode={focusMode}>
         <FloatingToolbarShell role="toolbar" aria-label="Selection">
-          <div className="flex items-center py-1 pl-3 pr-1">
+          <div className="flex items-center py-1.5 pl-3 pr-1.5">
             <span className="text-[13px] font-medium text-neutral-600">
               {selectedIds.length} items
             </span>
@@ -619,7 +820,7 @@ export default function SceneSelectionBar() {
   return (
     <BarShell barRef={barRef} focusMode={focusMode}>
       <FloatingToolbarShell role="toolbar" aria-label="Artboard">
-        <div className="flex items-center py-1 pl-2 pr-1">
+        <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
           <ArtboardResizeToolbarControl
             width={scene.artboard.width}
             height={scene.artboard.height}
@@ -657,13 +858,13 @@ function BarShell({
       data-avnac-chrome
       ref={barRef}
       className={[
-        "pointer-events-auto relative z-[80] flex h-14 w-full shrink-0 items-center justify-center px-1 transition-opacity duration-150 sm:px-2",
+        "pointer-events-none absolute inset-x-0 top-3 z-80 flex h-14 items-center justify-center px-2 transition-opacity duration-150",
         focusMode ? "pointer-events-none opacity-0" : "",
       ]
         .filter(Boolean)
         .join(" ")}
     >
-      {children}
+      <div className="pointer-events-auto">{children}</div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selection-toolbar";
 import { isSaraswatiRenderableNode, type SaraswatiNode } from "@/lib/saraswati";
+import { getRenderableNodeBounds } from "@/lib/editor/overlays";
 import { getNodeBounds } from "@/lib/saraswati/spatial";
 import { useSceneEditorStore } from "./store";
 
@@ -84,9 +85,8 @@ export function useSceneSelectionActions() {
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const id of selectedIds) {
-      const node = scene.nodes[id];
-      if (!node || !isSaraswatiRenderableNode(node)) continue;
-      const bounds = getNodeBounds(node);
+      const bounds = getRenderableNodeBounds(scene, id);
+      if (!bounds) continue;
       if (bounds.x < minX) minX = bounds.x;
       if (bounds.y < minY) minY = bounds.y;
       if (bounds.x + bounds.width > maxX) maxX = bounds.x + bounds.width;

@@ -63,15 +63,13 @@ export function snapDeltaToGrid(
 
 export function getNodeBounds(node: SaraswatiRenderableNode): SaraswatiBounds {
   if (node.type === "line") {
-    const halfStroke =
-      Math.max(1, node.strokeWidth * Math.max(node.scaleX, node.scaleY)) / 2;
-    const x = Math.min(node.x1, node.x2);
-    const y = Math.min(node.y1, node.y2);
+    const metrics = lineGeometryMetrics(node);
+    const hitPadding = metrics.halfStroke + metrics.arrowPad;
     return {
-      x: x - halfStroke,
-      y: y - halfStroke,
-      width: Math.max(1, Math.abs(node.x2 - node.x1) + halfStroke * 2),
-      height: Math.max(1, Math.abs(node.y2 - node.y1) + halfStroke * 2),
+      x: metrics.minX - hitPadding,
+      y: metrics.minY - hitPadding,
+      width: Math.max(1, metrics.maxX - metrics.minX + hitPadding * 2),
+      height: Math.max(1, metrics.maxY - metrics.minY + hitPadding * 2),
     };
   }
   const width = node.type === "text" ? Math.max(1, node.width) : node.width;
@@ -145,19 +143,172 @@ function pointHitsNode(
       height: scaledHeight,
     });
   }
-  const tolerance = Math.max(
-    6,
-    node.strokeWidth * Math.max(node.scaleX, node.scaleY),
-  );
-  const distance = pointToSegmentDistance(
-    point.x,
-    point.y,
-    node.x1,
-    node.y1,
-    node.x2,
-    node.y2,
-  );
-  return distance <= tolerance / 2;
+  const metrics = lineGeometryMetrics(node);
+  const tolerance = Math.max(6, metrics.halfStroke * 1.35 + 2);
+  const hitDistance =
+    node.pathType === "curved" && node.curveBulge !== 0
+      ? pointToPolylineDistance(point.x, point.y, metrics.samples)
+      : pointToSegmentDistance(
+          point.x,
+          point.y,
+          node.x1,
+          node.y1,
+          node.x2,
+          node.y2,
+        );
+  if (hitDistance <= tolerance / 2) return true;
+
+  // Arrowheads should also be easy to pick.
+  if (node.arrowStart || node.arrowEnd) {
+    const arrowLen = lineArrowheadLength(node.strokeWidth);
+    const spread = Math.PI / 7 + 0.35;
+    if (node.arrowEnd) {
+      const from = metrics.curved
+        ? { x: metrics.cpX, y: metrics.cpY }
+        : { x: node.x1, y: node.y1 };
+      if (
+        pointHitsArrowWedge(
+          point.x,
+          point.y,
+          node.x2,
+          node.y2,
+          from.x,
+          from.y,
+          arrowLen + tolerance,
+          spread,
+        )
+      ) {
+        return true;
+      }
+    }
+    if (node.arrowStart) {
+      const from = metrics.curved
+        ? { x: metrics.cpX, y: metrics.cpY }
+        : { x: node.x2, y: node.y2 };
+      if (
+        pointHitsArrowWedge(
+          point.x,
+          point.y,
+          node.x1,
+          node.y1,
+          from.x,
+          from.y,
+          arrowLen + tolerance,
+          spread,
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function lineArrowheadLength(strokeWidth: number) {
+  const raw = Math.max(1, strokeWidth) * 2.25;
+  return Math.max(5, Math.min(72, raw));
+}
+
+function lineGeometryMetrics(node: Extract<SaraswatiRenderableNode, { type: "line" }>) {
+  const curved = node.pathType === "curved" && node.curveBulge !== 0;
+  const dx = node.x2 - node.x1;
+  const dy = node.y2 - node.y1;
+  let cpX = (node.x1 + node.x2) / 2;
+  let cpY = (node.y1 + node.y2) / 2;
+  const samples: Array<{ x: number; y: number }> = [];
+  if (curved) {
+    const L = Math.hypot(dx, dy);
+    if (L > 0) {
+      const perpX = -dy / L;
+      const perpY = dx / L;
+      cpX = node.x1 + node.curveT * dx + node.curveBulge * perpX;
+      cpY = node.y1 + node.curveT * dy + node.curveBulge * perpY;
+    }
+  }
+
+  if (curved) {
+    const steps = 24;
+    for (let i = 0; i <= steps; i += 1) {
+      const t = i / steps;
+      const omt = 1 - t;
+      samples.push({
+        x: omt * omt * node.x1 + 2 * omt * t * cpX + t * t * node.x2,
+        y: omt * omt * node.y1 + 2 * omt * t * cpY + t * t * node.y2,
+      });
+    }
+  } else {
+    samples.push({ x: node.x1, y: node.y1 }, { x: node.x2, y: node.y2 });
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const p of samples) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x);
+    maxY = Math.max(maxY, p.y);
+  }
+
+  return {
+    curved,
+    cpX,
+    cpY,
+    samples,
+    minX,
+    minY,
+    maxX,
+    maxY,
+    halfStroke: Math.max(1, node.strokeWidth * Math.max(node.scaleX, node.scaleY)) / 2,
+    arrowPad:
+      node.arrowStart || node.arrowEnd ? lineArrowheadLength(node.strokeWidth) : 0,
+  };
+}
+
+function pointToPolylineDistance(
+  px: number,
+  py: number,
+  points: Array<{ x: number; y: number }>,
+): number {
+  if (points.length < 2) return Number.POSITIVE_INFINITY;
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const distance = pointToSegmentDistance(px, py, a.x, a.y, b.x, b.y);
+    if (distance < best) best = distance;
+  }
+  return best;
+}
+
+function pointHitsArrowWedge(
+  px: number,
+  py: number,
+  tipX: number,
+  tipY: number,
+  fromX: number,
+  fromY: number,
+  maxDistance: number,
+  spread: number,
+) {
+  const vx = px - tipX;
+  const vy = py - tipY;
+  const distance = Math.hypot(vx, vy);
+  if (distance > maxDistance) return false;
+  if (distance < 0.0001) return true;
+  const tipHeading = Math.atan2(tipY - fromY, tipX - fromX);
+  const backHeading = normalizeAngle(tipHeading + Math.PI);
+  const pointHeading = normalizeAngle(Math.atan2(vy, vx));
+  return Math.abs(normalizeAngle(pointHeading - backHeading)) <= spread;
+}
+
+function normalizeAngle(angle: number) {
+  let value = angle;
+  while (value > Math.PI) value -= Math.PI * 2;
+  while (value < -Math.PI) value += Math.PI * 2;
+  return value;
 }
 
 function pointToSegmentDistance(

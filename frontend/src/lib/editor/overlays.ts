@@ -136,9 +136,45 @@ export function getRenderableNodeBounds(
   nodeId: string | null,
 ): SaraswatiBounds | null {
   if (!nodeId) return null;
+  return getNodeBoundsRecursive(scene, nodeId, new Set<string>());
+}
+
+function getNodeBoundsRecursive(
+  scene: SaraswatiScene,
+  nodeId: string,
+  visited: Set<string>,
+): SaraswatiBounds | null {
+  if (visited.has(nodeId)) return null;
+  visited.add(nodeId);
+
   const node = scene.nodes[nodeId];
-  if (!node || !isSaraswatiRenderableNode(node)) return null;
-  return getNodeBounds(node);
+  if (!node || node.visible === false) return null;
+  if (isSaraswatiRenderableNode(node)) {
+    return getNodeBounds(node);
+  }
+  if (node.type !== "group") return null;
+
+  let bounds: SaraswatiBounds | null = null;
+  for (const childId of node.children) {
+    const childBounds = getNodeBoundsRecursive(scene, childId, visited);
+    if (!childBounds) continue;
+    if (!bounds) {
+      bounds = childBounds;
+      continue;
+    }
+    const x1 = Math.min(bounds.x, childBounds.x);
+    const y1 = Math.min(bounds.y, childBounds.y);
+    const x2 = Math.max(
+      bounds.x + bounds.width,
+      childBounds.x + childBounds.width,
+    );
+    const y2 = Math.max(
+      bounds.y + bounds.height,
+      childBounds.y + childBounds.height,
+    );
+    bounds = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+  }
+  return bounds;
 }
 
 function collectSnapCandidates(

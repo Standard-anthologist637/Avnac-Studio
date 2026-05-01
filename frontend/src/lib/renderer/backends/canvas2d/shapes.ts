@@ -84,8 +84,12 @@ export function renderCanvas2DPolygonCommand(
   });
 }
 
-const ARROWHEAD_ANGLE = Math.PI / 6;
-const ARROWHEAD_LENGTH_RATIO = 12;
+const ARROWHEAD_ANGLE = Math.PI / 7;
+
+function arrowheadLengthForStroke(strokeWidth: number) {
+  const raw = Math.max(1, strokeWidth) * 2.25;
+  return Math.max(5, Math.min(72, raw));
+}
 
 export function renderCanvas2DLineCommand(
   ctx: CanvasRenderingContext2D,
@@ -127,20 +131,12 @@ export function renderCanvas2DLineCommand(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  // Apply dash pattern
-  if (command.lineStyle === "dashed") {
-    const d = command.strokeWidth * 4;
-    ctx.setLineDash([d, d]);
-  } else if (command.lineStyle === "dotted") {
-    const d = command.strokeWidth;
-    ctx.setLineDash([d, d * 2]);
-  } else {
-    ctx.setLineDash([]);
-  }
+  // Scene editor line tools currently enforce solid strokes only.
+  ctx.setLineDash([]);
 
   // Shorten shaft endpoints so the stroke doesn't poke through the arrowhead fill
-  const arrowLength =
-    ARROWHEAD_LENGTH_RATIO * Math.max(1, command.strokeWidth * 0.8);
+  const arrowLength = arrowheadLengthForStroke(command.strokeWidth);
+  const shaftInset = arrowLength * 0.65;
   const lineAngle = Math.atan2(y2 - y1, x2 - x1);
   let drawX1 = x1,
     drawY1 = y1,
@@ -148,15 +144,15 @@ export function renderCanvas2DLineCommand(
     drawY2 = y2;
   if (command.arrowEnd) {
     const tipAngle = isCurved ? Math.atan2(y2 - cpY, x2 - cpX) : lineAngle;
-    drawX2 = x2 - arrowLength * Math.cos(tipAngle);
-    drawY2 = y2 - arrowLength * Math.sin(tipAngle);
+    drawX2 = x2 - shaftInset * Math.cos(tipAngle);
+    drawY2 = y2 - shaftInset * Math.sin(tipAngle);
   }
   if (command.arrowStart) {
     const tailAngle = isCurved
       ? Math.atan2(y1 - cpY, x1 - cpX)
       : lineAngle + Math.PI;
-    drawX1 = x1 - arrowLength * Math.cos(tailAngle);
-    drawY1 = y1 - arrowLength * Math.sin(tailAngle);
+    drawX1 = x1 - shaftInset * Math.cos(tailAngle);
+    drawY1 = y1 - shaftInset * Math.sin(tailAngle);
   }
 
   ctx.beginPath();
@@ -193,7 +189,7 @@ function drawArrowhead(
   strokeStyle: string | CanvasGradient,
 ) {
   const angle = Math.atan2(tipY - fromY, tipX - fromX);
-  const length = ARROWHEAD_LENGTH_RATIO * Math.max(1, strokeWidth * 0.8);
+  const length = arrowheadLengthForStroke(strokeWidth);
   ctx.save();
   ctx.fillStyle = strokeStyle;
   ctx.setLineDash([]);

@@ -51,6 +51,16 @@ type MarqueeState = {
   baseSelectedIds: string[];
 };
 
+type CurveAdjustState = {
+  pointerId: number;
+  nodeId: string;
+  startBulge: number;
+  startT: number;
+  startX: number;
+  startY: number;
+  length: number;
+};
+
 function commandNodeIdFromCommand(command: {
   type: string;
   id?: string;
@@ -71,6 +81,7 @@ export function useSceneEditorInteractions() {
   );
   const clipResizeRef = useRef<ClipResizeState | null>(null);
   const marqueeRef = useRef<MarqueeState | null>(null);
+  const curveAdjustRef = useRef<CurveAdjustState | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [guides, setGuides] = useState<SaraswatiGuideLine[]>([]);
   const [measurement, setMeasurement] = useState<SaraswatiMeasurement | null>(
@@ -79,6 +90,7 @@ export function useSceneEditorInteractions() {
   const [marqueeBounds, setMarqueeBounds] = useState<SaraswatiBounds | null>(
     null,
   );
+  const [activeCursor, setActiveCursor] = useState<string | null>(null);
 
   const onPointerDown = useCallback(
     (
@@ -93,6 +105,7 @@ export function useSceneEditorInteractions() {
       const hitId = findTopHitNodeId(scene, { x, y });
       marqueeRef.current = null;
       setMarqueeBounds(null);
+      curveAdjustRef.current = null;
 
       if (!hitId) {
         if (!additive) {
@@ -111,6 +124,7 @@ export function useSceneEditorInteractions() {
         setHoveredId(null);
         setGuides([]);
         setMeasurement(null);
+        setActiveCursor(null);
         return;
       }
 
@@ -121,9 +135,11 @@ export function useSceneEditorInteractions() {
         setSelectedIds([...next]);
         pointerStateRef.current = createIdlePointerState();
         clipResizeRef.current = null;
+        curveAdjustRef.current = null;
         setHoveredId(null);
         setGuides([]);
         setMeasurement(null);
+        setActiveCursor(null);
         return;
       }
 
@@ -142,11 +158,13 @@ export function useSceneEditorInteractions() {
         : { state: createIdlePointerState(), selectedIds: [] };
       pointerStateRef.current = result.state;
       clipResizeRef.current = null;
+      curveAdjustRef.current = null;
       marqueeRef.current = null;
       setSelectedIds(result.selectedIds);
       setHoveredId(null);
       setGuides([]);
       setMeasurement(null);
+      setActiveCursor(null);
     },
     [setSelectedIds],
   );
@@ -212,6 +230,38 @@ export function useSceneEditorInteractions() {
         setHoveredId(null);
         setGuides(snapped.guides);
         setMeasurement(measurementFromBounds(bounds));
+        return;
+      }
+
+      const curveAdjust = curveAdjustRef.current;
+      if (curveAdjust && curveAdjust.pointerId === pointerId) {
+        const dx = x - curveAdjust.startX;
+        const dy = y - curveAdjust.startY;
+        const nextT =
+          curveAdjust.startT + dx / Math.max(24, curveAdjust.length * 0.45);
+        const nextBulge = curveAdjust.startBulge - dy;
+        applyCommands([
+          {
+            type: "REPLACE_NODE",
+            node: {
+              ...(scene.nodes[curveAdjust.nodeId] as Extract<
+                typeof scene.nodes[string],
+                { type: "line" }
+              >),
+              pathType: "curved",
+              curveBulge: nextBulge,
+              curveT: nextT,
+            },
+          },
+        ]);
+        const nextScene = useSceneEditorStore.getState().scene;
+        const bounds =
+          nextScene && curveAdjust.nodeId
+            ? getRenderableNodeBounds(nextScene, curveAdjust.nodeId)
+            : null;
+        setHoveredId(null);
+        setGuides([]);
+        setMeasurement(bounds ? measurementFromBounds(bounds) : null);
         return;
       }
 
@@ -341,9 +391,16 @@ export function useSceneEditorInteractions() {
     ) {
       clipResizeRef.current = null;
     }
+    if (
+      curveAdjustRef.current &&
+      curveAdjustRef.current.pointerId === pointerId
+    ) {
+      curveAdjustRef.current = null;
+    }
     pointerStateRef.current = pointerUp(pointerStateRef.current, pointerId);
     setGuides([]);
     setMeasurement(null);
+    setActiveCursor(null);
   }, []);
 
   const onHandlePointerDown = useCallback(
@@ -363,6 +420,17 @@ export function useSceneEditorInteractions() {
         x,
         y,
       );
+      const cursorByHandle: Record<SaraswatiResizeHandle, string> = {
+        n: "ns-resize",
+        s: "ns-resize",
+        e: "ew-resize",
+        w: "ew-resize",
+        ne: "nesw-resize",
+        sw: "nesw-resize",
+        nw: "nwse-resize",
+        se: "nwse-resize",
+      };
+      setActiveCursor(cursorByHandle[handle]);
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
     },
@@ -380,15 +448,29 @@ export function useSceneEditorInteractions() {
       const scene = useSceneEditorStore.getState().scene;
       const node = scene?.nodes[nodeId];
       const startRotation =
-        node && "rotation" in node ? (node.rotation as number) : 0;
+        node && node.type === "line"
+          ? (Math.atan2(node.y2 - node.y1, node.x2 - node.x1) * 180) /
+            Math.PI
+          : node && "rotation" in node
+            ? (node.rotation as number)
+            : 0;
+      const adjustedBounds =
+        node && node.type === "line"
+          ? {
+              ...bounds,
+              x: (node.x1 + node.x2) / 2 - bounds.width / 2,
+              y: (node.y1 + node.y2) / 2 - bounds.height / 2,
+            }
+          : bounds;
       pointerStateRef.current = rotateHandlePointerDown(
         nodeId,
-        bounds,
+        adjustedBounds,
         startRotation,
         pointerId,
         x,
         y,
       );
+      setActiveCursor("grabbing");
       setHoveredId(null);
       setMeasurement(null);
     },
@@ -420,6 +502,7 @@ export function useSceneEditorInteractions() {
         startX: x,
         startY: y,
       };
+      setActiveCursor("crosshair");
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
     },
@@ -465,13 +548,46 @@ export function useSceneEditorInteractions() {
     setHoveredId(null);
     setGuides([]);
     setMeasurement(null);
+    setActiveCursor(null);
   }, []);
+
+  const onCurveHandlePointerDown = useCallback(
+    (
+      pointerId: number,
+      nodeId: string,
+      startBulge: number,
+      startT: number,
+      length: number,
+      x: number,
+      y: number,
+    ) => {
+      const scene = useSceneEditorStore.getState().scene;
+      const node = scene?.nodes[nodeId];
+      if (!node || node.type !== "line") return;
+      curveAdjustRef.current = {
+        pointerId,
+        nodeId,
+        startBulge,
+        startT,
+        startX: x,
+        startY: y,
+        length,
+      };
+      pointerStateRef.current = createIdlePointerState();
+      setActiveCursor("move");
+      setHoveredId(null);
+      setGuides([]);
+      setMeasurement(null);
+    },
+    [],
+  );
 
   return {
     hoveredId,
     guides,
     measurement,
     marqueeBounds,
+    activeCursor,
     onPointerDown,
     onPointerMove,
     onPointerUp,
@@ -479,6 +595,7 @@ export function useSceneEditorInteractions() {
     onRotateHandlePointerDown,
     onClipHandlePointerDown,
     onCreateClipPath,
+    onCurveHandlePointerDown,
     onPointerLeave,
   };
 }

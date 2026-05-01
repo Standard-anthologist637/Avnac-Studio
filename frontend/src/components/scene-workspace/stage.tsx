@@ -10,6 +10,7 @@ import type {
   SaraswatiGuideLine,
   SaraswatiMeasurement,
 } from "@/lib/editor/overlays";
+import { getRenderableNodeBounds } from "@/lib/editor/overlays";
 import type { SaraswatiResizeHandle } from "@/lib/saraswati/commands/types";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import { getNodeBounds } from "@/lib/saraswati/spatial";
@@ -64,11 +65,21 @@ type Props = {
     y: number,
   ) => void;
   onCreateClipPath?: (nodeId: string, bounds: SaraswatiBounds) => void;
+  onCurveHandlePointerDown?: (
+    pointerId: number,
+    nodeId: string,
+    startBulge: number,
+    startT: number,
+    length: number,
+    x: number,
+    y: number,
+  ) => void;
   onRenderStats?: (stats: SceneWorkspaceRenderStats) => void;
   hoveredId?: string | null;
   guides?: readonly SaraswatiGuideLine[];
   measurement?: SaraswatiMeasurement | null;
   marqueeBounds?: SaraswatiBounds | null;
+  interactionCursor?: string | null;
 };
 
 // Handle positions: {id, cx, cy} as fractions of the bounding box (0=left/top, 1=right/bottom)
@@ -106,11 +117,13 @@ export default function SceneWorkspaceStage({
   onRotateHandlePointerDown,
   onClipHandlePointerDown,
   onCreateClipPath,
+  onCurveHandlePointerDown,
   onRenderStats,
   hoveredId,
   guides = [],
   measurement,
   marqueeBounds,
+  interactionCursor,
 }: Props) {
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
   const contentCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -126,13 +139,51 @@ export default function SceneWorkspaceStage({
     Math.min(72, 28 / Math.max(0.25, viewScale)),
   );
 
+  const lineCurveHandles = useMemo(() => {
+    const items: Array<{
+      nodeId: string;
+      cpX: number;
+      cpY: number;
+      midX: number;
+      midY: number;
+      curveBulge: number;
+      curveT: number;
+      length: number;
+    }> = [];
+    for (const nodeId of selectedIds) {
+      const node = scene.nodes[nodeId];
+      if (!node || node.type !== "line" || lockedIdSet.has(nodeId)) continue;
+      const dx = node.x2 - node.x1;
+      const dy = node.y2 - node.y1;
+      const length = Math.hypot(dx, dy);
+      if (length <= 0) continue;
+      const t = Number.isFinite(node.curveT) ? node.curveT : 0.5;
+      const bulge = Number.isFinite(node.curveBulge) ? node.curveBulge : 0;
+      const midX = node.x1 + t * dx;
+      const midY = node.y1 + t * dy;
+      const perpX = -dy / length;
+      const perpY = dx / length;
+      items.push({
+        nodeId,
+        cpX: midX + bulge * perpX,
+        cpY: midY + bulge * perpY,
+        midX,
+        midY,
+        curveBulge: bulge,
+        curveT: t,
+        length,
+      });
+    }
+    return items;
+  }, [lockedIdSet, scene, selectedIds]);
+
   const selectedBounds = useMemo(() => {
     const result: { id: string; bounds: SaraswatiBounds }[] = [];
     for (const id of selectedIds) {
       if (hiddenNodeIdSet.has(id)) continue;
-      const node = scene.nodes[id];
-      if (!node || !isSaraswatiRenderableNode(node)) continue;
-      result.push({ id, bounds: getNodeBounds(node) });
+      const bounds = getRenderableNodeBounds(scene, id);
+      if (!bounds) continue;
+      result.push({ id, bounds });
     }
     return result;
   }, [hiddenNodeIdSet, scene, selectedIds]);
@@ -326,13 +377,14 @@ export default function SceneWorkspaceStage({
         onDoubleClick={interactive ? handleDoubleClick : undefined}
         className={[
           "relative z-[1]",
-          interactive ? "cursor-grab active:cursor-grabbing" : "",
+          interactive ? "cursor-default" : "",
         ]
           .filter(Boolean)
           .join(" ")}
+        style={interactionCursor ? { cursor: interactionCursor } : undefined}
       />
       <div
-        className="pointer-events-none absolute inset-0"
+        className="pointer-events-none absolute inset-0 z-2"
         style={{ clipPath: "inset(0 round 1.25rem)" }}
       >
         {guides.map((guide, index) =>
@@ -463,7 +515,54 @@ export default function SceneWorkspaceStage({
           </>
         ) : null}
 
-        {marqueeBounds && marqueeBounds.width > 1 && marqueeBounds.height > 1 ? (
+        {interactive
+          ? lineCurveHandles.map((handle) => (
+              <div key={`curve-${handle.nodeId}`}>
+                <div
+                  className="pointer-events-none absolute border-t border-dashed border-amber-500/80"
+                  style={{
+                    left: `${Math.min(handle.midX, handle.cpX)}px`,
+                    top: `${Math.min(handle.midY, handle.cpY)}px`,
+                    width: `${Math.max(1, Math.abs(handle.cpX - handle.midX))}px`,
+                    height: `${Math.max(1, Math.abs(handle.cpY - handle.midY))}px`,
+                    transformOrigin: "top left",
+                    transform: `rotate(${(Math.atan2(handle.cpY - handle.midY, handle.cpX - handle.midX) * 180) / Math.PI}deg)`,
+                  }}
+                />
+                <div
+                  className="pointer-events-auto absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-600 bg-white shadow-sm"
+                  style={{
+                    left: `${handle.cpX}px`,
+                    top: `${handle.cpY}px`,
+                    width: `${Math.max(10, handleSize)}px`,
+                    height: `${Math.max(10, handleSize)}px`,
+                    cursor: "move",
+                    touchAction: "none",
+                  }}
+                  title="Drag to adjust curve (left/right: T, up/down: bulge)"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    const point = toScenePoint(e.clientX, e.clientY);
+                    if (!point) return;
+                    contentCanvasRef.current?.setPointerCapture(e.pointerId);
+                    onCurveHandlePointerDown?.(
+                      e.pointerId,
+                      handle.nodeId,
+                      handle.curveBulge,
+                      handle.curveT,
+                      handle.length,
+                      point.x,
+                      point.y,
+                    );
+                  }}
+                />
+              </div>
+            ))
+          : null}
+
+        {marqueeBounds &&
+        marqueeBounds.width > 1 &&
+        marqueeBounds.height > 1 ? (
           <div
             className="absolute rounded border border-sky-500/85 bg-sky-200/20"
             style={{
@@ -479,7 +578,7 @@ export default function SceneWorkspaceStage({
       {selectedBounds.map(({ id: nodeId, bounds }) => (
         <div
           key={nodeId}
-          className="pointer-events-none absolute"
+          className="pointer-events-none absolute z-3"
           style={{ left: 0, top: 0, width: "100%", height: "100%" }}
         >
           {/* Selection border */}
@@ -505,6 +604,7 @@ export default function SceneWorkspaceStage({
                     width: `${handleSize}px`,
                     height: `${handleSize}px`,
                     cursor,
+                    touchAction: "none",
                   }}
                   onPointerDown={(e) => {
                     e.stopPropagation();
@@ -544,6 +644,7 @@ export default function SceneWorkspaceStage({
                   top: `${bounds.y - rotateHandleOffset}px`,
                   width: `${Math.max(12, handleSize + 4)}px`,
                   height: `${Math.max(12, handleSize + 4)}px`,
+                  touchAction: "none",
                 }}
                 title="Rotate"
                 onPointerDown={(e) => {
