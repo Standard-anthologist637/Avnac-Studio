@@ -11,6 +11,7 @@ import {
   pointerMove,
   pointerUp,
   resizeHandlePointerDown,
+  rotateHandlePointerDown,
   type SaraswatiPointerState,
   type SaraswatiResizeHandle,
 } from "@/lib/saraswati";
@@ -231,6 +232,32 @@ export function useSceneEditorInteractions() {
     [],
   );
 
+  const onRotateHandlePointerDown = useCallback(
+    (
+      pointerId: number,
+      nodeId: string,
+      bounds: SaraswatiBounds,
+      x: number,
+      y: number,
+    ) => {
+      const scene = useSceneEditorStore.getState().scene;
+      const node = scene?.nodes[nodeId];
+      const startRotation =
+        node && "rotation" in node ? (node.rotation as number) : 0;
+      pointerStateRef.current = rotateHandlePointerDown(
+        nodeId,
+        bounds,
+        startRotation,
+        pointerId,
+        x,
+        y,
+      );
+      setHoveredId(null);
+      setMeasurement(null);
+    },
+    [],
+  );
+
   const onClipHandlePointerDown = useCallback(
     (
       pointerId: number,
@@ -310,6 +337,7 @@ export function useSceneEditorInteractions() {
     onPointerMove,
     onPointerUp,
     onHandlePointerDown,
+    onRotateHandlePointerDown,
     onClipHandlePointerDown,
     onCreateClipPath,
     onPointerLeave,

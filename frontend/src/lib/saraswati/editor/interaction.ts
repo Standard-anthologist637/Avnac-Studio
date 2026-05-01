@@ -16,12 +16,21 @@ type ResizeDragState = {
   startY: number;
 };
 
+type RotateDragState = {
+  nodeId: string;
+  centerX: number;
+  centerY: number;
+  startAngle: number;
+  startRotation: number;
+};
+
 export type SaraswatiPointerState = {
   activeNodeId: string | null;
   pointerId: number | null;
   lastX: number;
   lastY: number;
   resize: ResizeDragState | null;
+  rotate: RotateDragState | null;
 };
 
 export function createIdlePointerState(): SaraswatiPointerState {
@@ -31,6 +40,7 @@ export function createIdlePointerState(): SaraswatiPointerState {
     lastX: 0,
     lastY: 0,
     resize: null,
+    rotate: null,
   };
 }
 
@@ -54,6 +64,7 @@ export function pointerDown(
       lastX: x,
       lastY: y,
       resize: null,
+      rotate: null,
     },
     selectedIds: [hitId],
   };
@@ -73,6 +84,33 @@ export function resizeHandlePointerDown(
     lastX: x,
     lastY: y,
     resize: { handle, nodeId, startBounds, startX: x, startY: y },
+    rotate: null,
+  };
+}
+
+export function rotateHandlePointerDown(
+  nodeId: string,
+  bounds: SaraswatiBounds,
+  startRotation: number,
+  pointerId: number,
+  x: number,
+  y: number,
+): SaraswatiPointerState {
+  const centerX = bounds.x + bounds.width / 2;
+  const centerY = bounds.y + bounds.height / 2;
+  return {
+    activeNodeId: nodeId,
+    pointerId,
+    lastX: x,
+    lastY: y,
+    resize: null,
+    rotate: {
+      nodeId,
+      centerX,
+      centerY,
+      startAngle: Math.atan2(y - centerY, x - centerX),
+      startRotation,
+    },
   };
 }
 
@@ -95,6 +133,18 @@ export function pointerMove(
     return {
       state: newState,
       command: { type: "RESIZE_NODE", id: nodeId, ...b },
+    };
+  }
+
+  if (state.rotate) {
+    const { nodeId, centerX, centerY, startAngle, startRotation } =
+      state.rotate;
+    const currentAngle = Math.atan2(y - centerY, x - centerX);
+    const deltaDeg = (currentAngle - startAngle) * (180 / Math.PI);
+    const rotation = (((startRotation + deltaDeg) % 360) + 360) % 360;
+    return {
+      state: newState,
+      command: { type: "ROTATE_NODE", id: nodeId, rotation },
     };
   }
 

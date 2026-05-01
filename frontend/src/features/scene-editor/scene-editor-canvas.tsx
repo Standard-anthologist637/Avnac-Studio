@@ -7,7 +7,7 @@ import CanvasSelectionToolbar from "@/components/editor/canvas/canvas-selection-
 import SceneWorkspaceStage from "@/components/scene-workspace/stage";
 import { isSaraswatiRenderableNode } from "@/lib/saraswati";
 import { getNodeBounds } from "@/lib/saraswati/spatial";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSceneEditorStore } from "./store";
 import { useSceneEditorInteractions } from "./use-scene-editor-interactions";
 
@@ -22,6 +22,18 @@ export default function SceneEditorCanvas() {
   const interactions = useSceneEditorInteractions();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const obs = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (rect) setContainerSize({ w: rect.width, h: rect.height });
+    });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   /** Union bounds of all selected renderable nodes in artboard coordinates. */
   const selectionBounds = useMemo(() => {
@@ -51,15 +63,35 @@ export default function SceneEditorCanvas() {
 
   if (!scene) return null;
 
+  // Fit-to-viewport: scale the artboard so it fills the available space with padding
+  const PAD = 64;
+  const scale =
+    containerSize.w > 0 && containerSize.h > 0
+      ? Math.min(
+          1,
+          (containerSize.w - PAD) / scene.artboard.width,
+          (containerSize.h - PAD) / scene.artboard.height,
+        )
+      : 1;
+  const scaledWidth = Math.round(scene.artboard.width * scale);
+  const scaledHeight = Math.round(scene.artboard.height * scale);
+
+  // Rotation handle sits 24px above the selection top edge (connector) + 8px half-handle radius.
+  // The toolbar "above" placement must clear that so the two don't overlap.
+  const ROTATE_HANDLE_CLEARANCE = 36; // px in scaled space
+
   const toolbarPlacement: "above" | "below" =
-    selectionBounds && selectionBounds.y < 50 ? "below" : "above";
+    selectionBounds && selectionBounds.y * scale < 50 + ROTATE_HANDLE_CLEARANCE
+      ? "below"
+      : "above";
+  // toolbar is positioned in scaled space (outside the CSS-transformed stage)
   const toolbarStyle = selectionBounds
     ? {
-        left: selectionBounds.x + selectionBounds.width / 2,
+        left: (selectionBounds.x + selectionBounds.width / 2) * scale,
         top:
           toolbarPlacement === "above"
-            ? selectionBounds.y
-            : selectionBounds.y + selectionBounds.height,
+            ? selectionBounds.y * scale - ROTATE_HANDLE_CLEARANCE
+            : (selectionBounds.y + selectionBounds.height) * scale,
       }
     : undefined;
 
@@ -68,28 +100,41 @@ export default function SceneEditorCanvas() {
       ref={scrollContainerRef}
       className="flex flex-1 items-center justify-center overflow-auto bg-neutral-100/80 p-8"
     >
-      {/* Artboard-sized relative wrapper so CanvasSelectionToolbar can be
-          absolutely positioned in artboard coordinate space */}
+      {/* Outer wrapper sized to the SCALED artboard — keeps centering correct */}
       <div
         className="relative"
-        style={{ width: scene.artboard.width, height: scene.artboard.height }}
+        style={{ width: scaledWidth, height: scaledHeight }}
       >
-        <SceneWorkspaceStage
-          scene={scene}
-          interactive
-          selectedIds={selectedIds}
-          hoveredId={interactions.hoveredId}
-          guides={interactions.guides}
-          measurement={interactions.measurement}
-          onScenePointerDown={interactions.onPointerDown}
-          onScenePointerMove={interactions.onPointerMove}
-          onScenePointerUp={interactions.onPointerUp}
-          onScenePointerLeave={interactions.onPointerLeave}
-          onHandlePointerDown={interactions.onHandlePointerDown}
-          onClipHandlePointerDown={interactions.onClipHandlePointerDown}
-          onCreateClipPath={interactions.onCreateClipPath}
-          onRenderStats={setRenderStats}
-        />
+        {/* Inner wrapper at natural artboard size, CSS-scaled to fit viewport */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: scene.artboard.width,
+            height: scene.artboard.height,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          <SceneWorkspaceStage
+            scene={scene}
+            interactive
+            selectedIds={selectedIds}
+            hoveredId={interactions.hoveredId}
+            guides={interactions.guides}
+            measurement={interactions.measurement}
+            onScenePointerDown={interactions.onPointerDown}
+            onScenePointerMove={interactions.onPointerMove}
+            onScenePointerUp={interactions.onPointerUp}
+            onScenePointerLeave={interactions.onPointerLeave}
+            onHandlePointerDown={interactions.onHandlePointerDown}
+            onRotateHandlePointerDown={interactions.onRotateHandlePointerDown}
+            onClipHandlePointerDown={interactions.onClipHandlePointerDown}
+            onCreateClipPath={interactions.onCreateClipPath}
+            onRenderStats={setRenderStats}
+          />
+        </div>
 
         {selectionBounds && toolbarStyle && (
           <CanvasSelectionToolbar

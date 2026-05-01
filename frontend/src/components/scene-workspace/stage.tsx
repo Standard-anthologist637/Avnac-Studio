@@ -39,6 +39,13 @@ type Props = {
     x: number,
     y: number,
   ) => void;
+  onRotateHandlePointerDown?: (
+    pointerId: number,
+    nodeId: string,
+    bounds: SaraswatiBounds,
+    x: number,
+    y: number,
+  ) => void;
   onClipHandlePointerDown?: (
     pointerId: number,
     nodeId: string,
@@ -82,6 +89,7 @@ export default function SceneWorkspaceStage({
   onScenePointerUp,
   onScenePointerLeave,
   onHandlePointerDown,
+  onRotateHandlePointerDown,
   onClipHandlePointerDown,
   onCreateClipPath,
   onRenderStats,
@@ -363,40 +371,83 @@ export default function SceneWorkspaceStage({
       {selectedBounds.map(({ id: nodeId, bounds }) => (
         <div
           key={nodeId}
-          className="pointer-events-none absolute rounded-md border-2 border-sky-500/90 shadow-[0_0_0_1px_rgba(255,255,255,0.85)]"
-          style={{
-            left: `${bounds.x}px`,
-            top: `${bounds.y}px`,
-            width: `${Math.max(1, bounds.width)}px`,
-            height: `${Math.max(1, bounds.height)}px`,
-          }}
+          className="pointer-events-none absolute"
+          style={{ left: 0, top: 0, width: "100%", height: "100%" }}
         >
-          {interactive &&
-            HANDLES.map(({ id: handle, cx, cy, cursor }) => (
+          {/* Selection border */}
+          <div
+            className="pointer-events-none absolute rounded-md border-2 border-sky-500/90 shadow-[0_0_0_1px_rgba(255,255,255,0.85)]"
+            style={{
+              left: `${bounds.x}px`,
+              top: `${bounds.y}px`,
+              width: `${Math.max(1, bounds.width)}px`,
+              height: `${Math.max(1, bounds.height)}px`,
+            }}
+          >
+            {interactive &&
+              HANDLES.map(({ id: handle, cx, cy, cursor }) => (
+                <div
+                  key={handle}
+                  className="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-sky-600 bg-white shadow-sm active:bg-sky-100"
+                  style={{
+                    left: `${cx * 100}%`,
+                    top: `${cy * 100}%`,
+                    cursor,
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    const point = toScenePoint(e.clientX, e.clientY);
+                    if (!point) return;
+                    canvasRef.current?.setPointerCapture(e.pointerId);
+                    onHandlePointerDown?.(
+                      e.pointerId,
+                      nodeId,
+                      handle,
+                      bounds,
+                      point.x,
+                      point.y,
+                    );
+                  }}
+                />
+              ))}
+          </div>
+
+          {/* Rotation handle — circle above top-center of selection */}
+          {interactive && (
+            <>
+              {/* Connector line */}
               <div
-                key={handle}
-                className="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-sky-600 bg-white shadow-sm active:bg-sky-100"
+                className="pointer-events-none absolute w-px bg-sky-400/60"
                 style={{
-                  left: `${cx * 100}%`,
-                  top: `${cy * 100}%`,
-                  cursor,
+                  left: `${bounds.x + bounds.width / 2}px`,
+                  top: `${bounds.y - 24}px`,
+                  height: "24px",
                 }}
+              />
+              {/* Handle circle */}
+              <div
+                className="pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-sky-500/90 bg-white shadow-md active:cursor-grabbing"
+                style={{
+                  left: `${bounds.x + bounds.width / 2}px`,
+                  top: `${bounds.y - 24}px`,
+                }}
+                title="Rotate"
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   const point = toScenePoint(e.clientX, e.clientY);
                   if (!point) return;
                   canvasRef.current?.setPointerCapture(e.pointerId);
-                  onHandlePointerDown?.(
+                  onRotateHandlePointerDown?.(
                     e.pointerId,
                     nodeId,
-                    handle,
                     bounds,
                     point.x,
                     point.y,
                   );
                 }}
               />
-            ))}
+            </>
+          )}
         </div>
       ))}
     </div>

@@ -19,6 +19,8 @@ export function applyCommand(
   switch (command.type) {
     case "MOVE_NODE":
       return moveNode(scene, command.id, command.dx, command.dy);
+    case "ROTATE_NODE":
+      return rotateNode(scene, command.id, command.rotation);
     case "RESIZE_NODE":
       return resizeNode(
         scene,
@@ -84,6 +86,19 @@ function moveNode(
   }
   const next = cloneSaraswatiScene(scene);
   moveNodeRecursive(next.nodes, nodeId, dx, dy);
+  return next;
+}
+
+function rotateNode(
+  scene: SaraswatiScene,
+  nodeId: string,
+  rotation: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || nodeId === scene.root) return scene;
+  const next = cloneSaraswatiScene(scene);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  next.nodes[nodeId] = { ...(node as any), rotation } as SaraswatiNode;
   return next;
 }
 

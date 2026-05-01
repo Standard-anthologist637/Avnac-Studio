@@ -9,6 +9,9 @@
 - [x] Lift scene interaction state into a shared scene workspace store.
 - [x] Add transform handles and resize/rotate commands.
 - [x] Move layer visibility and rename into scene-native commands.
-- [ ] Add scene-native insert flows for shapes, text, images, and vector boards.
-- [ ] Connect scene workspace commands back to document persistence/history.
+- [x] Add scene-native hover/snap/measurement overlays.
+- [x] Add scene-native clip editing handles and clip creation action.
+- [x] Add render duration/command telemetry in SceneWorkspace footer (non-blocking).
+- [x] Add scene-native insert flows for shapes, text, images, and vector boards.
+- [ ] Connect all scene workspace commands back to document persistence/history (clip path persistence is partially wired).
 - [ ] Replace Fabric-only sidebar/toolbars with runtime-agnostic scene controllers.

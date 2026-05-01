@@ -13,6 +13,7 @@ export type SaraswatiResizeHandle =
 
 export type SaraswatiCommand =
   | { type: "MOVE_NODE"; id: string; dx: number; dy: number }
+  | { type: "ROTATE_NODE"; id: string; rotation: number }
   | {
       type: "RESIZE_NODE";
       id: string;
