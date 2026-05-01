@@ -8,13 +8,16 @@ import {
 } from "@/lib/saraswati";
 import { useEffect, useMemo } from "react";
 import SceneWorkspaceStage from "./stage";
-import type { SceneWorkspacePreviewMode } from "./store";
+import type { SceneWorkspacePreviewMode, SceneWorkspaceStore } from "./store";
+import { useSceneWorkspaceEditor } from "./use-scene-workspace-editor";
 
 type Props = {
   mode: SceneWorkspacePreviewMode;
   document: AvnacDocumentV1 | null;
   backend?: RendererBackend<CanvasRenderingContext2D>;
   commands?: readonly SaraswatiCommand[];
+  /** The shared scene workspace Zustand store. When provided, selection state is written to it. */
+  store?: SceneWorkspaceStore;
   onCommandsApplied?: (result: {
     commands: readonly SaraswatiCommand[];
     scene: SaraswatiScene;
@@ -26,6 +29,7 @@ export default function SceneWorkspace({
   document,
   backend,
   commands,
+  store,
   onCommandsApplied,
 }: Props) {
   const adapterResult = useMemo(() => {
@@ -65,6 +69,14 @@ export default function SceneWorkspace({
   if (mode === "off" || !sceneResult) return null;
 
   const { scene, issues } = sceneResult;
+  const isInteractive = mode === "full";
+  const editor = useSceneWorkspaceEditor({
+    enabled: isInteractive,
+    scene,
+    store,
+    onCommandsApplied,
+  });
+  const renderedScene = isInteractive ? editor.scene : scene;
   const issueSummary = useMemo(() => {
     if (issues.length === 0) return null;
     const buckets = new Map<string, number>();
@@ -81,36 +93,61 @@ export default function SceneWorkspace({
       .slice(0, 3)
       .join(", ");
   }, [issues]);
+  const isFullWorkspace = mode === "full";
   const maxPreviewEdge = mode === "split" ? 300 : 560;
-  const maxSceneEdge = Math.max(scene.artboard.width, scene.artboard.height, 1);
-  const scale = Math.min(1, maxPreviewEdge / maxSceneEdge);
-  const scaledWidth = Math.max(1, Math.round(scene.artboard.width * scale));
-  const scaledHeight = Math.max(1, Math.round(scene.artboard.height * scale));
+  const maxSceneEdge = Math.max(
+    renderedScene.artboard.width,
+    renderedScene.artboard.height,
+    1,
+  );
+  const scale = isFullWorkspace
+    ? 1
+    : Math.min(1, maxPreviewEdge / maxSceneEdge);
+  const scaledWidth = Math.max(
+    1,
+    Math.round(renderedScene.artboard.width * scale),
+  );
+  const scaledHeight = Math.max(
+    1,
+    Math.round(renderedScene.artboard.height * scale),
+  );
 
   return (
     <div
       className={
         mode === "split"
           ? "pointer-events-none absolute right-4 top-4 z-[35] w-[min(24rem,calc(100%-2rem))]"
-          : "pointer-events-none absolute inset-4 z-[35] flex items-center justify-center"
+          : "pointer-events-none absolute inset-0 z-[35] flex min-h-0 flex-1 flex-col"
       }
     >
-      <div className="max-w-full overflow-hidden rounded-[1.4rem] border border-black/[0.08] bg-white/92 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.12)] backdrop-blur-xl">
+      <div
+        className={
+          mode === "split"
+            ? "max-w-full overflow-hidden rounded-[1.4rem] border border-black/[0.08] bg-white/92 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.12)] backdrop-blur-xl"
+            : "relative flex min-h-0 flex-1 flex-col rounded-2xl border border-black/[0.06] bg-white/94 p-3 shadow-[0_18px_56px_rgba(0,0,0,0.10)] backdrop-blur-xl"
+        }
+      >
         <div className="mb-2 flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">
               Saraswati
             </div>
             <div className="text-sm font-semibold text-neutral-900">
-              {mode === "split" ? "Split preview" : "Renderer preview"}
+              {mode === "split" ? "Split preview" : "Scene workspace"}
             </div>
           </div>
           <span className="rounded-full border border-black/10 bg-black/[0.04] px-2.5 py-1 text-[11px] font-medium text-neutral-700">
-            Read-only
+            {isInteractive ? "Select + drag" : "Read-only"}
           </span>
         </div>
 
-        <div className="overflow-auto rounded-[1.1rem] bg-neutral-100/70 p-2">
+        <div
+          className={
+            mode === "split"
+              ? "overflow-auto rounded-[1.1rem] bg-neutral-100/70 p-2"
+              : "flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-[1.1rem] bg-neutral-100/70 p-2"
+          }
+        >
           <div style={{ width: scaledWidth, height: scaledHeight }}>
             <div
               style={{
@@ -118,7 +155,17 @@ export default function SceneWorkspace({
                 transformOrigin: "top left",
               }}
             >
-              <SceneWorkspaceStage scene={scene} backend={backend} />
+              <SceneWorkspaceStage
+                scene={renderedScene}
+                backend={backend}
+                className={mode === "split" ? undefined : "max-w-none"}
+                interactive={isInteractive}
+                selectedIds={editor.selectedIds}
+                onScenePointerDown={editor.onPointerDown}
+                onScenePointerMove={editor.onPointerMove}
+                onScenePointerUp={editor.onPointerUp}
+                onHandlePointerDown={editor.onHandlePointerDown}
+              />
             </div>
           </div>
         </div>
@@ -126,7 +173,9 @@ export default function SceneWorkspace({
         <p className="mt-2 text-xs text-neutral-600">
           {issues.length > 0
             ? `Partial render: ${issues.length} legacy Fabric item${issues.length === 1 ? "" : "s"} still need porting. ${issueSummary ? `Top blockers: ${issueSummary}.` : ""}`
-            : "RenderCommands are being interpreted by the selected renderer backend instead of Fabric."}
+            : isInteractive
+              ? "Prototype interaction is enabled in full scene workspace: selection and drag-to-move are routed through Saraswati commands."
+              : "RenderCommands are being interpreted by the selected renderer backend instead of Fabric."}
         </p>
       </div>
     </div>

@@ -9,6 +9,8 @@ export type SceneWorkspaceState = {
   sidebarPanel: EditorSidebarPanelId | null;
   focusMode: boolean;
   shortcutsOpen: boolean;
+  /** Node IDs currently selected in the Saraswati scene workspace. */
+  selectedIds: string[];
   setPreviewMode: (mode: SceneWorkspacePreviewMode) => void;
   cyclePreviewMode: () => void;
   setSidebarPanel: (panel: EditorSidebarPanelId | null) => void;
@@ -16,6 +18,7 @@ export type SceneWorkspaceState = {
   setFocusMode: (value: boolean) => void;
   toggleFocusMode: () => void;
   setShortcutsOpen: (value: boolean) => void;
+  setSelectedIds: (ids: string[]) => void;
   resetChrome: () => void;
 };
 
@@ -36,6 +39,7 @@ export function createSceneWorkspaceStore(initial?: {
     sidebarPanel: initial?.sidebarPanel ?? null,
     focusMode: false,
     shortcutsOpen: false,
+    selectedIds: [],
     setPreviewMode: (previewMode) => set({ previewMode }),
     cyclePreviewMode: () => {
       const current = get().previewMode;
@@ -54,6 +58,7 @@ export function createSceneWorkspaceStore(initial?: {
         focusMode: !state.focusMode,
       })),
     setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+    setSelectedIds: (selectedIds) => set({ selectedIds }),
     resetChrome: () =>
       set({
         sidebarPanel: null,

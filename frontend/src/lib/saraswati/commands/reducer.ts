@@ -3,6 +3,10 @@ import {
   type SaraswatiNode,
   type SaraswatiScene,
 } from "../scene";
+import type {
+  SaraswatiNodeOriginX,
+  SaraswatiNodeOriginY,
+} from "../types";
 import type { SaraswatiCommand } from "./types";
 
 export function applyCommand(
@@ -12,6 +16,8 @@ export function applyCommand(
   switch (command.type) {
     case "MOVE_NODE":
       return moveNode(scene, command.id, command.dx, command.dy);
+    case "RESIZE_NODE":
+      return resizeNode(scene, command.id, command.x, command.y, command.width, command.height);
     case "ADD_NODE":
       return addNode(scene, command.node);
     case "DELETE_NODE":
@@ -24,6 +30,10 @@ export function applyCommand(
       return groupNodes(scene, command.id, command.parentId, command.children);
     case "UNGROUP_NODE":
       return ungroupNode(scene, command.id);
+    case "SET_NODE_VISIBLE":
+      return setNodeVisible(scene, command.id, command.visible);
+    case "SET_NODE_NAME":
+      return setNodeName(scene, command.id, command.name);
     default:
       return scene;
   }
@@ -220,6 +230,80 @@ function ungroupNode(scene: SaraswatiScene, groupId: string): SaraswatiScene {
   }
 
   delete next.nodes[groupId];
+  return next;
+}
+
+function resizeNode(
+  scene: SaraswatiScene,
+  nodeId: string,
+  bx: number,
+  by: number,
+  bw: number,
+  bh: number,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.type === "group" || node.type === "line") return scene;
+  const clamped = { bx, by, bw: Math.max(1, bw), bh: Math.max(1, bh) };
+  const next = cloneSaraswatiScene(scene);
+  const nx = boundsToAnchorX(clamped.bx, node.originX, clamped.bw);
+  const ny = boundsToAnchorY(clamped.by, node.originY, clamped.bh);
+  if (node.type === "text") {
+    next.nodes[nodeId] = { ...node, x: nx, y: ny, width: clamped.bw / node.scaleX };
+    return next;
+  }
+  next.nodes[nodeId] = {
+    ...node,
+    x: nx,
+    y: ny,
+    width: clamped.bw / node.scaleX,
+    height: clamped.bh / node.scaleY,
+  } as SaraswatiNode;
+  return next;
+}
+
+function boundsToAnchorX(
+  left: number,
+  originX: SaraswatiNodeOriginX,
+  width: number,
+): number {
+  if (originX === "center") return left + width / 2;
+  if (originX === "right") return left + width;
+  return left;
+}
+
+function boundsToAnchorY(
+  top: number,
+  originY: SaraswatiNodeOriginY,
+  height: number,
+): number {
+  if (originY === "center") return top + height / 2;
+  if (originY === "bottom") return top + height;
+  return top;
+}
+
+function setNodeVisible(
+  scene: SaraswatiScene,
+  nodeId: string,
+  visible: boolean,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node || node.visible === visible) return scene;
+  const next = cloneSaraswatiScene(scene);
+  next.nodes[nodeId] = { ...node, visible };
+  return next;
+}
+
+function setNodeName(
+  scene: SaraswatiScene,
+  nodeId: string,
+  name: string,
+): SaraswatiScene {
+  const node = scene.nodes[nodeId];
+  if (!node) return scene;
+  const next = cloneSaraswatiScene(scene);
+  // Store name as a generic meta property; nodes that have a `name` field get it set directly.
+  // All node types share SaraswatiNodeBase which doesn't define `name`, so we widen with a cast.
+  next.nodes[nodeId] = { ...node, name };
   return next;
 }
 

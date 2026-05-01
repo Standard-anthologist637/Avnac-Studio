@@ -4433,12 +4433,20 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (!c) return;
         const o = c.getObjects()[stackIndex];
         if (!o) return;
+        const sceneCommands = saraswatiLiveSceneRef.current
+          ? [{
+              type: "SET_NODE_VISIBLE" as const,
+              id: ensureAvnacLayerId(o),
+              visible: !o.visible,
+            }]
+          : [];
+        applySceneWorkspaceCommands(sceneCommands);
         o.set("visible", !o.visible);
         c.requestRenderAll();
         selectionTick();
         persistAfterMutation(c, o);
       },
-      [persistAfterMutation],
+      [applySceneWorkspaceCommands, persistAfterMutation],
     );
 
     const onLayerBringForward = useCallback(
@@ -4491,12 +4499,20 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
         if (!c) return;
         const o = c.getObjects()[stackIndex];
         if (!o) return;
+        const sceneCommands = saraswatiLiveSceneRef.current
+          ? [{
+              type: "SET_NODE_NAME" as const,
+              id: ensureAvnacLayerId(o),
+              name,
+            }]
+          : [];
+        applySceneWorkspaceCommands(sceneCommands);
         setAvnacLayerName(o, name);
         c.requestRenderAll();
         selectionTick();
         persistAfterMutation(c, o);
       },
-      [persistAfterMutation],
+       [applySceneWorkspaceCommands, persistAfterMutation],
     );
 
     const onLayerReorder = useCallback(
@@ -4860,6 +4876,7 @@ const FabricEditor = forwardRef<FabricEditorHandle, FabricEditorProps>(
             mode={previewMode}
             document={sceneEditorPreviewDoc}
             commands={sceneWorkspacePreviewCommands}
+            store={sceneEditorStore}
           />
         </div>
 

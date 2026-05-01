@@ -21,6 +21,7 @@ export type SaraswatiNodeOriginY = "top" | "center" | "bottom";
 export type SaraswatiNodeBase = {
   id: SaraswatiNodeId;
   parentId: SaraswatiNodeId | null;
+  name?: string;
   visible: boolean;
   x: number;
   y: number;
@@ -128,6 +129,7 @@ export type SaraswatiGroupNode = {
   id: SaraswatiNodeId;
   type: "group";
   parentId: SaraswatiNodeId | null;
+  name?: string;
   visible: boolean;
   opacity: number;
   children: SaraswatiNodeId[];
