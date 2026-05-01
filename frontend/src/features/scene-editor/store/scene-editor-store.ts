@@ -76,6 +76,8 @@ type SceneEditorActions = {
   load: (id: string) => Promise<void>;
   /** Apply one or more Saraswati commands to the live scene. */
   applyCommands: (commands: SaraswatiCommand[]) => void;
+  beginHistoryBatch: () => void;
+  endHistoryBatch: () => void;
   setSelectedIds: (ids: string[]) => void;
   toggleLockedSelection: () => void;
   setRenderStats: (stats: {
@@ -254,6 +256,23 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       canUndo: engineState.canUndo,
       canRedo: engineState.canRedo,
       baseDocument: nextBaseDocument,
+    });
+  },
+
+  beginHistoryBatch: () => {
+    if (!sceneEngineStore) return;
+    sceneEngineStore.beginBatch();
+  },
+
+  endHistoryBatch: () => {
+    if (!sceneEngineStore) return;
+    sceneEngineStore.endBatch();
+    const engineState = sceneEngineStore.getState();
+    set({
+      scene: engineState.scene,
+      canUndo: engineState.canUndo,
+      canRedo: engineState.canRedo,
+      hasPendingChanges: true,
     });
   },
 

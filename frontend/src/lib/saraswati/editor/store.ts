@@ -20,6 +20,8 @@ export type SaraswatiEditorStore = {
    * the redo stack — same input always produces the same result.
    */
   dispatch: (command: SaraswatiCommand) => void;
+  beginBatch: () => void;
+  endBatch: () => void;
   /** Revert the last dispatched command batch. No-op when canUndo is false. */
   undo: () => void;
   /** Re-apply the last undone state. No-op when canRedo is false. */
@@ -31,6 +33,8 @@ export function createSaraswatiEditorStore(
 ): SaraswatiEditorStore {
   let undoStack: SaraswatiScene[] = [];
   let redoStack: SaraswatiScene[] = [];
+  let batchDepth = 0;
+  let batchBaseScene: SaraswatiScene | null = null;
 
   let state: SaraswatiEditorState = {
     scene: initialScene,
@@ -60,13 +64,35 @@ export function createSaraswatiEditorStore(
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    beginBatch() {
+      batchDepth += 1;
+      if (batchDepth === 1) {
+        batchBaseScene = state.scene;
+      }
+    },
     dispatch(command) {
       const nextScene = applyCommand(state.scene, command);
       if (nextScene === state.scene) return;
-      undoStack = [...undoStack.slice(-(MAX_UNDO_DEPTH - 1)), state.scene];
-      redoStack = [];
+      if (batchDepth === 0) {
+        undoStack = [...undoStack.slice(-(MAX_UNDO_DEPTH - 1)), state.scene];
+        redoStack = [];
+      }
       state = buildState(nextScene);
       emit();
+    },
+    endBatch() {
+      if (batchDepth === 0) return;
+      batchDepth -= 1;
+      if (batchDepth > 0) return;
+
+      if (batchBaseScene && batchBaseScene !== state.scene) {
+        undoStack = [...undoStack.slice(-(MAX_UNDO_DEPTH - 1)), batchBaseScene];
+        redoStack = [];
+        state = buildState(state.scene);
+        emit();
+      }
+
+      batchBaseScene = null;
     },
     undo() {
       if (undoStack.length === 0) return;

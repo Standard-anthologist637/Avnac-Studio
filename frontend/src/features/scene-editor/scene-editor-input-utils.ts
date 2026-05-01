@@ -17,7 +17,7 @@ export function shouldIgnoreEditorHotkeys(
   hasInlineTextEdit: boolean,
 ) {
   if (hasInlineTextEdit) return true;
-  return isTextEntryTarget(target) || isChromeTarget(target);
+  return isTextEntryTarget(target);
 }
 
 export function collectSelectableNodeIds(

@@ -74,6 +74,8 @@ function commandNodeIdFromCommand(command: {
 
 export function useSceneEditorInteractions() {
   const applyCommands = useSceneEditorStore((s) => s.applyCommands);
+  const beginHistoryBatch = useSceneEditorStore((s) => s.beginHistoryBatch);
+  const endHistoryBatch = useSceneEditorStore((s) => s.endHistoryBatch);
   const setSelectedIds = useSceneEditorStore((s) => s.setSelectedIds);
 
   const pointerStateRef = useRef<SaraswatiPointerState>(
@@ -157,6 +159,7 @@ export function useSceneEditorInteractions() {
           }
         : { state: createIdlePointerState(), selectedIds: [] };
       pointerStateRef.current = result.state;
+      beginHistoryBatch();
       clipResizeRef.current = null;
       curveAdjustRef.current = null;
       marqueeRef.current = null;
@@ -166,7 +169,7 @@ export function useSceneEditorInteractions() {
       setMeasurement(null);
       setActiveCursor(null);
     },
-    [setSelectedIds],
+    [beginHistoryBatch, setSelectedIds],
   );
 
   const onPointerMove = useCallback(
@@ -381,6 +384,7 @@ export function useSceneEditorInteractions() {
   );
 
   const onPointerUp = useCallback((pointerId: number) => {
+    let shouldEndHistoryBatch = false;
     if (marqueeRef.current && marqueeRef.current.pointerId === pointerId) {
       marqueeRef.current = null;
       setMarqueeBounds(null);
@@ -390,18 +394,33 @@ export function useSceneEditorInteractions() {
       clipResizeRef.current.pointerId === pointerId
     ) {
       clipResizeRef.current = null;
+      shouldEndHistoryBatch = true;
     }
     if (
       curveAdjustRef.current &&
       curveAdjustRef.current.pointerId === pointerId
     ) {
       curveAdjustRef.current = null;
+      shouldEndHistoryBatch = true;
+    }
+    if (pointerStateRef.current.pointerId === pointerId) {
+      if (
+        pointerStateRef.current.activeNodeId &&
+        (pointerStateRef.current.resize !== null ||
+          pointerStateRef.current.rotate !== null ||
+          pointerStateRef.current.pointerId !== null)
+      ) {
+        shouldEndHistoryBatch = true;
+      }
     }
     pointerStateRef.current = pointerUp(pointerStateRef.current, pointerId);
+    if (shouldEndHistoryBatch) {
+      endHistoryBatch();
+    }
     setGuides([]);
     setMeasurement(null);
     setActiveCursor(null);
-  }, []);
+  }, [endHistoryBatch]);
 
   const onHandlePointerDown = useCallback(
     (
@@ -420,6 +439,7 @@ export function useSceneEditorInteractions() {
         x,
         y,
       );
+      beginHistoryBatch();
       const cursorByHandle: Record<SaraswatiResizeHandle, string> = {
         n: "ns-resize",
         s: "ns-resize",
@@ -434,7 +454,7 @@ export function useSceneEditorInteractions() {
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
     },
-    [],
+    [beginHistoryBatch],
   );
 
   const onRotateHandlePointerDown = useCallback(
@@ -470,11 +490,12 @@ export function useSceneEditorInteractions() {
         x,
         y,
       );
+      beginHistoryBatch();
       setActiveCursor("grabbing");
       setHoveredId(null);
       setMeasurement(null);
     },
-    [],
+    [beginHistoryBatch],
   );
 
   const onClipHandlePointerDown = useCallback(
@@ -502,11 +523,12 @@ export function useSceneEditorInteractions() {
         startX: x,
         startY: y,
       };
+      beginHistoryBatch();
       setActiveCursor("crosshair");
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
     },
-    [],
+    [beginHistoryBatch],
   );
 
   const onCreateClipPath = useCallback(
@@ -573,13 +595,14 @@ export function useSceneEditorInteractions() {
         startY: y,
         length,
       };
+      beginHistoryBatch();
       pointerStateRef.current = createIdlePointerState();
       setActiveCursor("move");
       setHoveredId(null);
       setGuides([]);
       setMeasurement(null);
     },
-    [],
+    [beginHistoryBatch],
   );
 
   return {
