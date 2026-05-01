@@ -21,7 +21,6 @@ import {
   addClipToSelection,
   insertArrow,
   insertEllipse,
-  insertImage,
   insertLine,
   insertPolygon,
   insertRect,
@@ -92,7 +91,6 @@ type SceneEditorActions = {
   insertLine: () => void;
   insertArrow: () => void;
   insertText: () => void;
-  insertImage: () => void;
   insertVectorBoard: () => void;
   addClipToSelection: () => void;
   removeClipFromSelection: () => void;
@@ -299,7 +297,6 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   insertLine: () => insertLine(asInsertContext(get())),
   insertArrow: () => insertArrow(asInsertContext(get())),
   insertText: () => insertText(asInsertContext(get())),
-  insertImage: () => insertImage(asInsertContext(get())),
   insertVectorBoard: () => insertVectorBoard(asInsertContext(get())),
   addClipToSelection: () => addClipToSelection(asInsertContext(get())),
   removeClipFromSelection: () =>

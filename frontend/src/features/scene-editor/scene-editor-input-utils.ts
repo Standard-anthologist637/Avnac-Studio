@@ -20,6 +20,20 @@ export function shouldIgnoreEditorHotkeys(
   return isTextEntryTarget(target);
 }
 
+export function shouldStartViewportPan(params: {
+  target: EventTarget | null;
+  button: number;
+  pointerType?: string;
+  spaceHeld: boolean;
+  hasInlineTextEdit: boolean;
+}) {
+  const { target, button, pointerType, spaceHeld, hasInlineTextEdit } = params;
+  if (hasInlineTextEdit) return false;
+  if (isTextEntryTarget(target) || isChromeTarget(target)) return false;
+  if (pointerType && pointerType !== "mouse") return false;
+  return button === 1 || (button === 0 && spaceHeld);
+}
+
 export function collectSelectableNodeIds(
   scene: SaraswatiScene,
   lockedIds: readonly string[],
@@ -65,4 +79,33 @@ export function extractClipboardImageFiles(dataTransfer: DataTransfer | null) {
     files.push(file);
   }
   return files;
+}
+
+export async function readNavigatorClipboardImageFiles() {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.clipboard ||
+    typeof navigator.clipboard.read !== "function"
+  ) {
+    return [] as File[];
+  }
+
+  try {
+    const items = await navigator.clipboard.read();
+    const files: File[] = [];
+    for (const item of items) {
+      const imageType = item.types.find((type) => type.startsWith("image/"));
+      if (!imageType) continue;
+      const blob = await item.getType(imageType);
+      const extension = imageType.split("/")[1] ?? "png";
+      files.push(
+        new File([blob], `clipboard-image-${Date.now()}.${extension}`, {
+          type: blob.type || imageType,
+        }),
+      );
+    }
+    return files;
+  } catch {
+    return [] as File[];
+  }
 }

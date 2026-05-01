@@ -3,6 +3,7 @@ import type { SaraswatiScene } from "@/lib/saraswati";
 import {
   collectSelectableNodeIds,
   extractClipboardImageFiles,
+  readNavigatorClipboardImageFiles,
   shouldIgnoreEditorHotkeys,
 } from "./scene-editor-input-utils";
 
@@ -29,35 +30,6 @@ type Params = {
   onImageFilesPaste: (files: File[]) => void;
   onShowShortcuts: () => void;
 };
-
-async function readNavigatorClipboardImageFiles() {
-  if (
-    typeof navigator === "undefined" ||
-    !navigator.clipboard ||
-    typeof navigator.clipboard.read !== "function"
-  ) {
-    return [] as File[];
-  }
-
-  try {
-    const items = await navigator.clipboard.read();
-    const files: File[] = [];
-    for (const item of items) {
-      const imageType = item.types.find((type) => type.startsWith("image/"));
-      if (!imageType) continue;
-      const blob = await item.getType(imageType);
-      const extension = imageType.split("/")[1] ?? "png";
-      files.push(
-        new File([blob], `clipboard-image-${Date.now()}.${extension}`, {
-          type: blob.type || imageType,
-        }),
-      );
-    }
-    return files;
-  } catch {
-    return [] as File[];
-  }
-}
 
 export function useSceneEditorShortcuts({
   scene,

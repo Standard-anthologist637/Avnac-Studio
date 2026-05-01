@@ -3,7 +3,7 @@ import {
   createEmptySaraswatiScene,
   createSaraswatiEditorStore,
   type SaraswatiRectNode,
-} from "..";
+} from "../..";
 
 function buildRectNode(id: string): SaraswatiRectNode {
   return {

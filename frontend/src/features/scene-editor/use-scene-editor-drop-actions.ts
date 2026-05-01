@@ -58,7 +58,6 @@ function fitImageSize(
 export function useSceneEditorDropActions() {
   const applyCommands = useSceneEditorStore((s) => s.applyCommands);
   const setSelectedIds = useSceneEditorStore((s) => s.setSelectedIds);
-  const insertVectorBoard = useSceneEditorStore((s) => s.insertVectorBoard);
 
   const addImageAtPoint = useCallback(
     async (src: string, point: ScenePoint) => {
@@ -126,14 +125,13 @@ export function useSceneEditorDropActions() {
           return;
         }
         case "vector-board": {
-          // Vector-board placement in scene workspace is currently represented by
-          // the placeholder insert command path until scene-native vector docs land.
-          insertVectorBoard();
+          // Vector-board insertion in Scene is deferred until scene-native vector
+          // document support lands. Silently ignore to avoid inserting a fake placeholder.
           return;
         }
       }
     },
-    [addImageAtPoint, insertVectorBoard],
+    [addImageAtPoint],
   );
 
   return { handleDropIntent };

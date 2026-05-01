@@ -10,7 +10,13 @@ import { findTopHitNodeId } from "@/lib/saraswati";
 import { readSceneWorkspaceDropIntent } from "@/scene/workspace";
 import { useCallback, useEffect, useRef, useState } from "react";
 import SceneInlineTextEditor from "./scene-inline-text-editor";
-import { reorderChildrenForSelection } from "./scene-editor-input-utils";
+import {
+  isChromeTarget,
+  isTextEntryTarget,
+  readNavigatorClipboardImageFiles,
+  reorderChildrenForSelection,
+  shouldStartViewportPan,
+} from "./scene-editor-input-utils";
 import {
   computeFitZoomPercent,
   toClampedScenePoint,
@@ -64,9 +70,21 @@ export default function SceneEditorCanvas({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  const lastScenePointRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const spaceDownRef = useRef(false);
+  const viewportPanDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    scrollLeft: number;
+    scrollTop: number;
+  } | null>(null);
   const [containerSize, setContainerSize] = useState({ w: 0, h: 0 });
   const [inlineTextEdit, setInlineTextEdit] =
     useState<InlineTextEditState | null>(null);
+  const [viewportPanCursor, setViewportPanCursor] = useState<
+    "grab" | "grabbing" | null
+  >(null);
 
   useEffect(() => {
     const element = scrollContainerRef.current;
@@ -92,6 +110,115 @@ export default function SceneEditorCanvas({
       setCanvasPan(0, 0);
     };
   }, [setCanvasPan, setCanvasViewport]);
+
+  const syncViewportPanCursor = useCallback(() => {
+    setViewportPanCursor(
+      viewportPanDragRef.current
+        ? "grabbing"
+        : spaceDownRef.current
+          ? "grab"
+          : null,
+    );
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (inlineTextEdit) return;
+      if (event.key !== " " && event.code !== "Space") return;
+      if (isTextEntryTarget(event.target) || isChromeTarget(event.target)) {
+        return;
+      }
+      if (!spaceDownRef.current) {
+        spaceDownRef.current = true;
+        syncViewportPanCursor();
+      }
+      event.preventDefault();
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key !== " " && event.code !== "Space") return;
+      spaceDownRef.current = false;
+      syncViewportPanCursor();
+    };
+
+    const onBlur = () => {
+      spaceDownRef.current = false;
+      viewportPanDragRef.current = null;
+      syncViewportPanCursor();
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [inlineTextEdit, syncViewportPanCursor]);
+
+  useEffect(() => {
+    const viewport = scrollContainerRef.current;
+    if (!viewport) return;
+
+    const stopPan = (event?: PointerEvent) => {
+      const pan = viewportPanDragRef.current;
+      if (!pan) return;
+      if (event && event.pointerId !== pan.pointerId) return;
+      viewportPanDragRef.current = null;
+      if (event) {
+        viewport.releasePointerCapture?.(event.pointerId);
+      }
+      syncViewportPanCursor();
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        !shouldStartViewportPan({
+          target: event.target,
+          button: event.button,
+          pointerType: event.pointerType,
+          spaceHeld: spaceDownRef.current,
+          hasInlineTextEdit: Boolean(inlineTextEdit),
+        })
+      ) {
+        return;
+      }
+
+      viewportPanDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        scrollLeft: viewport.scrollLeft,
+        scrollTop: viewport.scrollTop,
+      };
+      viewport.setPointerCapture?.(event.pointerId);
+      syncViewportPanCursor();
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      const pan = viewportPanDragRef.current;
+      if (!pan || event.pointerId !== pan.pointerId) return;
+      viewport.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+      viewport.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+      event.preventDefault();
+    };
+
+    viewport.addEventListener("pointerdown", onPointerDown, true);
+    window.addEventListener("pointermove", onPointerMove, true);
+    window.addEventListener("pointerup", stopPan, true);
+    window.addEventListener("pointercancel", stopPan, true);
+
+    return () => {
+      stopPan();
+      viewport.removeEventListener("pointerdown", onPointerDown, true);
+      window.removeEventListener("pointermove", onPointerMove, true);
+      window.removeEventListener("pointerup", stopPan, true);
+      window.removeEventListener("pointercancel", stopPan, true);
+    };
+  }, [inlineTextEdit, syncViewportPanCursor]);
 
   // Prevent browser/page zoom on ctrl/cmd + wheel; zoom the canvas instead.
   useEffect(() => {
@@ -237,6 +364,22 @@ export default function SceneEditorCanvas({
     [applyCommands, scene, selectedIds],
   );
 
+  const pasteClipboardAtPoint = useCallback(
+    async (point: { x: number; y: number }) => {
+      const imageFiles = await readNavigatorClipboardImageFiles();
+      if (imageFiles.length > 0) {
+        await dropActions.handleDropIntent(
+          { kind: "image-files", files: imageFiles },
+          point,
+        );
+        return;
+      }
+
+      actions.onPasteAt(point);
+    },
+    [actions, dropActions],
+  );
+
   useSceneEditorShortcuts({
     scene,
     inlineTextEditing: Boolean(inlineTextEdit),
@@ -252,17 +395,14 @@ export default function SceneEditorCanvas({
     fitToViewport,
     reorderPrimarySelection,
     onCopy: actions.onCopy,
-    onPaste: actions.onPaste,
+    onPaste: () => actions.onPasteAt(lastScenePointRef.current),
     onDelete: actions.onDelete,
     onDuplicate: actions.onDuplicate,
     onImageFilesPaste: (files) => {
       if (!scene) return;
       void dropActions.handleDropIntent(
         { kind: "image-files", files },
-        {
-          x: scene.artboard.width / 2,
-          y: scene.artboard.height / 2,
-        },
+        lastScenePointRef.current,
       );
     },
     onShowShortcuts: onOpenShortcuts,
@@ -284,6 +424,18 @@ export default function SceneEditorCanvas({
     <div
       ref={scrollContainerRef}
       className="flex flex-1 items-center justify-center overflow-auto bg-neutral-100/80 p-8"
+      style={viewportPanCursor ? { cursor: viewportPanCursor } : undefined}
+      onPointerMove={(event) => {
+        if (viewportPanDragRef.current) return;
+        const rect = surfaceRef.current?.getBoundingClientRect();
+        if (!rect || !scene) return;
+        const x = (event.clientX - rect.left) / scale;
+        const y = (event.clientY - rect.top) / scale;
+        lastScenePointRef.current = {
+          x: Math.max(0, Math.min(scene.artboard.width, x)),
+          y: Math.max(0, Math.min(scene.artboard.height, y)),
+        };
+      }}
       onDragOver={onDragOver}
       onContextMenu={onCanvasContextMenu}
       onDrop={(event) => {
@@ -316,7 +468,7 @@ export default function SceneEditorCanvas({
             hoveredId={interactions.hoveredId}
             guides={interactions.guides}
             measurement={interactions.measurement}
-            interactionCursor={interactions.activeCursor}
+            interactionCursor={viewportPanCursor ?? interactions.activeCursor}
             onScenePointerDown={interactions.onPointerDown}
             onScenePointerMove={interactions.onPointerMove}
             onScenePointerUp={interactions.onPointerUp}
@@ -391,11 +543,11 @@ export default function SceneEditorCanvas({
             setContextMenu(null);
           }}
           onPaste={() => {
-            actions.onPasteAt({
+            setContextMenu(null);
+            void pasteClipboardAtPoint({
               x: contextMenu.sceneX,
               y: contextMenu.sceneY,
             });
-            setContextMenu(null);
           }}
           onDelete={() => {
             actions.onDelete();
