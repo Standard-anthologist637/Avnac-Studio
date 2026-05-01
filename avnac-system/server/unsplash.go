@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	avnacconfig "Avnac/avnac-system/config"
+	avnacsecrets "Avnac/avnac-system/secrets"
 )
 
 const unsplashAPIBase = "https://api.unsplash.com"
@@ -69,25 +69,23 @@ type UnsplashFeedResult struct {
 //
 // No HTTP fetch or JSON-over-wire is involved on the JS side.
 type UnsplashService struct {
-	cfg *avnacconfig.AppConfig
+	secrets *avnacsecrets.SecretsManager
 }
 
-// NewUnsplashService creates an UnsplashService. cfg may be updated later via
-// UpdateConfig before the first call arrives.
-func NewUnsplashService(cfg *avnacconfig.AppConfig) *UnsplashService {
-	return &UnsplashService{cfg: cfg}
-}
-
-// UpdateConfig replaces the runtime configuration.
-func (s *UnsplashService) UpdateConfig(cfg *avnacconfig.AppConfig) {
-	s.cfg = cfg
+// NewUnsplashService creates an UnsplashService backed by the OS keyring.
+func NewUnsplashService(secrets *avnacsecrets.SecretsManager) *UnsplashService {
+	return &UnsplashService{secrets: secrets}
 }
 
 func (s *UnsplashService) accessKey() (string, error) {
-	if s.cfg.UnsplashAccessKey == "" {
+	key, err := s.secrets.GetKey("unsplash")
+	if err != nil {
+		return "", fmt.Errorf("could not read Unsplash API key: %w", err)
+	}
+	if key == "" {
 		return "", fmt.Errorf("no Unsplash API key found — add one in Settings to enable image search")
 	}
-	return s.cfg.UnsplashAccessKey, nil
+	return key, nil
 }
 
 func unsplashGet(endpoint, key string) (*http.Response, error) {

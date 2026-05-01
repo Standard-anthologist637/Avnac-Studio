@@ -57,13 +57,41 @@ function getStableUserKey(): string {
   }
 }
 
+function getSecretsBridge() {
+  if (typeof window === "undefined") return null;
+  const go = (window as Window & { go?: Record<string, Record<string, unknown>> }).go;
+  return (go?.["avnacsecrets"]?.["SecretsManager"] as
+    | { GetKey: (name: string) => Promise<string> }
+    | undefined) ?? null;
+}
+
 export default function EditorAiPanel({ open, onClose, controller }: Props) {
   const controllerRef = useRef<AiDesignController | null>(controller);
   useEffect(() => {
     controllerRef.current = controller;
   }, [controller]);
 
-  const apiKey = import.meta.env.VITE_TAMBO_API_KEY as string | undefined;
+  const [apiKey, setApiKey] = useState<string | undefined>(undefined);
+  const [keyLoading, setKeyLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const bridge = getSecretsBridge();
+        const key = bridge ? await bridge.GetKey("tambo") : "";
+        if (!cancelled) setApiKey(key?.trim() || undefined);
+      } catch {
+        if (!cancelled) setApiKey(undefined);
+      } finally {
+        if (!cancelled) setKeyLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
   const userKey = useMemo(() => getStableUserKey(), []);
   const tools = useMemo<TamboTool[]>(
     () => buildAvnacTamboTools(controllerRef),
@@ -117,7 +145,15 @@ export default function EditorAiPanel({ open, onClose, controller }: Props) {
         </button>
       </div>
 
-      {apiKey ? (
+      {keyLoading ? (
+        <div className="flex flex-1 items-center justify-center py-8">
+          <div className="flex gap-1">
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#8B3DFF] [animation-delay:-0.25s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#8B3DFF] [animation-delay:-0.1s]" />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-[#8B3DFF]" />
+          </div>
+        </div>
+      ) : apiKey ? (
         <div className="flex min-h-0 flex-1 flex-col">
           <TamboProvider
             apiKey={apiKey}
@@ -148,14 +184,15 @@ function MissingKeyPlaceholder() {
         >
           Tambo
         </a>{" "}
-        to turn natural-language prompts into real edits on your artboard.
+        to turn natural-language prompts into real design edits on your
+        artboard.
       </p>
-      <p>To enable it, add a Tambo API key to your frontend env:</p>
-      <pre className="rounded-xl border border-black/[0.08] bg-[var(--surface-subtle)] p-3 text-[12px] text-neutral-800">
-        <code>VITE_TAMBO_API_KEY=your-key-here</code>
-      </pre>
+      <p>
+        To enable it, add your Tambo API key in{" "}
+        <strong className="font-semibold">Settings → Magic AI</strong>.
+      </p>
       <p className="text-[12px] text-neutral-500">
-        Get a free key at{" "}
+        Don&apos;t have a key yet? Get a free one at{" "}
         <a
           className="underline decoration-dotted underline-offset-2"
           href="https://tambo.co"
@@ -164,7 +201,7 @@ function MissingKeyPlaceholder() {
         >
           tambo.co
         </a>
-        , then restart the dev server.
+        .
       </p>
     </div>
   );
