@@ -7,7 +7,6 @@ import {
   findTopHitNodeId,
   getNodeBounds,
   isSaraswatiRenderableNode,
-  pointerDown,
   pointerMove,
   pointerUp,
   resizeHandlePointerDown,
@@ -69,9 +68,22 @@ export function useSceneEditorInteractions() {
 
   const onPointerDown = useCallback(
     (pointerId: number, x: number, y: number) => {
-      const scene = useSceneEditorStore.getState().scene;
+      const { scene } = useSceneEditorStore.getState();
       if (!scene) return;
-      const result = pointerDown(scene, pointerId, x, y);
+      const hitId = findTopHitNodeId(scene, { x, y });
+      const result = hitId
+        ? {
+            state: {
+              activeNodeId: hitId,
+              pointerId,
+              lastX: x,
+              lastY: y,
+              resize: null,
+              rotate: null,
+            },
+            selectedIds: [hitId],
+          }
+        : { state: createIdlePointerState(), selectedIds: [] };
       pointerStateRef.current = result.state;
       clipResizeRef.current = null;
       setSelectedIds(result.selectedIds);
@@ -119,6 +131,18 @@ export function useSceneEditorInteractions() {
 
       if (pointerStateRef.current.pointerId === null) {
         setHoveredId(findTopHitNodeId(scene, { x, y }));
+        setGuides([]);
+        setMeasurement(null);
+        return;
+      }
+
+      if (
+        pointerStateRef.current.activeNodeId &&
+        store.lockedIds.includes(pointerStateRef.current.activeNodeId) &&
+        !pointerStateRef.current.resize &&
+        !pointerStateRef.current.rotate
+      ) {
+        setHoveredId(null);
         setGuides([]);
         setMeasurement(null);
         return;
@@ -183,16 +207,21 @@ export function useSceneEditorInteractions() {
       applyCommands([command]);
       const nextScene = useSceneEditorStore.getState().scene;
       const commandNodeId = commandNodeIdFromCommand(command);
-      const bounds =
-        nextScene && commandNodeId
-          ? getRenderableNodeBounds(nextScene, commandNodeId)
-          : null;
 
       setHoveredId(null);
       setGuides(nextGuides);
-      setMeasurement(
-        nextMeasurement ?? (bounds ? measurementFromBounds(bounds) : null),
-      );
+      // Rotation has no measurement overlay — the spinning AABB would create a distracting flash
+      if (command.type === "ROTATE_NODE") {
+        setMeasurement(null);
+      } else {
+        const bounds =
+          nextScene && commandNodeId
+            ? getRenderableNodeBounds(nextScene, commandNodeId)
+            : null;
+        setMeasurement(
+          nextMeasurement ?? (bounds ? measurementFromBounds(bounds) : null),
+        );
+      }
     },
     [applyCommands],
   );

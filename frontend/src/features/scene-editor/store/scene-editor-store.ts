@@ -43,6 +43,8 @@ type SceneEditorState = {
   adapterIssueCount: number;
   /** Currently selected node IDs in the scene. */
   selectedIds: string[];
+  /** Editor-only lock state. Locked nodes cannot be selected or transformed. */
+  lockedIds: string[];
   isLoading: boolean;
   loadError: string | null;
   /** True after at least one command has been applied since the last save. */
@@ -63,6 +65,7 @@ type SceneEditorActions = {
   /** Apply one or more Saraswati commands to the live scene. */
   applyCommands: (commands: SaraswatiCommand[]) => void;
   setSelectedIds: (ids: string[]) => void;
+  toggleLockedSelection: () => void;
   setRenderStats: (stats: {
     ms: number;
     commands: number;
@@ -125,6 +128,7 @@ const INITIAL: SceneEditorState = {
   scene: null,
   adapterIssueCount: 0,
   selectedIds: [],
+  lockedIds: [],
   isLoading: false,
   loadError: null,
   hasPendingChanges: false,
@@ -185,6 +189,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         baseDocument: record.document,
         scene: sceneEngineStore.getState().scene,
         adapterIssueCount: issues.length,
+        lockedIds: [],
       });
     } catch (err) {
       set({ isLoading: false, loadError: String(err) });
@@ -211,6 +216,18 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   },
 
   setSelectedIds: (selectedIds: string[]) => set({ selectedIds }),
+
+  toggleLockedSelection: () => {
+    const { selectedIds, lockedIds } = get();
+    if (selectedIds.length === 0) return;
+    const locked = new Set(lockedIds);
+    const anyUnlocked = selectedIds.some((id) => !locked.has(id));
+    for (const id of selectedIds) {
+      if (anyUnlocked) locked.add(id);
+      else locked.delete(id);
+    }
+    set({ lockedIds: [...locked] });
+  },
 
   setRenderStats: (renderStats) => set({ renderStats }),
 

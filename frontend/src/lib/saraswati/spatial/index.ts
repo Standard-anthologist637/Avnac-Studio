@@ -38,10 +38,12 @@ export function buildSpatialIndex(
 export function findTopHitNodeId(
   scene: SaraswatiScene,
   point: SaraswatiPoint,
+  options?: { excludeIds?: ReadonlySet<string> },
 ): string | null {
   const ordered = listSaraswatiNodesInRenderOrder(scene);
   for (let index = ordered.length - 1; index >= 0; index -= 1) {
     const node = ordered[index]!;
+    if (options?.excludeIds?.has(node.id)) continue;
     if (pointHitsNode(point, node)) return node.id;
   }
   return null;
@@ -79,11 +81,39 @@ export function getNodeBounds(node: SaraswatiRenderableNode): SaraswatiBounds {
       : node.height;
   const scaledWidth = Math.abs(width * node.scaleX);
   const scaledHeight = Math.abs(height * node.scaleY);
+  const startX = anchorToStart(node.x, node.originX, scaledWidth);
+  const startY = anchorToStart(node.y, node.originY, scaledHeight);
+  if (!node.rotation) {
+    return {
+      x: startX,
+      y: startY,
+      width: scaledWidth,
+      height: scaledHeight,
+    };
+  }
+
+  const centerX = anchorToCenter(node.x, node.originX, scaledWidth, true);
+  const centerY = anchorToCenter(node.y, node.originY, scaledHeight, false);
+  const halfW = scaledWidth / 2;
+  const halfH = scaledHeight / 2;
+  const rad = (node.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const corners = [
+    rotatePoint(-halfW, -halfH, cos, sin, centerX, centerY),
+    rotatePoint(halfW, -halfH, cos, sin, centerX, centerY),
+    rotatePoint(halfW, halfH, cos, sin, centerX, centerY),
+    rotatePoint(-halfW, halfH, cos, sin, centerX, centerY),
+  ];
+  const minX = Math.min(...corners.map((p) => p.x));
+  const maxX = Math.max(...corners.map((p) => p.x));
+  const minY = Math.min(...corners.map((p) => p.y));
+  const maxY = Math.max(...corners.map((p) => p.y));
   return {
-    x: anchorToStart(node.x, node.originX, scaledWidth),
-    y: anchorToStart(node.y, node.originY, scaledHeight),
-    width: scaledWidth,
-    height: scaledHeight,
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
   };
 }
 
@@ -92,7 +122,28 @@ function pointHitsNode(
   node: SaraswatiRenderableNode,
 ): boolean {
   if (node.type !== "line") {
-    return pointInBounds(point, getNodeBounds(node));
+    const width = node.type === "text" ? Math.max(1, node.width) : node.width;
+    const height =
+      node.type === "text"
+        ? Math.max(1, node.fontSize * Math.max(1, node.lineHeight))
+        : node.height;
+    const scaledWidth = Math.abs(width * node.scaleX);
+    const scaledHeight = Math.abs(height * node.scaleY);
+    const centerX = anchorToCenter(node.x, node.originX, scaledWidth, true);
+    const centerY = anchorToCenter(node.y, node.originY, scaledHeight, false);
+    const local = unrotatePoint(
+      point.x,
+      point.y,
+      centerX,
+      centerY,
+      node.rotation,
+    );
+    return pointInBounds(local, {
+      x: centerX - scaledWidth / 2,
+      y: centerY - scaledHeight / 2,
+      width: scaledWidth,
+      height: scaledHeight,
+    });
   }
   const tolerance = Math.max(
     6,
@@ -149,4 +200,48 @@ function anchorToStart(
   if (origin === "center") return anchor - size / 2;
   if (origin === "right" || origin === "bottom") return anchor - size;
   return anchor;
+}
+
+function anchorToCenter(
+  anchor: number,
+  origin: "left" | "center" | "right" | "top" | "bottom",
+  size: number,
+  _isHorizontal: boolean,
+) {
+  if (origin === "center") return anchor;
+  if (origin === "right" || origin === "bottom") return anchor - size / 2;
+  return anchor + size / 2;
+}
+
+function rotatePoint(
+  x: number,
+  y: number,
+  cos: number,
+  sin: number,
+  centerX: number,
+  centerY: number,
+) {
+  return {
+    x: centerX + x * cos - y * sin,
+    y: centerY + x * sin + y * cos,
+  };
+}
+
+function unrotatePoint(
+  x: number,
+  y: number,
+  centerX: number,
+  centerY: number,
+  rotation: number,
+) {
+  if (!rotation) return { x, y };
+  const rad = (-rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = x - centerX;
+  const dy = y - centerY;
+  return {
+    x: centerX + dx * cos - dy * sin,
+    y: centerY + dx * sin + dy * cos,
+  };
 }

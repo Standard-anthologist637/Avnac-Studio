@@ -27,6 +27,7 @@ type Props = {
   className?: string;
   interactive?: boolean;
   selectedIds?: readonly string[];
+  lockedIds?: readonly string[];
   onScenePointerDown?: (pointerId: number, x: number, y: number) => void;
   onScenePointerMove?: (pointerId: number, x: number, y: number) => void;
   onScenePointerUp?: (pointerId: number) => void;
@@ -84,6 +85,7 @@ export default function SceneWorkspaceStage({
   className,
   interactive = false,
   selectedIds = [],
+  lockedIds = [],
   onScenePointerDown,
   onScenePointerMove,
   onScenePointerUp,
@@ -98,6 +100,7 @@ export default function SceneWorkspaceStage({
   measurement,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const lockedIdSet = useMemo(() => new Set(lockedIds), [lockedIds]);
 
   const selectedBounds = useMemo(() => {
     const result: { id: string; bounds: SaraswatiBounds }[] = [];
@@ -119,24 +122,26 @@ export default function SceneWorkspaceStage({
   const editableClip = useMemo(() => {
     if (!interactive || selectedIds.length !== 1) return null;
     const nodeId = selectedIds[0]!;
+    if (lockedIdSet.has(nodeId)) return null;
     const node = scene.nodes[nodeId];
     if (!node || !isSaraswatiRenderableNode(node) || node.type === "line") {
       return null;
     }
     if (!node.clipPath) return null;
     return { nodeId, bounds: clipPathToBounds(node.clipPath) };
-  }, [interactive, scene, selectedIds]);
+  }, [interactive, lockedIdSet, scene, selectedIds]);
 
   const clipCreationCandidate = useMemo(() => {
     if (!interactive || selectedIds.length !== 1) return null;
     const nodeId = selectedIds[0]!;
+    if (lockedIdSet.has(nodeId)) return null;
     const node = scene.nodes[nodeId];
     if (!node || !isSaraswatiRenderableNode(node) || node.type === "line") {
       return null;
     }
     if (node.clipPath) return null;
     return { nodeId, bounds: getNodeBounds(node) };
-  }, [interactive, scene, selectedIds]);
+  }, [interactive, lockedIdSet, scene, selectedIds]);
 
   const toScenePoint = useMemo(() => {
     return (clientX: number, clientY: number) => {
@@ -384,7 +389,7 @@ export default function SceneWorkspaceStage({
               height: `${Math.max(1, bounds.height)}px`,
             }}
           >
-            {interactive &&
+            {interactive && !lockedIdSet.has(nodeId) &&
               HANDLES.map(({ id: handle, cx, cy, cursor }) => (
                 <div
                   key={handle}
@@ -413,7 +418,7 @@ export default function SceneWorkspaceStage({
           </div>
 
           {/* Rotation handle — circle above top-center of selection */}
-          {interactive && (
+          {interactive && !lockedIdSet.has(nodeId) && (
             <>
               {/* Connector line */}
               <div
