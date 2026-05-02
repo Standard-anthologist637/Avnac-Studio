@@ -6,7 +6,6 @@ import {
   FileImportIcon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
-import { usePostHog } from "posthog-js/react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import DeleteConfirmDialog from "@/components/dialogs/delete-confirm-dialog";
 import FileCard from "@/components/files/file-card";
@@ -125,13 +124,18 @@ function FilesPage() {
     title: string;
     message: string;
   } | null>(null);
-  const posthog = usePostHog();
   const importInputRef = useRef<HTMLInputElement>(null);
   const {
     currentVersion,
     updateAvailable,
     dismiss: dismissUpdate,
   } = useUpdateCheck();
+
+  const isBirthday = (() => {
+    const now = new Date();
+    return now.getMonth() === 9 && now.getDate() === 24; // October 24
+  })();
+  const [birthdayDismissed, setBirthdayDismissed] = useState(false);
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
@@ -186,7 +190,6 @@ function FilesPage() {
 
   const bulkDownload = useCallback(() => {
     const ids = [...selectedIds];
-    posthog.capture("files_bulk_downloaded", { file_count: ids.length });
     void (async () => {
       try {
         for (const id of ids) {
@@ -194,11 +197,10 @@ function FilesPage() {
           await new Promise((r) => setTimeout(r, 140));
         }
       } catch (err) {
-        posthog.captureException(err);
         console.error("[avnac] bulk download failed", err);
       }
     })();
-  }, [selectedIds, posthog]);
+  }, [selectedIds]);
 
   const bulkTrash = useCallback(() => {
     const ids = [...selectedIds];
@@ -218,7 +220,6 @@ function FilesPage() {
     if (!deleteDialog) return;
     const ids = [...deleteDialog.ids];
     setDeleteDialog(null);
-    posthog.capture("file_deleted", { file_count: ids.length, file_ids: ids });
     void (async () => {
       try {
         for (const id of ids) {
@@ -228,11 +229,10 @@ function FilesPage() {
         setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)));
         refreshList();
       } catch (err) {
-        posthog.captureException(err);
         console.error("[avnac] delete failed", err);
       }
     })();
-  }, [deleteDialog, refreshList, posthog]);
+  }, [deleteDialog, refreshList]);
 
   const requestDeleteFile = useCallback((id: string) => {
     setDeleteDialog({
@@ -295,14 +295,8 @@ function FilesPage() {
             await saveStoredPages(id, imported.document.pages, index);
           }
 
-          posthog.capture("workspace_imported_from_files", {
-            file_name: file.name,
-            imported_as: baseName,
-          });
-          setImportError(null);
           refreshList();
         } catch (err) {
-          posthog.captureException(err);
           console.error("[avnac] workspace import failed", err);
           setImportError(
             "Something went wrong while importing. Check the console for details.",
@@ -310,7 +304,7 @@ function FilesPage() {
         }
       })();
     },
-    [posthog, refreshList],
+    [refreshList],
   );
 
   const selectionCount = selectedIds.length;
@@ -475,6 +469,51 @@ function FilesPage() {
         </button>
       ) : null}
 
+      {/* Birthday toast */}
+      {isBirthday && !birthdayDismissed ? (
+        <div className="fixed bottom-5 right-5 z-[300] flex max-w-sm items-start gap-3 rounded-2xl border border-black/[0.1] bg-white p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-[var(--text)]">
+              🎂 It's a special day!
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
+              Today is the birthday of @d3uc3y, co-maintainer of Avnac. Send them a wish!
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL("https://x.com/d3uc3y")}
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-4 text-xs font-medium text-white transition hover:bg-[#262626]"
+              >
+                Wish happy birthday 🎉
+              </button>
+              <button
+                type="button"
+                onClick={() => setBirthdayDismissed(true)}
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border border-black/[0.12] bg-transparent px-4 text-xs font-medium text-[var(--text)] transition hover:bg-black/[0.04]"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss birthday notification"
+            onClick={() => setBirthdayDismissed(true)}
+            className="mt-0.5 shrink-0 cursor-pointer rounded-full p-1 text-[var(--text-muted)] transition hover:bg-black/[0.06]"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path
+                d="M1 1l12 12M13 1L1 13"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
+      ) : null}
+
       {/* Update toast */}
       {updateAvailable ? (
         <div className="fixed bottom-5 right-5 z-[300] flex max-w-sm items-start gap-3 rounded-2xl border border-black/[0.1] bg-white p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
@@ -486,14 +525,13 @@ function FilesPage() {
               A new version of Avnac is ready to download.
             </p>
             <div className="mt-3 flex items-center gap-2">
-              <a
-                href={updateAvailable.downloadUrl}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => BrowserOpenURL("https://avnac.design/studio#platform-downloads")}
                 className="inline-flex h-8 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-4 text-xs font-medium text-white transition hover:bg-[#262626]"
               >
                 Download
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={dismissUpdate}

@@ -1,8 +1,8 @@
 import { StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { BrowserOpenURL } from "../../../wailsjs/runtime/runtime";
 import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { usePostHog } from "posthog-js/react";
 import { useEditorUnsupportedOnThisDevice } from "../../hooks/use-editor-device-support";
 import { ARTBOARD_PRESETS } from "../../data/artboard-presets";
 
@@ -19,7 +19,6 @@ export default function NewCanvasDialog({
   onClose,
 }: NewCanvasDialogProps) {
   const navigate = useNavigate();
-  const posthog = usePostHog();
   const editorUnsupported = useEditorUnsupportedOnThisDevice();
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -53,12 +52,6 @@ export default function NewCanvasDialog({
   const goCreate = (w: number, h: number, presetLabel?: string) => {
     const W = Math.min(CANVAS_MAX, Math.max(CANVAS_MIN, Math.round(w)));
     const H = Math.min(CANVAS_MAX, Math.max(CANVAS_MIN, Math.round(h)));
-    posthog.capture("canvas_created", {
-      width: W,
-      height: H,
-      creation_mode: presetLabel ? "preset" : "custom",
-      preset_label: presetLabel ?? null,
-    });
     void navigate({ to: "/create", search: { w: W, h: H } });
     onClose();
   };
@@ -118,11 +111,10 @@ export default function NewCanvasDialog({
 
         {editorUnsupported ? (
           <div className="mt-6">
-            <a
-              href="https://github.com/akinloluwami/avnac"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-[#f6c56a]/60 bg-[linear-gradient(135deg,#fff7d6_0%,#ffe8a3_48%,#ffd36f_100%)] px-6 py-3 text-[15px] font-semibold text-[#3f2a00] no-underline shadow-[0_12px_30px_rgba(245,179,54,0.22),inset_0_1px_0_rgba(255,255,255,0.72)] transition-transform duration-200 hover:-translate-y-0.5 hover:text-[#2f1f00]"
+            <button
+              type="button"
+              onClick={() => BrowserOpenURL("https://github.com/akinloluwami/avnac")}
+              className="inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-full border border-[#f6c56a]/60 bg-[linear-gradient(135deg,#fff7d6_0%,#ffe8a3_48%,#ffd36f_100%)] px-6 py-3 text-[15px] font-semibold text-[#3f2a00] no-underline shadow-[0_12px_30px_rgba(245,179,54,0.22),inset_0_1px_0_rgba(255,255,255,0.72)] transition-transform duration-200 hover:-translate-y-0.5 hover:text-[#2f1f00] cursor-pointer"
             >
               <HugeiconsIcon
                 icon={StarIcon}
@@ -131,7 +123,7 @@ export default function NewCanvasDialog({
                 className="shrink-0"
               />
               <span>Star us on GitHub</span>
-            </a>
+            </button>
           </div>
         ) : (
           <>

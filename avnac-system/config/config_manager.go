@@ -2,7 +2,6 @@ package avnacconfig
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 )
 
@@ -76,7 +75,7 @@ func normalizeConfig(cfg *AppConfig) *AppConfig {
 	if cfg == nil {
 		return &AppConfig{}
 	}
-	return &AppConfig{
-		UnsplashAccessKey: strings.TrimSpace(cfg.UnsplashAccessKey),
-	}
+	// UnsplashAccessKey is intentionally omitted — secrets are stored in the
+	// OS keyring via SecretsManager, not in this config file.
+	return &AppConfig{}
 }

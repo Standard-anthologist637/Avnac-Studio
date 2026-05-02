@@ -11,7 +11,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePostHog } from "posthog-js/react";
 import FabricEditor, {
   type FabricEditorHandle,
 } from "@/components/fabric-editor/index";
@@ -111,7 +110,6 @@ export default function MultiPageEditorShell({
   const [pngMult, setPngMult] = useState(2);
   const [pngTransparent, setPngTransparent] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
-  const posthog = usePostHog();
 
   const persistPages = useCallback(
     (nextState: PageState): Promise<void> => {
@@ -214,8 +212,7 @@ export default function MultiPageEditorShell({
     await updatePages((prev, currentDoc) =>
       buildAddPageResult(prev, currentDoc),
     );
-    posthog.capture("editor_page_added", { file_id: persistId });
-  }, [persistId, posthog, updatePages]);
+  }, [persistId, updatePages]);
 
   const deletePage = useCallback(async () => {
     const confirmed = await ConfirmDialog(
@@ -224,8 +221,7 @@ export default function MultiPageEditorShell({
     ).catch(() => false);
     if (!confirmed) return;
     await updatePages((prev) => buildDeletePageResult(prev));
-    posthog.capture("editor_page_deleted", { file_id: persistId });
-  }, [persistId, posthog, updatePages]);
+  }, [persistId, updatePages]);
 
   const exportWorkspace = useCallback(async () => {
     const currentDoc = captureCurrentPage();
@@ -239,11 +235,7 @@ export default function MultiPageEditorShell({
       `${safeAvnacFileBaseName(persistDisplayName || "Untitled")}.workspace.avnac`,
       payload,
     );
-    posthog.capture("editor_workspace_exported", {
-      file_id: persistId,
-      page_count: payload.pages.length,
-    });
-  }, [captureCurrentPage, persistDisplayName, persistId, posthog]);
+  }, [captureCurrentPage, persistDisplayName, persistId]);
 
   const exportCurrentPage = useCallback(async () => {
     const currentDoc = captureCurrentPage();
@@ -253,11 +245,7 @@ export default function MultiPageEditorShell({
       `${safeAvnacFileBaseName(persistDisplayName || "Untitled")}-page-${state.currentPage + 1}.page.avnac`,
       currentDoc,
     );
-    posthog.capture("editor_page_exported", {
-      file_id: persistId,
-      page_index: state.currentPage,
-    });
-  }, [captureCurrentPage, persistDisplayName, persistId, posthog]);
+  }, [captureCurrentPage, persistDisplayName, persistId]);
 
   const importWorkspace = useCallback(
     async (file: File) => {
@@ -276,12 +264,8 @@ export default function MultiPageEditorShell({
       void persistPages(nextState);
       setPageState(nextState);
       await syncCurrentPageToEditor(nextState.pages[nextState.currentPage]!);
-      posthog.capture("editor_workspace_imported", {
-        file_id: persistId,
-        page_count: nextState.pages.length,
-      });
     },
-    [persistId, persistPages, posthog, syncCurrentPageToEditor],
+    [persistId, persistPages, syncCurrentPageToEditor],
   );
 
   const importPage = useCallback(
@@ -306,12 +290,8 @@ export default function MultiPageEditorShell({
       await updatePages((prev) =>
         buildInsertImportedPageResult(prev, importedDoc),
       );
-
-      posthog.capture("editor_page_imported", {
-        file_id: persistId,
-      });
     },
-    [persistId, posthog, updatePages],
+    [persistId, updatePages],
   );
 
   useEffect(() => {

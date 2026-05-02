@@ -13,7 +13,3 @@ export function Photos(arg1, arg2) {
 export function Search(arg1, arg2, arg3) {
   return window['go']['avnacserver']['UnsplashService']['Search'](arg1, arg2, arg3);
 }
-
-export function UpdateConfig(arg1) {
-  return window['go']['avnacserver']['UnsplashService']['UpdateConfig'](arg1);
-}
