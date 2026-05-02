@@ -178,15 +178,34 @@ export default function SceneWorkspaceStage({
   }, [lockedIdSet, scene, selectedIds]);
 
   const selectedBounds = useMemo(() => {
-    const result: { id: string; bounds: SaraswatiBounds }[] = [];
+    const lineControlPadding = Math.max(
+      10,
+      Math.min(40, 18 / Math.max(0.25, viewScale)),
+    );
+    const result: Array<{
+      id: string;
+      bounds: SaraswatiBounds;
+      controlBounds: SaraswatiBounds;
+      isLine: boolean;
+    }> = [];
     for (const id of selectedIds) {
       if (hiddenNodeIdSet.has(id)) continue;
       const bounds = getRenderableNodeBounds(scene, id);
       if (!bounds) continue;
-      result.push({ id, bounds });
+      const node = scene.nodes[id];
+      const isLine = node?.type === "line";
+      const controlBounds = isLine
+        ? {
+            x: bounds.x - lineControlPadding,
+            y: bounds.y - lineControlPadding,
+            width: bounds.width + lineControlPadding * 2,
+            height: bounds.height + lineControlPadding * 2,
+          }
+        : bounds;
+      result.push({ id, bounds, controlBounds, isLine });
     }
     return result;
-  }, [hiddenNodeIdSet, scene, selectedIds]);
+  }, [hiddenNodeIdSet, scene, selectedIds, viewScale]);
 
   const hoveredBounds = useMemo(() => {
     if (!hoveredId || selectedIds.includes(hoveredId)) return null;
@@ -575,7 +594,7 @@ export default function SceneWorkspaceStage({
           />
         ) : null}
       </div>
-      {selectedBounds.map(({ id: nodeId, bounds }) => (
+      {selectedBounds.map(({ id: nodeId, bounds, controlBounds, isLine }) => (
         <div
           key={nodeId}
           className="pointer-events-none absolute z-3"
@@ -585,10 +604,10 @@ export default function SceneWorkspaceStage({
           <div
             className="pointer-events-none absolute rounded-md border-2 border-sky-500/90 shadow-[0_0_0_1px_rgba(255,255,255,0.85)]"
             style={{
-              left: `${bounds.x}px`,
-              top: `${bounds.y}px`,
-              width: `${Math.max(1, bounds.width)}px`,
-              height: `${Math.max(1, bounds.height)}px`,
+              left: `${controlBounds.x}px`,
+              top: `${controlBounds.y}px`,
+              width: `${Math.max(1, controlBounds.width)}px`,
+              height: `${Math.max(1, controlBounds.height)}px`,
               borderWidth: `${borderWidth}px`,
             }}
           >
@@ -601,8 +620,8 @@ export default function SceneWorkspaceStage({
                   style={{
                     left: `${cx * 100}%`,
                     top: `${cy * 100}%`,
-                    width: `${handleSize}px`,
-                    height: `${handleSize}px`,
+                    width: `${Math.max(handleSize, isLine ? handleSize * 1.35 : handleSize)}px`,
+                    height: `${Math.max(handleSize, isLine ? handleSize * 1.35 : handleSize)}px`,
                     cursor,
                     touchAction: "none",
                   }}
@@ -615,7 +634,7 @@ export default function SceneWorkspaceStage({
                       e.pointerId,
                       nodeId,
                       handle,
-                      bounds,
+                      controlBounds,
                       point.x,
                       point.y,
                     );
@@ -632,7 +651,7 @@ export default function SceneWorkspaceStage({
                 className="pointer-events-none absolute w-px bg-sky-400/60"
                 style={{
                   left: `${bounds.x + bounds.width / 2}px`,
-                  top: `${bounds.y - rotateHandleOffset}px`,
+                  top: `${controlBounds.y - rotateHandleOffset}px`,
                   height: `${rotateHandleOffset}px`,
                 }}
               />
@@ -641,7 +660,7 @@ export default function SceneWorkspaceStage({
                 className="pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-sky-500/90 bg-white shadow-md active:cursor-grabbing"
                 style={{
                   left: `${bounds.x + bounds.width / 2}px`,
-                  top: `${bounds.y - rotateHandleOffset}px`,
+                  top: `${controlBounds.y - rotateHandleOffset}px`,
                   width: `${Math.max(12, handleSize + 4)}px`,
                   height: `${Math.max(12, handleSize + 4)}px`,
                   touchAction: "none",

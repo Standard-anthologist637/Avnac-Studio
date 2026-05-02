@@ -12,6 +12,17 @@ export type SaraswatiBounds = {
   height: number;
 };
 
+let interactionScale = 1;
+
+function clampInteractionScale(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.max(0, Math.min(1, value));
+}
+
+export function setSaraswatiInteractionScale(value: number): void {
+  interactionScale = clampInteractionScale(value);
+}
+
 export function buildSpatialIndex(
   scene: SaraswatiScene,
   cellSize = 128,
@@ -144,7 +155,8 @@ function pointHitsNode(
     });
   }
   const metrics = lineGeometryMetrics(node);
-  const tolerance = Math.max(6, metrics.halfStroke * 1.35 + 2);
+  const tolerance =
+    Math.max(6, metrics.halfStroke * 1.35 + 2) * interactionScale;
   const hitDistance =
     node.pathType === "curved" && node.curveBulge !== 0
       ? pointToPolylineDistance(point.x, point.y, metrics.samples)

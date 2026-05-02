@@ -18,12 +18,16 @@ type Props = {
   value: ShadowUi;
   shadowActive: boolean;
   onChange: (next: ShadowUi) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 };
 
 export default function ShadowToolbarPopover({
   value,
   shadowActive,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -145,6 +149,8 @@ export default function ShadowToolbarPopover({
             max={BLUR_MAX}
             value={blur}
             onChange={(n) => onChange({ ...value, blur: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow blur"
             trackClassName="mb-3 w-full"
           />
@@ -161,6 +167,8 @@ export default function ShadowToolbarPopover({
             max={100}
             value={op}
             onChange={(n) => onChange({ ...value, opacityPct: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow opacity"
             trackClassName="mb-3 w-full"
           />
@@ -177,6 +185,8 @@ export default function ShadowToolbarPopover({
             max={OFFSET_MAX}
             value={ox}
             onChange={(n) => onChange({ ...value, offsetX: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow offset X"
             trackClassName="mb-3 w-full"
           />
@@ -193,6 +203,8 @@ export default function ShadowToolbarPopover({
             max={OFFSET_MAX}
             value={oy}
             onChange={(n) => onChange({ ...value, offsetY: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow offset Y"
             trackClassName="w-full"
           />

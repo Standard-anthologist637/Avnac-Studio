@@ -248,7 +248,7 @@ export function useSceneEditorInteractions() {
             type: "REPLACE_NODE",
             node: {
               ...(scene.nodes[curveAdjust.nodeId] as Extract<
-                typeof scene.nodes[string],
+                (typeof scene.nodes)[string],
                 { type: "line" }
               >),
               pathType: "curved",
@@ -294,6 +294,8 @@ export function useSceneEditorInteractions() {
       let command = result.command;
       let nextGuides: SaraswatiGuideLine[] = [];
       let nextMeasurement: SaraswatiMeasurement | null = null;
+      const snapFactor = Math.max(0, Math.min(1, store.snapIntensity ?? 1));
+      const snapThreshold = 6 * snapFactor;
 
       if (command.type === "MOVE_NODE") {
         const node = scene.nodes[command.id];
@@ -308,6 +310,7 @@ export function useSceneEditorInteractions() {
               height: startBounds.height,
             },
             store.selectedIds,
+            snapThreshold,
           );
           command = {
             ...command,
@@ -330,6 +333,7 @@ export function useSceneEditorInteractions() {
             },
             resizeState.handle,
             store.selectedIds,
+            snapThreshold,
           );
           command = {
             ...command,
@@ -383,44 +387,47 @@ export function useSceneEditorInteractions() {
     [applyCommands],
   );
 
-  const onPointerUp = useCallback((pointerId: number) => {
-    let shouldEndHistoryBatch = false;
-    if (marqueeRef.current && marqueeRef.current.pointerId === pointerId) {
-      marqueeRef.current = null;
-      setMarqueeBounds(null);
-    }
-    if (
-      clipResizeRef.current &&
-      clipResizeRef.current.pointerId === pointerId
-    ) {
-      clipResizeRef.current = null;
-      shouldEndHistoryBatch = true;
-    }
-    if (
-      curveAdjustRef.current &&
-      curveAdjustRef.current.pointerId === pointerId
-    ) {
-      curveAdjustRef.current = null;
-      shouldEndHistoryBatch = true;
-    }
-    if (pointerStateRef.current.pointerId === pointerId) {
+  const onPointerUp = useCallback(
+    (pointerId: number) => {
+      let shouldEndHistoryBatch = false;
+      if (marqueeRef.current && marqueeRef.current.pointerId === pointerId) {
+        marqueeRef.current = null;
+        setMarqueeBounds(null);
+      }
       if (
-        pointerStateRef.current.activeNodeId &&
-        (pointerStateRef.current.resize !== null ||
-          pointerStateRef.current.rotate !== null ||
-          pointerStateRef.current.pointerId !== null)
+        clipResizeRef.current &&
+        clipResizeRef.current.pointerId === pointerId
       ) {
+        clipResizeRef.current = null;
         shouldEndHistoryBatch = true;
       }
-    }
-    pointerStateRef.current = pointerUp(pointerStateRef.current, pointerId);
-    if (shouldEndHistoryBatch) {
-      endHistoryBatch();
-    }
-    setGuides([]);
-    setMeasurement(null);
-    setActiveCursor(null);
-  }, [endHistoryBatch]);
+      if (
+        curveAdjustRef.current &&
+        curveAdjustRef.current.pointerId === pointerId
+      ) {
+        curveAdjustRef.current = null;
+        shouldEndHistoryBatch = true;
+      }
+      if (pointerStateRef.current.pointerId === pointerId) {
+        if (
+          pointerStateRef.current.activeNodeId &&
+          (pointerStateRef.current.resize !== null ||
+            pointerStateRef.current.rotate !== null ||
+            pointerStateRef.current.pointerId !== null)
+        ) {
+          shouldEndHistoryBatch = true;
+        }
+      }
+      pointerStateRef.current = pointerUp(pointerStateRef.current, pointerId);
+      if (shouldEndHistoryBatch) {
+        endHistoryBatch();
+      }
+      setGuides([]);
+      setMeasurement(null);
+      setActiveCursor(null);
+    },
+    [endHistoryBatch],
+  );
 
   const onHandlePointerDown = useCallback(
     (
@@ -469,8 +476,7 @@ export function useSceneEditorInteractions() {
       const node = scene?.nodes[nodeId];
       const startRotation =
         node && node.type === "line"
-          ? (Math.atan2(node.y2 - node.y1, node.x2 - node.x1) * 180) /
-            Math.PI
+          ? (Math.atan2(node.y2 - node.y1, node.x2 - node.x1) * 180) / Math.PI
           : node && "rotation" in node
             ? (node.rotation as number)
             : 0;

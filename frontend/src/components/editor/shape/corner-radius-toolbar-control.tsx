@@ -14,6 +14,8 @@ type Props = {
   value: number;
   max: number;
   onChange: (value: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
   disabled?: boolean;
 };
 
@@ -21,6 +23,8 @@ export default function CornerRadiusToolbarControl({
   value,
   max,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
   disabled,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -98,6 +102,8 @@ export default function CornerRadiusToolbarControl({
             max={sliderMax}
             value={Math.min(value, sliderMax)}
             onChange={(v) => onChange(Math.min(v, safeMax))}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Corner radius"
             aria-valuemin={0}
             aria-valuemax={sliderMax}

@@ -35,9 +35,14 @@ import {
   readRawStoredPages,
   saveStoredPages,
 } from "@/lib/avnac-multi-page-storage";
+import {
+  getSceneSnapIntensity,
+  setSceneSnapIntensity,
+} from "@/lib/scene-editor-preferences";
 import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";
 import { exportJsonFile } from "@/lib/avnac-native-export";
 import { ConfirmDialog } from "../../../../wailsjs/go/avnacio/IOManager";
+import { setSaraswatiInteractionScale } from "@/lib/saraswati/spatial";
 import {
   createPageHistory,
   getPageRedoState,
@@ -89,6 +94,9 @@ type SceneEditorState = {
   loadError: string | null;
   /** True after at least one command has been applied since the last save. */
   hasPendingChanges: boolean;
+  saveState: "saved" | "dirty" | "saving" | "error";
+  saveError: string | null;
+  snapIntensity: number;
   canUndo: boolean;
   canRedo: boolean;
   focusMode: boolean;
@@ -204,10 +212,14 @@ type SceneEditorActions = {
   commitDocumentName: () => Promise<void>;
   /** Persist the current scene snapshot back to IDB via serializer. */
   save: () => Promise<void>;
+  setSnapIntensity: (value: number) => void;
   reset: () => void;
 };
 
 export type SceneEditorStore = SceneEditorState & SceneEditorActions;
+
+const initialSnapIntensity = getSceneSnapIntensity();
+setSaraswatiInteractionScale(initialSnapIntensity);
 
 const INITIAL: SceneEditorState = {
   documentId: null,
@@ -222,6 +234,9 @@ const INITIAL: SceneEditorState = {
   isLoading: false,
   loadError: null,
   hasPendingChanges: false,
+  saveState: "saved",
+  saveError: null,
+  snapIntensity: initialSnapIntensity,
   canUndo: false,
   canRedo: false,
   focusMode: false,
@@ -247,6 +262,7 @@ const INITIAL: SceneEditorState = {
 let sceneEngineStore: SaraswatiEditorStore | null = null;
 let detachSceneEngineSubscription: (() => void) | null = null;
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let latestAutosaveRequestId = 0;
 let pageHistoryRef: PageHistory<AvnacDocumentV1> | null = null;
 
 const AUTOSAVE_DELAY_MS = 1500;
@@ -257,18 +273,46 @@ function scheduleAutosave(
   scene: SaraswatiScene,
   pages: AvnacDocumentV1[],
   currentPage: number,
+  set: (partial: Partial<SceneEditorState>) => void,
 ): void {
+  const requestId = latestAutosaveRequestId + 1;
+  latestAutosaveRequestId = requestId;
+
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);
   }
+
   autosaveTimer = setTimeout(() => {
     autosaveTimer = null;
     const doc = toAvnacDocument(scene);
     const updatedPages = pages.map((p, i) => (i === currentPage ? doc : p));
-    void saveStoredPages(documentId, updatedPages, currentPage);
-    idbPutDocument(documentId, doc).catch((err) => {
-      console.warn("[avnac] autosave failed", err);
+    set({
+      saveState: "saving",
+      saveError: null,
+      hasPendingChanges: true,
     });
+    void Promise.all([
+      saveStoredPages(documentId, updatedPages, currentPage),
+      idbPutDocument(documentId, doc),
+    ])
+      .then(() => {
+        if (requestId !== latestAutosaveRequestId) return;
+        set({
+          baseDocument: doc,
+          hasPendingChanges: false,
+          saveState: "saved",
+          saveError: null,
+        });
+      })
+      .catch((err) => {
+        if (requestId !== latestAutosaveRequestId) return;
+        console.warn("[avnac] autosave failed", err);
+        set({
+          saveState: "error",
+          saveError: String(err),
+          hasPendingChanges: true,
+        });
+      });
   }, AUTOSAVE_DELAY_MS);
 }
 
@@ -276,6 +320,7 @@ function resetSceneEngineBinding() {
   detachSceneEngineSubscription?.();
   detachSceneEngineSubscription = null;
   sceneEngineStore = null;
+  latestAutosaveRequestId += 1;
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);
     autosaveTimer = null;
@@ -335,6 +380,8 @@ async function applyPageTransition(
     adapterPipeline: diagnostics.pipeline,
     adapterSchemaVersion: diagnostics.schemaVersion,
     hasPendingChanges: false,
+    saveState: "saved",
+    saveError: null,
     selectedIds: [],
     lockedIds: [],
   });
@@ -353,7 +400,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   ...INITIAL,
 
   load: async (id: string, opts?: { w?: number; h?: number }) => {
-    set({ ...INITIAL, isLoading: true, documentId: id });
+    const snapIntensity = get().snapIntensity;
+    set({ ...INITIAL, snapIntensity, isLoading: true, documentId: id });
     resetSceneEngineBinding();
     pageHistoryRef = null;
     try {
@@ -421,10 +469,18 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         adapterIssueCount: issues.length,
         adapterPipeline: diagnostics.pipeline,
         adapterSchemaVersion: diagnostics.schemaVersion,
+        hasPendingChanges: false,
+        saveState: "saved",
+        saveError: null,
         lockedIds: [],
       });
     } catch (err) {
-      set({ isLoading: false, loadError: String(err) });
+      set({
+        isLoading: false,
+        loadError: String(err),
+        saveState: "error",
+        saveError: String(err),
+      });
     }
   },
 
@@ -438,6 +494,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     const { documentId } = get();
     set({
       hasPendingChanges: true,
+      saveState: "dirty",
+      saveError: null,
       scene: engineState.scene,
       canUndo: engineState.canUndo,
       canRedo: engineState.canRedo,
@@ -449,6 +507,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         engineState.scene,
         get().pages,
         get().currentPage,
+        set,
       );
   },
 
@@ -468,6 +527,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       canRedo: engineState.canRedo,
       baseDocument: toAvnacDocument(engineState.scene),
       hasPendingChanges: true,
+      saveState: "dirty",
+      saveError: null,
     });
     if (documentId)
       scheduleAutosave(
@@ -475,6 +536,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         engineState.scene,
         get().pages,
         get().currentPage,
+        set,
       );
   },
 
@@ -518,9 +580,17 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         canRedo: engineState.canRedo,
         baseDocument: toAvnacDocument(engineState.scene),
         hasPendingChanges: true,
+        saveState: "dirty",
+        saveError: null,
       });
       if (documentId)
-        scheduleAutosave(documentId, engineState.scene, pages, currentPage);
+        scheduleAutosave(
+          documentId,
+          engineState.scene,
+          pages,
+          currentPage,
+          set,
+        );
       return;
     }
     // Page-level undo (add/delete/switch page operations)
@@ -548,9 +618,17 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         canRedo: engineState.canRedo,
         baseDocument: toAvnacDocument(engineState.scene),
         hasPendingChanges: true,
+        saveState: "dirty",
+        saveError: null,
       });
       if (documentId)
-        scheduleAutosave(documentId, engineState.scene, pages, currentPage);
+        scheduleAutosave(
+          documentId,
+          engineState.scene,
+          pages,
+          currentPage,
+          set,
+        );
       return;
     }
     // Page-level redo
@@ -652,20 +730,46 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     if (!documentId) return;
     const docToSave = scene ? toAvnacDocument(scene) : baseDocument;
     if (!docToSave) return;
+    latestAutosaveRequestId += 1;
+    if (autosaveTimer !== null) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+    set({ saveState: "saving", saveError: null, hasPendingChanges: true });
     const updatedPages = pages.map((p, i) =>
       i === currentPage ? docToSave : p,
     );
-    await Promise.all([
-      idbPutDocument(documentId, docToSave),
-      saveStoredPages(documentId, updatedPages, currentPage),
-    ]);
-    set({ baseDocument: docToSave, hasPendingChanges: false });
+    try {
+      await Promise.all([
+        idbPutDocument(documentId, docToSave),
+        saveStoredPages(documentId, updatedPages, currentPage),
+      ]);
+      set({
+        baseDocument: docToSave,
+        hasPendingChanges: false,
+        saveState: "saved",
+        saveError: null,
+      });
+    } catch (err) {
+      set({
+        hasPendingChanges: true,
+        saveState: "error",
+        saveError: String(err),
+      });
+    }
+  },
+
+  setSnapIntensity: (value: number) => {
+    const next = Math.max(0, Math.min(1, value));
+    setSceneSnapIntensity(next);
+    setSaraswatiInteractionScale(next);
+    set({ snapIntensity: next });
   },
 
   reset: () => {
     resetSceneEngineBinding();
     pageHistoryRef = null;
-    set(INITIAL);
+    set({ ...INITIAL, snapIntensity: get().snapIntensity });
   },
 
   goToPage: async (index: number) => {

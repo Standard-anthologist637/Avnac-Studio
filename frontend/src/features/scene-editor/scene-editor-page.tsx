@@ -39,6 +39,7 @@ import {
   saveVectorBoards,
   type AvnacVectorBoardMeta,
 } from "@/lib/avnac-vector-boards-storage";
+import { onSceneSnapIntensityChange } from "@/lib/scene-editor-preferences";
 import SceneEditorCanvas from "./scene-editor-canvas";
 import BottomFloatingToolbar from "./tools/bottom-floating-toolbar";
 import SceneSelectionBar from "./tools/scene-selection-bar";
@@ -126,7 +127,7 @@ export default function SceneEditorPage({ documentId }: Props) {
   const adapterSchemaVersion = useSceneEditorStore(
     (s) => s.adapterSchemaVersion,
   );
-  const hasPendingChanges = useSceneEditorStore((s) => s.hasPendingChanges);
+  const saveState = useSceneEditorStore((s) => s.saveState);
   const isLoading = useSceneEditorStore((s) => s.isLoading);
   const loadError = useSceneEditorStore((s) => s.loadError);
   const scene = useSceneEditorStore((s) => s.scene);
@@ -151,6 +152,7 @@ export default function SceneEditorPage({ documentId }: Props) {
   const setDocumentName = useSceneEditorStore((s) => s.setDocumentName);
   const commitDocumentName = useSceneEditorStore((s) => s.commitDocumentName);
   const saveStore = useSceneEditorStore((s) => s.save);
+  const setSnapIntensity = useSceneEditorStore((s) => s.setSnapIntensity);
   const layerTools = useLayerPanelTools();
   const aiController = useSceneEditorAiController();
 
@@ -222,6 +224,12 @@ export default function SceneEditorPage({ documentId }: Props) {
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [saveStore]);
+
+  useEffect(() => {
+    return onSceneSnapIntensityChange((value) => {
+      setSnapIntensity(value);
+    });
+  }, [setSnapIntensity]);
 
   // PNG export handler (Phase D — stub)
   const handleExportPng = useCallback(() => {
@@ -857,7 +865,13 @@ export default function SceneEditorPage({ documentId }: Props) {
             )}
             <span className="text-neutral-300">·</span>
             <span title="Auto-save status">
-              {hasPendingChanges ? "Unsaved" : "Saved"}
+              {saveState === "saving"
+                ? "Saving..."
+                : saveState === "dirty"
+                  ? "Dirty"
+                  : saveState === "error"
+                    ? "Save failed"
+                    : "Saved"}
             </span>
             <button
               type="button"

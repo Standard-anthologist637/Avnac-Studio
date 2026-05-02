@@ -10,6 +10,12 @@ import {
   AlertDiamondIcon,
   AiMagicIcon,
 } from "@hugeicons/core-free-icons";
+import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
+import {
+  getSceneSnapIntensity,
+  onSceneSnapIntensityChange,
+  setSceneSnapIntensity,
+} from "@/lib/scene-editor-preferences";
 import { useUpdateCheck } from "../lib/use-update-check";
 
 import type { HugeiconsProps } from "@hugeicons/react";
@@ -182,6 +188,10 @@ export const Route = createFileRoute("/settings")({
     const [tamboSaving, setTamboSaving] = useState(false);
     const [tamboError, setTamboError] = useState<string | null>(null);
     const [tamboNotice, setTamboNotice] = useState<string | null>(null);
+    const [snapIntensity, setSnapIntensityState] = useState(() =>
+      getSceneSnapIntensity(),
+    );
+    const [snapNotice, setSnapNotice] = useState<string | null>(null);
 
     const { currentVersion, updateAvailable, isChecking, lastChecked, checkNow } =
       useUpdateCheck();
@@ -262,6 +272,12 @@ export const Route = createFileRoute("/settings")({
         }
       })();
     }, [tamboKey]);
+
+    useEffect(() => {
+      return onSceneSnapIntensityChange((value) => {
+        setSnapIntensityState(value);
+      });
+    }, []);
 
     return (
       <main className="hero-page relative flex min-h-[100dvh] flex-col overflow-hidden">
@@ -356,6 +372,49 @@ export const Route = createFileRoute("/settings")({
                   error={unsplashError}
                   notice={unsplashNotice}
                 />
+
+                {/* Scene snap intensity */}
+                <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                  <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+                    <div className="min-w-0">
+                      <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-white/80 px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                        Scene
+                      </div>
+                      <h2 className="m-0 text-base font-semibold text-[var(--text)] sm:text-lg">
+                        Snap Intensity
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                        Controls global stickiness for snapping and hit heuristics.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-black/[0.08] bg-white/85 px-4 py-3">
+                      <div className="mb-2 flex items-center justify-between text-sm text-[var(--text-muted)]">
+                        <span>0.00</span>
+                        <span className="font-medium text-[var(--text)]">
+                          {snapIntensity.toFixed(2)}
+                        </span>
+                        <span>1.00</span>
+                      </div>
+                      <EditorRangeSlider
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={snapIntensity}
+                        onChange={(value) => {
+                          const next = Math.max(0, Math.min(1, value));
+                          setSnapIntensityState(next);
+                          setSceneSnapIntensity(next);
+                          setSnapNotice("Snap intensity updated.");
+                        }}
+                        aria-label="Snap intensity"
+                        trackClassName="w-full"
+                      />
+                    </div>
+                    {snapNotice ? (
+                      <p className="text-sm text-emerald-700">{snapNotice}</p>
+                    ) : null}
+                  </div>
+                </div>
 
                 {/* Updates section */}
                 <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">

@@ -102,6 +102,8 @@ export default function SceneSelectionBar() {
   const selectedIds = useSceneEditorStore((s) => s.selectedIds);
   const focusMode = useSceneEditorStore((s) => s.focusMode);
   const applyCommands = useSceneEditorStore((s) => s.applyCommands);
+  const beginHistoryBatch = useSceneEditorStore((s) => s.beginHistoryBatch);
+  const endHistoryBatch = useSceneEditorStore((s) => s.endHistoryBatch);
   const setSelectedIds = useSceneEditorStore((s) => s.setSelectedIds);
   const setArtboard = useSceneEditorStore((s) => s.setArtboard);
   const setNodeFill = useSceneEditorStore((s) => s.setNodeFill);
@@ -124,6 +126,31 @@ export default function SceneSelectionBar() {
   const [cropModalNodeId, setCropModalNodeId] = useState<string | null>(null);
   const [linePathPanelOpen, setLinePathPanelOpen] = useState(false);
   const [lineWeightPanelOpen, setLineWeightPanelOpen] = useState(false);
+  const styleBatchDepthRef = useRef(0);
+
+  const beginStyleBatch = () => {
+    if (styleBatchDepthRef.current === 0) {
+      beginHistoryBatch();
+    }
+    styleBatchDepthRef.current += 1;
+  };
+
+  const endStyleBatch = () => {
+    if (styleBatchDepthRef.current <= 0) return;
+    styleBatchDepthRef.current -= 1;
+    if (styleBatchDepthRef.current === 0) {
+      endHistoryBatch();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      while (styleBatchDepthRef.current > 0) {
+        styleBatchDepthRef.current -= 1;
+        endHistoryBatch();
+      }
+    };
+  }, [endHistoryBatch]);
 
   useEffect(() => {
     const anyOpen = linePathPanelOpen || lineWeightPanelOpen;
@@ -219,11 +246,15 @@ export default function SceneSelectionBar() {
                 <BlurToolbarControl
                   blurPct={textNode.blur ?? 0}
                   onChange={(b) => setNodeBlur(nodeId, b)}
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
                 <FloatingToolbarDivider />
                 <TransparencyToolbarPopover
                   opacityPct={opacityPct}
                   onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
                 <FloatingToolbarDivider />
                 <StrokeToolbarPopover
@@ -237,6 +268,8 @@ export default function SceneSelectionBar() {
                   onStrokePaintChange={(v) =>
                     setNodeStroke(nodeId, toColor(v), textNode.strokeWidth)
                   }
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
                 <FloatingToolbarDivider />
                 <ShadowToolbarPopover
@@ -245,6 +278,8 @@ export default function SceneSelectionBar() {
                   )}
                   shadowActive={Boolean(textNode.shadow)}
                   onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
               </>
             }
@@ -276,6 +311,8 @@ export default function SceneSelectionBar() {
                     value={rectNode.radiusX}
                     max={radiusMax}
                     onChange={(r) => setNodeCornerRadius(nodeId, r)}
+                    onInteractionStart={beginStyleBatch}
+                    onInteractionEnd={endStyleBatch}
                   />
                 </>
               )}
@@ -283,11 +320,15 @@ export default function SceneSelectionBar() {
               <BlurToolbarControl
                 blurPct={rectNode.blur ?? 0}
                 onChange={(b) => setNodeBlur(nodeId, b)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <TransparencyToolbarPopover
                 opacityPct={opacityPct}
                 onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <StrokeToolbarPopover
@@ -301,6 +342,8 @@ export default function SceneSelectionBar() {
                 onStrokePaintChange={(v) =>
                   setNodeStroke(nodeId, toColor(v), rectNode.strokeWidth)
                 }
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <ShadowToolbarPopover
@@ -309,6 +352,8 @@ export default function SceneSelectionBar() {
                 )}
                 shadowActive={Boolean(rectNode.shadow)}
                 onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <DeleteBtn onClick={handleDelete} />
@@ -380,11 +425,15 @@ export default function SceneSelectionBar() {
               <BlurToolbarControl
                 blurPct={(node as unknown as { blur?: number }).blur ?? 0}
                 onChange={(b) => setNodeBlur(nodeId, b)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <TransparencyToolbarPopover
                 opacityPct={opacityPct}
                 onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <StrokeToolbarPopover
@@ -398,6 +447,8 @@ export default function SceneSelectionBar() {
                 onStrokePaintChange={(v) =>
                   setNodeStroke(nodeId, toColor(v), paintNode.strokeWidth)
                 }
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <ShadowToolbarPopover
@@ -409,6 +460,8 @@ export default function SceneSelectionBar() {
                   (node as unknown as { shadow?: SaraswatiShadow }).shadow,
                 )}
                 onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <DeleteBtn onClick={handleDelete} />
@@ -582,6 +635,8 @@ export default function SceneSelectionBar() {
                                 onChange={(v) =>
                                   applyLinePatch({ curveBulge: v })
                                 }
+                                onInteractionStart={beginStyleBatch}
+                                onInteractionEnd={endStyleBatch}
                                 aria-label="Curve bulge"
                                 trackClassName="min-w-0 flex-1"
                               />
@@ -594,6 +649,16 @@ export default function SceneSelectionBar() {
                                   const v = Number(e.target.value);
                                   if (Number.isFinite(v))
                                     applyLinePatch({ curveBulge: v });
+                                }}
+                                onFocus={beginStyleBatch}
+                                onBlur={endStyleBatch}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    endStyleBatch();
+                                    (
+                                      e.currentTarget as HTMLInputElement
+                                    ).blur();
+                                  }
                                 }}
                                 className="w-16 rounded-md border border-black/12 bg-neutral-50 px-1.5 py-1 text-center text-xs tabular-nums text-neutral-900 outline-none focus:border-black/25"
                               />
@@ -609,6 +674,8 @@ export default function SceneSelectionBar() {
                               step={0.01}
                               value={lineNode.curveT ?? 0.5}
                               onChange={(v) => applyLinePatch({ curveT: v })}
+                              onInteractionStart={beginStyleBatch}
+                              onInteractionEnd={endStyleBatch}
                               aria-label="Curve position"
                               trackClassName="w-full"
                             />
@@ -668,6 +735,8 @@ export default function SceneSelectionBar() {
                         max={80}
                         value={strokeW}
                         onChange={(v) => applyLinePatch({ strokeWidth: v })}
+                        onInteractionStart={beginStyleBatch}
+                        onInteractionEnd={endStyleBatch}
                         aria-label="Stroke weight"
                         trackClassName="min-w-0 flex-1"
                       />
@@ -680,6 +749,14 @@ export default function SceneSelectionBar() {
                           const v = Number(e.target.value);
                           if (Number.isFinite(v))
                             applyLinePatch({ strokeWidth: v });
+                        }}
+                        onFocus={beginStyleBatch}
+                        onBlur={endStyleBatch}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            endStyleBatch();
+                            (e.currentTarget as HTMLInputElement).blur();
+                          }
                         }}
                         className="w-12 rounded-md border border-black/12 bg-neutral-50 px-1.5 py-1 text-center text-xs tabular-nums text-neutral-900 outline-none focus:border-black/25"
                       />
@@ -730,11 +807,15 @@ export default function SceneSelectionBar() {
               <BlurToolbarControl
                 blurPct={lineNode.blur ?? 0}
                 onChange={(b) => setNodeBlur(nodeId, b)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <TransparencyToolbarPopover
                 opacityPct={opacityPct}
                 onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <ShadowToolbarPopover
@@ -743,6 +824,8 @@ export default function SceneSelectionBar() {
                 )}
                 shadowActive={Boolean(lineNode.shadow)}
                 onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <DeleteBtn onClick={handleDelete} />
@@ -766,11 +849,15 @@ export default function SceneSelectionBar() {
               <BlurToolbarControl
                 blurPct={node.blur ?? 0}
                 onChange={(b) => setNodeBlur(nodeId, b)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <TransparencyToolbarPopover
                 opacityPct={opacityPct}
                 onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <ShadowToolbarPopover
@@ -779,6 +866,8 @@ export default function SceneSelectionBar() {
                 )}
                 shadowActive={Boolean(node.shadow)}
                 onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+                onInteractionStart={beginStyleBatch}
+                onInteractionEnd={endStyleBatch}
               />
               <FloatingToolbarDivider />
               <button
@@ -834,16 +923,22 @@ export default function SceneSelectionBar() {
                   value={radiusValue}
                   max={radiusMax}
                   onChange={(r) => setImageBorderRadius(nodeId, r)}
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
                 <FloatingToolbarDivider />
                 <BlurToolbarControl
                   blurPct={imageNode.blur ?? 0}
                   onChange={(b) => setNodeBlur(nodeId, b)}
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
                 <FloatingToolbarDivider />
                 <TransparencyToolbarPopover
                   opacityPct={opacityPct}
                   onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
                 <FloatingToolbarDivider />
                 <ShadowToolbarPopover
@@ -852,6 +947,8 @@ export default function SceneSelectionBar() {
                   )}
                   shadowActive={Boolean(imageNode.shadow)}
                   onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+                  onInteractionStart={beginStyleBatch}
+                  onInteractionEnd={endStyleBatch}
                 />
                 <FloatingToolbarDivider />
                 <DeleteBtn onClick={handleDelete} />
@@ -899,11 +996,15 @@ export default function SceneSelectionBar() {
             <BlurToolbarControl
               blurPct={nodeWithEffects.blur ?? 0}
               onChange={(b) => setNodeBlur(nodeId, b)}
+              onInteractionStart={beginStyleBatch}
+              onInteractionEnd={endStyleBatch}
             />
             <FloatingToolbarDivider />
             <TransparencyToolbarPopover
               opacityPct={opacityPct}
               onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+              onInteractionStart={beginStyleBatch}
+              onInteractionEnd={endStyleBatch}
             />
             <FloatingToolbarDivider />
             <ShadowToolbarPopover
@@ -913,6 +1014,8 @@ export default function SceneSelectionBar() {
               )}
               shadowActive={Boolean(nodeWithEffects.shadow)}
               onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+              onInteractionStart={beginStyleBatch}
+              onInteractionEnd={endStyleBatch}
             />
             <FloatingToolbarDivider />
             <DeleteBtn onClick={handleDelete} />

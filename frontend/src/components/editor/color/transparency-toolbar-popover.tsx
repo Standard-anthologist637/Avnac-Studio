@@ -13,11 +13,15 @@ const PANEL_ESTIMATE_H = 120;
 type Props = {
   opacityPct: number;
   onChange: (opacityPct: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 };
 
 export default function TransparencyToolbarPopover({
   opacityPct,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -98,6 +102,8 @@ export default function TransparencyToolbarPopover({
             max={100}
             value={opacityPct}
             onChange={onChange}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Opacity"
             aria-valuemin={0}
             aria-valuemax={100}
