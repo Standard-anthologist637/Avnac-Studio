@@ -61,6 +61,77 @@ type CurveAdjustState = {
   length: number;
 };
 
+/**
+ * Given a resize bounds and the handle being dragged, constrain the shorter
+ * dimension so the result matches `ar` (width/height).
+ *
+ * The anchor corner opposite to the dragged handle is kept fixed, and only
+ * the side(s) driven by the handle are adjusted.
+ */
+function constrainResizeBoundsToAr(
+  bounds: SaraswatiBounds,
+  handle: SaraswatiResizeHandle,
+  ar: number,
+): SaraswatiBounds {
+  if (ar <= 0 || !Number.isFinite(ar)) return bounds;
+  const { x, y, width, height } = bounds;
+
+  // Determine whether width or height is the "primary" axis for this handle.
+  const hPrimary =
+    handle === "e" ||
+    handle === "w" ||
+    handle === "ne" ||
+    handle === "nw" ||
+    handle === "se" ||
+    handle === "sw";
+  const vPrimary =
+    handle === "n" ||
+    handle === "s" ||
+    handle === "ne" ||
+    handle === "nw" ||
+    handle === "se" ||
+    handle === "sw";
+
+  let newW = width;
+  let newH = height;
+
+  if (hPrimary && vPrimary) {
+    // Corner handle: use the dominant axis (larger delta from AR-neutral size).
+    const hFromH = height * ar; // width that would match height
+    const vFromW = width / ar;  // height that would match width
+    // Pick whichever gives the larger overall area (i.e. honour the bigger drag).
+    if (hFromH >= vFromW) {
+      newW = hFromH;
+    } else {
+      newH = vFromW;
+    }
+  } else if (hPrimary) {
+    // Only width changes — derive height.
+    newH = width / ar;
+  } else {
+    // Only height changes — derive width.
+    newW = height * ar;
+  }
+
+  newW = Math.max(1, newW);
+  newH = Math.max(1, newH);
+
+  // Adjust position to keep the anchor corner fixed.
+  let newX = x;
+  let newY = y;
+
+  if (handle === "nw" || handle === "n" || handle === "ne") {
+    // Top edge moves — anchor is bottom.
+    newY = y + height - newH;
+  }
+  if (handle === "nw" || handle === "w" || handle === "sw") {
+    // Left edge moves — anchor is right.
+    newX = x + width - newW;
+  }
+
+  return { x: newX, y: newY, width: newW, height: newH };
+}
+
 function commandNodeIdFromCommand(command: {
   type: string;
   id?: string;
@@ -84,6 +155,8 @@ export function useSceneEditorInteractions() {
   const clipResizeRef = useRef<ClipResizeState | null>(null);
   const marqueeRef = useRef<MarqueeState | null>(null);
   const curveAdjustRef = useRef<CurveAdjustState | null>(null);
+  /** Aspect ratio (W/H) captured when a handle-resize drag begins. */
+  const resizeStartArRef = useRef<number>(1);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [guides, setGuides] = useState<SaraswatiGuideLine[]>([]);
   const [measurement, setMeasurement] = useState<SaraswatiMeasurement | null>(
@@ -173,7 +246,7 @@ export function useSceneEditorInteractions() {
   );
 
   const onPointerMove = useCallback(
-    (pointerId: number, x: number, y: number) => {
+    (pointerId: number, x: number, y: number, options?: { shiftKey?: boolean }) => {
       const store = useSceneEditorStore.getState();
       const scene = store.scene;
       if (!scene) return;
@@ -351,15 +424,26 @@ export function useSceneEditorInteractions() {
             store.selectedIds,
             snapThreshold,
           );
+          let constrainedBounds = snapped.bounds;
+
+          // Shift-held: constrain to the aspect ratio captured at drag start.
+          if (options?.shiftKey) {
+            constrainedBounds = constrainResizeBoundsToAr(
+              constrainedBounds,
+              resizeState.handle,
+              resizeStartArRef.current,
+            );
+          }
+
           command = {
             ...command,
-            x: snapped.bounds.x,
-            y: snapped.bounds.y,
-            width: snapped.bounds.width,
-            height: snapped.bounds.height,
+            x: constrainedBounds.x,
+            y: constrainedBounds.y,
+            width: constrainedBounds.width,
+            height: constrainedBounds.height,
           };
           nextGuides = snapped.guides;
-          nextMeasurement = measurementFromBounds(snapped.bounds);
+          nextMeasurement = measurementFromBounds(constrainedBounds);
         }
       }
 
@@ -462,6 +546,9 @@ export function useSceneEditorInteractions() {
         x,
         y,
       );
+      // Capture the initial aspect ratio so shift-resize can constrain to it.
+      resizeStartArRef.current =
+        startBounds.height > 0 ? startBounds.width / startBounds.height : 1;
       beginHistoryBatch();
       const cursorByHandle: Record<SaraswatiResizeHandle, string> = {
         n: "ns-resize",

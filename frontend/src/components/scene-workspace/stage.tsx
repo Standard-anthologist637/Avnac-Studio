@@ -37,7 +37,12 @@ type Props = {
     y: number,
     options?: { additive?: boolean },
   ) => void;
-  onScenePointerMove?: (pointerId: number, x: number, y: number) => void;
+  onScenePointerMove?: (
+    pointerId: number,
+    x: number,
+    y: number,
+    options?: { shiftKey?: boolean },
+  ) => void;
   onScenePointerUp?: (pointerId: number) => void;
   onScenePointerLeave?: () => void;
   onSceneDoubleClick?: (x: number, y: number) => void;
@@ -413,7 +418,9 @@ export default function SceneWorkspaceStage({
     if (!interactive) return;
     const point = toScenePoint(event.clientX, event.clientY);
     if (!point) return;
-    onScenePointerMove?.(event.pointerId, point.x, point.y);
+    onScenePointerMove?.(event.pointerId, point.x, point.y, {
+      shiftKey: event.shiftKey,
+    });
   };
 
   const handlePointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {

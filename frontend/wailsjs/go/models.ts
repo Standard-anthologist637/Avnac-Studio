@@ -2,6 +2,8 @@ export namespace avnacconfig {
 	
 	export class AppConfig {
 	    unsplash_access_key?: string;
+	    snap_intensity: number;
+	    developer_mode: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -10,6 +12,8 @@ export namespace avnacconfig {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.unsplash_access_key = source["unsplash_access_key"];
+	        this.snap_intensity = source["snap_intensity"];
+	        this.developer_mode = source["developer_mode"];
 	    }
 	}
 

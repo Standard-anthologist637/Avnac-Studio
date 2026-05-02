@@ -398,6 +398,10 @@ export default function SceneEditorCanvas({
     onPaste: () => actions.onPasteAt(lastScenePointRef.current),
     onDelete: actions.onDelete,
     onDuplicate: actions.onDuplicate,
+    canGroup: actions.canGroup,
+    canUngroup: actions.canUngroup,
+    onGroup: actions.onGroup,
+    onUngroup: actions.onUngroup,
     onImageFilesPaste: (files) => {
       if (!scene) return;
       void dropActions.handleDropIntent(

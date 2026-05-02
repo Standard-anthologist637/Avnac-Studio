@@ -14,6 +14,8 @@ import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import {
   getSceneDeveloperMode,
   getSceneSnapIntensity,
+  loadSceneDeveloperModeFromConfig,
+  loadSceneSnapIntensityFromConfig,
   onSceneDeveloperModeChange,
   onSceneSnapIntensityChange,
   setSceneDeveloperMode,
@@ -295,6 +297,16 @@ export const Route = createFileRoute("/settings")({
       return onSceneSnapIntensityChange((value) => {
         setSnapIntensityState(value);
       });
+    }, []);
+
+    // Load persisted values from native config on mount.
+    useEffect(() => {
+      void loadSceneSnapIntensityFromConfig().then((v) =>
+        setSnapIntensityState(v),
+      );
+      void loadSceneDeveloperModeFromConfig().then((v) =>
+        setDeveloperModeState(v),
+      );
     }, []);
 
     useEffect(() => {

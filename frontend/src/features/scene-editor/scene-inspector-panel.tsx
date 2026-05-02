@@ -41,6 +41,8 @@ type NodeLayout =
       x: number;
       y: number;
       w: number;
+      /** Raw (unrounded) bounds width — used for AR calculations. */
+      rawW: number;
     }
   | {
       kind: "sized";
@@ -49,6 +51,9 @@ type NodeLayout =
       y: number;
       w: number;
       h: number;
+      /** Raw (unrounded) bounds dimensions — used for AR calculations. */
+      rawW: number;
+      rawH: number;
     };
 
 function nodeLayout(node: SaraswatiNode): NodeLayout {
@@ -78,6 +83,7 @@ function nodeLayout(node: SaraswatiNode): NodeLayout {
       x: Math.round(bounds.x),
       y: Math.round(bounds.y),
       w: Math.round(node.width),
+      rawW: node.width,
     };
   }
   return {
@@ -87,6 +93,8 @@ function nodeLayout(node: SaraswatiNode): NodeLayout {
     y: Math.round(bounds.y),
     w: Math.round(bounds.width),
     h: Math.round(bounds.height),
+    rawW: bounds.width,
+    rawH: bounds.height,
   };
 }
 
@@ -299,7 +307,8 @@ export default function SceneInspectorPanel() {
 
   const [open, setOpen] = useState(false);
   const [arLocked, setArLocked] = useState(false);
-  const arRef = useRef<number>(1); // aspect ratio W/H, stored when lock is toggled on
+  // Aspect ratio W/H stored in raw (unrounded) bounds space when lock is toggled on.
+  const arRef = useRef<number>(1);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Compute layout descriptor from selection
@@ -324,7 +333,9 @@ export default function SceneInspectorPanel() {
   if (currentId !== prevIdRef.current) {
     prevIdRef.current = currentId;
     arRef.current =
-      layout.kind === "sized" && layout.h > 0 ? layout.w / layout.h : 1;
+      layout.kind === "sized" && layout.rawH > 0
+        ? layout.rawW / layout.rawH
+        : 1;
   }
 
   // Close on outside click
@@ -376,12 +387,12 @@ export default function SceneInspectorPanel() {
   const commitW = useCallback(
     (newW: number) => {
       if (layout.kind !== "sized" && layout.kind !== "text") return;
-      const w = Math.max(1, Math.round(newW));
+      const w = Math.max(1, newW);
       const h =
         layout.kind === "sized"
-          ? arLocked
-            ? Math.max(1, Math.round(w / arRef.current))
-            : layout.h
+          ? arLocked && arRef.current > 0
+            ? Math.max(1, w / arRef.current)
+            : layout.rawH
           : 0;
       applyCommands([
         {
@@ -400,10 +411,11 @@ export default function SceneInspectorPanel() {
   const commitH = useCallback(
     (newH: number) => {
       if (layout.kind !== "sized") return;
-      const h = Math.max(1, Math.round(newH));
-      const w = arLocked
-        ? Math.max(1, Math.round(h * arRef.current))
-        : layout.w;
+      const h = Math.max(1, newH);
+      const w =
+        arLocked && arRef.current > 0
+          ? Math.max(1, h * arRef.current)
+          : layout.rawW;
       applyCommands([
         {
           type: "RESIZE_NODE",
@@ -501,8 +513,8 @@ export default function SceneInspectorPanel() {
                       type="button"
                       onClick={() => {
                         const next = !arLocked;
-                        if (next && layout.kind === "sized" && layout.h > 0) {
-                          arRef.current = layout.w / layout.h;
+                        if (next && layout.kind === "sized" && layout.rawH > 0) {
+                          arRef.current = layout.rawW / layout.rawH;
                         }
                         setArLocked(next);
                       }}

@@ -29,6 +29,10 @@ type Params = {
   onDuplicate: () => void;
   onImageFilesPaste: (files: File[]) => void;
   onShowShortcuts: () => void;
+  canGroup: boolean;
+  canUngroup: boolean;
+  onGroup: () => void;
+  onUngroup: () => void;
 };
 
 export function useSceneEditorShortcuts({
@@ -51,6 +55,10 @@ export function useSceneEditorShortcuts({
   onDuplicate,
   onImageFilesPaste,
   onShowShortcuts,
+  canGroup,
+  canUngroup,
+  onGroup,
+  onUngroup,
 }: Params) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -113,6 +121,15 @@ export function useSceneEditorShortcuts({
           onCopy();
           return;
         }
+        if (event.key === "g" || event.key === "G") {
+          event.preventDefault();
+          if (event.shiftKey) {
+            if (canUngroup) onUngroup();
+          } else {
+            if (canGroup) onGroup();
+          }
+          return;
+        }
         if (event.key === "[") {
           event.preventDefault();
           reorderPrimarySelection(event.shiftKey ? "back" : "backward");
@@ -145,10 +162,14 @@ export function useSceneEditorShortcuts({
     fitToViewport,
     inlineTextEditing,
     lockedIds,
+    canGroup,
+    canUngroup,
     onCopy,
     onDelete,
     onDuplicate,
+    onGroup,
     onShowShortcuts,
+    onUngroup,
     redo,
     reorderPrimarySelection,
     scene,
