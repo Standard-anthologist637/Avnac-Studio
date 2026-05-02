@@ -22,7 +22,11 @@ type RotateDragState = {
   centerY: number;
   startAngle: number;
   startRotation: number;
+  lastRotation: number;
 };
+
+const ROTATION_SENSITIVITY = 0.45;
+const ROTATION_SMOOTHING = 0.22;
 
 export type SaraswatiPointerState = {
   activeNodeId: string | null;
@@ -109,7 +113,8 @@ export function rotateHandlePointerDown(
       centerX,
       centerY,
       startAngle: Math.atan2(y - centerY, x - centerX),
-      startRotation,
+      startRotation: normalizeDegrees(startRotation),
+      lastRotation: normalizeDegrees(startRotation),
     },
   };
 }
@@ -137,14 +142,26 @@ export function pointerMove(
   }
 
   if (state.rotate) {
-    const { nodeId, centerX, centerY, startAngle, startRotation } =
+    const { nodeId, centerX, centerY, startAngle, startRotation, lastRotation } =
       state.rotate;
     const currentAngle = Math.atan2(y - centerY, x - centerX);
-    const deltaDeg = (currentAngle - startAngle) * (180 / Math.PI);
-    const rotation = (((startRotation + deltaDeg) % 360) + 360) % 360;
+    const deltaDeg = normalizeDegrees((currentAngle - startAngle) * (180 / Math.PI));
+    const rawRotation = normalizeDegrees(
+      startRotation + deltaDeg * ROTATION_SENSITIVITY,
+    );
+    const smoothedRotation = normalizeDegrees(
+      lastRotation +
+        shortestAngularDelta(lastRotation, rawRotation) * ROTATION_SMOOTHING,
+    );
     return {
-      state: newState,
-      command: { type: "ROTATE_NODE", id: nodeId, rotation },
+      state: {
+        ...newState,
+        rotate: {
+          ...state.rotate,
+          lastRotation: smoothedRotation,
+        },
+      },
+      command: { type: "ROTATE_NODE", id: nodeId, rotation: smoothedRotation },
     };
   }
 
@@ -198,4 +215,15 @@ export function pointerUp(
 ): SaraswatiPointerState {
   if (state.pointerId !== pointerId) return state;
   return createIdlePointerState();
+}
+
+function normalizeDegrees(value: number): number {
+  return (((value % 360) + 360) % 360) || 0;
+}
+
+function shortestAngularDelta(from: number, to: number): number {
+  const forward = normalizeDegrees(to) - normalizeDegrees(from);
+  if (forward > 180) return forward - 360;
+  if (forward < -180) return forward + 360;
+  return forward;
 }

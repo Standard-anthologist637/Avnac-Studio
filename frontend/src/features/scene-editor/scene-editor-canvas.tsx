@@ -423,7 +423,7 @@ export default function SceneEditorCanvas({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex flex-1 items-center justify-center overflow-auto bg-neutral-100/80 p-8"
+      className="flex flex-1 overflow-auto bg-neutral-100/80 p-8"
       style={viewportPanCursor ? { cursor: viewportPanCursor } : undefined}
       onPointerMove={(event) => {
         if (viewportPanDragRef.current) return;
@@ -442,11 +442,12 @@ export default function SceneEditorCanvas({
         void onDrop(event);
       }}
     >
-      <div
-        ref={surfaceRef}
-        className="relative"
-        style={{ width: scaledWidth, height: scaledHeight }}
-      >
+      <div className="flex min-h-full min-w-full items-center justify-center">
+        <div
+          ref={surfaceRef}
+          className="relative"
+          style={{ width: scaledWidth, height: scaledHeight }}
+        >
         <div
           style={{
             position: "absolute",
@@ -522,6 +523,7 @@ export default function SceneEditorCanvas({
             onFlipV={actions.onFlipV}
           />
         )}
+        </div>
       </div>
 
       {contextMenu ? (

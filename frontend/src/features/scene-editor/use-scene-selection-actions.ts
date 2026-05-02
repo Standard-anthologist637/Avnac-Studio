@@ -3,6 +3,7 @@ import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selectio
 import { isSaraswatiRenderableNode, type SaraswatiNode } from "@/lib/saraswati";
 import { getRenderableNodeBounds } from "@/lib/editor/overlays";
 import { getNodeBounds } from "@/lib/saraswati/spatial";
+import { buildGroupSelectionCommands } from "@/scene/workspace";
 import { useSceneEditorStore } from "./store";
 
 const sceneClipboard: SaraswatiNode[] = [];
@@ -114,7 +115,12 @@ export function useSceneSelectionActions() {
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
   }, [scene, selectedIds]);
 
-  const canGroup = selectedIds.length >= 2;
+  const groupCommands = useMemo(() => {
+    if (!scene) return [];
+    return buildGroupSelectionCommands(scene, selectedIds, "__preview__");
+  }, [scene, selectedIds]);
+
+  const canGroup = groupCommands.length > 0;
   const canUngroup =
     selectedIds.length === 1 &&
     !!scene?.nodes[selectedIds[0]!] &&
@@ -288,16 +294,11 @@ export function useSceneSelectionActions() {
   };
 
   const onGroup = () => {
-    if (!scene || selectedIds.length < 2) return;
+    if (!scene || !canGroup) return;
     const groupId = crypto.randomUUID();
-    applyCommands([
-      {
-        type: "GROUP_NODES",
-        id: groupId,
-        parentId: scene.root,
-        children: [...selectedIds],
-      },
-    ]);
+    const commands = buildGroupSelectionCommands(scene, selectedIds, groupId);
+    if (commands.length === 0) return;
+    applyCommands(commands);
     setSelectedIds([groupId]);
   };
 

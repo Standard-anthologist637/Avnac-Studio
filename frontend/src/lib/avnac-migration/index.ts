@@ -56,8 +56,23 @@ function validateV1(doc: AnyVersionDoc): AvnacDocumentV1 | null {
   )
     return null;
   if (!doc.bg || typeof doc.bg !== "object") return null;
-  if (!doc.fabric || typeof doc.fabric !== "object") return null;
-  return doc as unknown as AvnacDocumentV1;
+  const fabricRaw =
+    doc.fabric && typeof doc.fabric === "object"
+      ? (doc.fabric as Record<string, unknown>)
+      : Array.isArray((doc as { objects?: unknown }).objects)
+        ? {
+            objects: (doc as { objects?: unknown[] }).objects ?? [],
+          }
+        : null;
+  if (!fabricRaw) return null;
+  const objects = Array.isArray(fabricRaw.objects) ? fabricRaw.objects : [];
+  return {
+    ...(doc as unknown as AvnacDocumentV1),
+    fabric: {
+      ...fabricRaw,
+      objects,
+    },
+  };
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { applyCommand } from "../../src/lib/saraswati/commands/reducer";
 import { createEmptySaraswatiScene } from "../../src/lib/saraswati/scene";
-import { findTopHitNodeId } from "../../src/lib/saraswati/spatial";
+import {
+  findTopHitNodeId,
+  setSaraswatiInteractionScale,
+} from "../../src/lib/saraswati/spatial";
 
 function createLineScene() {
   const scene = createEmptySaraswatiScene({
@@ -77,5 +80,17 @@ describe("saraswati interaction + spatial", () => {
     expect(line.y1).toBe(100);
     expect(line.x2).toBe(340);
     expect(line.y2).toBe(100);
+  });
+
+  it("scales line hit tolerance with interaction intensity", () => {
+    const scene = createLineScene();
+
+    setSaraswatiInteractionScale(1);
+    expect(findTopHitNodeId(scene, { x: 180, y: 103 })).toBe("line-1");
+
+    setSaraswatiInteractionScale(0);
+    expect(findTopHitNodeId(scene, { x: 180, y: 103 })).toBe(null);
+
+    setSaraswatiInteractionScale(1);
   });
 });

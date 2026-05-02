@@ -39,8 +39,13 @@ import {
   saveVectorBoards,
   type AvnacVectorBoardMeta,
 } from "@/lib/avnac-vector-boards-storage";
-import { onSceneSnapIntensityChange } from "@/lib/scene-editor-preferences";
+import {
+  getSceneDeveloperMode,
+  onSceneDeveloperModeChange,
+  onSceneSnapIntensityChange,
+} from "@/lib/scene-editor-preferences";
 import SceneEditorCanvas from "./scene-editor-canvas";
+import SceneInspectorPanel from "./scene-inspector-panel";
 import BottomFloatingToolbar from "./tools/bottom-floating-toolbar";
 import SceneSelectionBar from "./tools/scene-selection-bar";
 import { useLayerPanelTools } from "./tools/use-layer-panel-tools";
@@ -128,12 +133,12 @@ export default function SceneEditorPage({ documentId }: Props) {
     (s) => s.adapterSchemaVersion,
   );
   const saveState = useSceneEditorStore((s) => s.saveState);
+  const renderStats = useSceneEditorStore((s) => s.renderStats);
+  const canvasPan = useSceneEditorStore((s) => s.canvasPan);
   const isLoading = useSceneEditorStore((s) => s.isLoading);
   const loadError = useSceneEditorStore((s) => s.loadError);
   const scene = useSceneEditorStore((s) => s.scene);
-  const renderStats = useSceneEditorStore((s) => s.renderStats);
   const zoomPercent = useSceneEditorStore((s) => s.zoomPercent);
-  const canvasPan = useSceneEditorStore((s) => s.canvasPan);
   const selectedCount = useSceneEditorStore((s) => s.selectedIds.length);
   const focusMode = useSceneEditorStore((s) => s.focusMode);
   const sidebarPanel = useSceneEditorStore((s) => s.sidebarPanel);
@@ -152,6 +157,7 @@ export default function SceneEditorPage({ documentId }: Props) {
   const setDocumentName = useSceneEditorStore((s) => s.setDocumentName);
   const commitDocumentName = useSceneEditorStore((s) => s.commitDocumentName);
   const saveStore = useSceneEditorStore((s) => s.save);
+  const flushAutosaveNow = useSceneEditorStore((s) => s.flushAutosaveNow);
   const setSnapIntensity = useSceneEditorStore((s) => s.setSnapIntensity);
   const layerTools = useLayerPanelTools();
   const aiController = useSceneEditorAiController();
@@ -178,7 +184,10 @@ export default function SceneEditorPage({ documentId }: Props) {
   useEffect(() => {
     if (!actionsOpen) return;
     const onOutside = (e: MouseEvent) => {
-      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
+      if (
+        actionsRef.current &&
+        !actionsRef.current.contains(e.target as Node)
+      ) {
         setActionsOpen(false);
         setPngExpanded(false);
       }
@@ -191,7 +200,12 @@ export default function SceneEditorPage({ documentId }: Props) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest('input, textarea, [contenteditable="true"], [data-avnac-chrome]')) return;
+      if (
+        target?.closest(
+          'input, textarea, [contenteditable="true"], [data-avnac-chrome]',
+        )
+      )
+        return;
       const mod = event.metaKey || event.ctrlKey;
       if (mod && event.key.toLowerCase() === "n") {
         event.preventDefault();
@@ -220,10 +234,23 @@ export default function SceneEditorPage({ documentId }: Props) {
 
   // Flush on page unload
   useEffect(() => {
-    const onBeforeUnload = () => void saveStore();
+    const onBeforeUnload = () => void flushAutosaveNow();
+    const onPageHide = () => void flushAutosaveNow();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        void flushAutosaveNow();
+      }
+    };
     window.addEventListener("beforeunload", onBeforeUnload);
-    return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [saveStore]);
+    window.addEventListener("pagehide", onPageHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+      void saveStore();
+    };
+  }, [flushAutosaveNow, saveStore]);
 
   useEffect(() => {
     return onSceneSnapIntensityChange((value) => {
@@ -231,10 +258,35 @@ export default function SceneEditorPage({ documentId }: Props) {
     });
   }, [setSnapIntensity]);
 
+  useEffect(() => {
+    return onSceneDeveloperModeChange((value) => {
+      setDeveloperMode(value);
+    });
+  }, []);
+
+  const compatibilityMessage = useMemo(() => {
+    if (adapterIssueCount > 0) {
+      return `${adapterIssueCount} older item${adapterIssueCount === 1 ? "" : "s"} may look slightly different`;
+    }
+    if (adapterSchemaVersion === 1) {
+      return "Classic Avnac files are fully supported";
+    }
+    if (adapterSchemaVersion != null) {
+      return `File compatibility mode: schema v${adapterSchemaVersion}`;
+    }
+    return "File compatibility mode is active";
+  }, [adapterIssueCount, adapterSchemaVersion]);
+
   // PNG export handler (Phase D — stub)
   const handleExportPng = useCallback(() => {
-    const opts: ExportPngOptions = { multiplier: pngMult, transparent: pngTransparent };
-    console.info("[avnac] PNG export not yet implemented for scene editor", opts);
+    const opts: ExportPngOptions = {
+      multiplier: pngMult,
+      transparent: pngTransparent,
+    };
+    console.info(
+      "[avnac] PNG export not yet implemented for scene editor",
+      opts,
+    );
     setActionsOpen(false);
     setPngExpanded(false);
   }, [pngMult, pngTransparent]);
@@ -248,6 +300,9 @@ export default function SceneEditorPage({ documentId }: Props) {
     null,
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [developerMode, setDeveloperMode] = useState(() =>
+    getSceneDeveloperMode(),
+  );
   const vectorBoardsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -619,9 +674,7 @@ export default function SceneEditorPage({ documentId }: Props) {
                         <input
                           type="checkbox"
                           checked={pngTransparent}
-                          onChange={(e) =>
-                            setPngTransparent(e.target.checked)
-                          }
+                          onChange={(e) => setPngTransparent(e.target.checked)}
                           className="size-3.5 shrink-0 rounded border border-black/20"
                           style={{ accentColor: "var(--accent)" }}
                         />
@@ -746,6 +799,7 @@ export default function SceneEditorPage({ documentId }: Props) {
               onOpenShortcuts={() => setShortcutsOpen(true)}
               onCloseShortcuts={() => setShortcutsOpen(false)}
             />
+            <SceneInspectorPanel />
             <BottomFloatingToolbar />
             <EditorFloatingSidebar
               activePanel={sidebarPanel}
@@ -815,8 +869,8 @@ export default function SceneEditorPage({ documentId }: Props) {
         </div>
       )}
 
-      {/* ── Status bar ──────────────────────────────────────────────────── */}
-      {scene && (
+      {/* ── Status bar (developer mode only) ────────────────────────────── */}
+      {scene && developerMode && (
         <footer className="flex shrink-0 items-center gap-3 border-t border-black/6 bg-white/90 px-4 py-1.5 text-[11px] text-neutral-500 backdrop-blur">
           <div className="flex w-full items-center gap-2 overflow-x-auto whitespace-nowrap">
             <span>
@@ -827,52 +881,37 @@ export default function SceneEditorPage({ documentId }: Props) {
             <span className="text-neutral-300">·</span>
             <span>Zoom {Math.round(zoomPercent)}%</span>
             <span className="text-neutral-300">·</span>
-            <span className="hidden sm:inline">
-              Pan {canvasPan.x}, {canvasPan.y}
-            </span>
-            <span className="hidden md:inline text-neutral-300">·</span>
-            <span
-              className="hidden md:inline"
-              title="Latest frame render duration."
-            >
-              Render {renderStats.ms.toFixed(1)}ms
-            </span>
-            <span className="hidden md:inline text-neutral-300">·</span>
-            <span
-              className="hidden md:inline"
-              title="Total draw commands this frame."
-            >
-              Cmd {renderStats.commands}
-            </span>
-            <span className="hidden md:inline text-neutral-300">·</span>
-            <span
-              className="hidden md:inline"
-              title="Adapter pipeline and Avnac schema version."
-            >
-              {adapterPipeline} · schema v
-              {adapterSchemaVersion != null ? adapterSchemaVersion : "?"}
-            </span>
-            {adapterIssueCount > 0 && (
-              <>
-                <span className="hidden md:inline text-neutral-300">·</span>
-                <span
-                  className="hidden md:inline text-amber-600"
-                  title="Legacy items not yet ported to scene engine"
-                >
-                  {adapterIssueCount} legacy
-                </span>
-              </>
-            )}
+            <span>{compatibilityMessage}</span>
             <span className="text-neutral-300">·</span>
             <span title="Auto-save status">
               {saveState === "saving"
                 ? "Saving..."
                 : saveState === "dirty"
-                  ? "Dirty"
+                  ? "Unsaved changes"
                   : saveState === "error"
-                    ? "Save failed"
-                    : "Saved"}
+                    ? "Could not save"
+                    : "All changes saved"}
             </span>
+            <span className="text-neutral-300">·</span>
+            <span>
+              Pan {canvasPan.x},{canvasPan.y}
+            </span>
+            <span className="text-neutral-300">·</span>
+            <span>Render {renderStats.ms.toFixed(1)}ms</span>
+            <span className="text-neutral-300">·</span>
+            <span>Cmd {renderStats.commands}</span>
+            <span className="text-neutral-300">·</span>
+            <span>
+              {adapterPipeline} · schema v{adapterSchemaVersion ?? "?"}
+            </span>
+            {adapterIssueCount > 0 && (
+              <>
+                <span className="text-neutral-300">·</span>
+                <span className="text-amber-600">
+                  {adapterIssueCount} legacy
+                </span>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setShortcutsOpen(true)}

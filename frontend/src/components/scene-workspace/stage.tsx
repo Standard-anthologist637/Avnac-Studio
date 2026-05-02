@@ -99,6 +99,22 @@ const HANDLES: {
   { id: "w", cx: 0, cy: 0.5, cursor: "ew-resize" },
 ];
 
+function nodeHalfDiagonal(
+  node: SaraswatiScene["nodes"][string] | undefined,
+): number | null {
+  if (!node || !isSaraswatiRenderableNode(node) || node.type === "line") {
+    return null;
+  }
+  const width = Math.max(1, node.width);
+  const height =
+    node.type === "text"
+      ? Math.max(1, node.fontSize * Math.max(1, node.lineHeight))
+      : Math.max(1, node.height);
+  const scaledWidth = Math.abs(width * node.scaleX);
+  const scaledHeight = Math.abs(height * node.scaleY);
+  return Math.hypot(scaledWidth, scaledHeight) / 2;
+}
+
 export default function SceneWorkspaceStage({
   scene,
   backend = canvas2DRendererBackend,
@@ -137,6 +153,14 @@ export default function SceneWorkspaceStage({
   const rotateHandleOffset = Math.max(
     24,
     Math.min(72, 28 / Math.max(0.25, viewScale)),
+  );
+  const overlayUiScale = Math.max(
+    1,
+    Math.min(3.25, 1 / Math.max(0.25, viewScale)),
+  );
+  const guideThickness = Math.max(
+    1,
+    Math.min(4, 1 / Math.max(0.25, viewScale)),
   );
 
   const lineCurveHandles = useMemo(() => {
@@ -206,6 +230,40 @@ export default function SceneWorkspaceStage({
     }
     return result;
   }, [hiddenNodeIdSet, scene, selectedIds, viewScale]);
+
+  const rotationAnchors = useMemo(() => {
+    const anchors = new Map<
+      string,
+      {
+        x: number;
+        y: number;
+        connectorTop: number;
+        connectorHeight: number;
+      }
+    >();
+
+    for (const { id, bounds, controlBounds, isLine } of selectedBounds) {
+      const centerX = bounds.x + bounds.width / 2;
+      const centerY = bounds.y + bounds.height / 2;
+      const halfDiagonal = nodeHalfDiagonal(scene.nodes[id]);
+      const stableRadius =
+        halfDiagonal ?? Math.max(bounds.width, bounds.height) / 2;
+      const handleY = isLine
+        ? controlBounds.y - rotateHandleOffset
+        : centerY - stableRadius - rotateHandleOffset;
+      const connectorTop = Math.min(handleY, controlBounds.y);
+      const connectorHeight = Math.max(1, controlBounds.y - handleY);
+
+      anchors.set(id, {
+        x: centerX,
+        y: handleY,
+        connectorTop,
+        connectorHeight,
+      });
+    }
+
+    return anchors;
+  }, [rotateHandleOffset, scene.nodes, selectedBounds]);
 
   const hoveredBounds = useMemo(() => {
     if (!hoveredId || selectedIds.includes(hoveredId)) return null;
@@ -394,10 +452,7 @@ export default function SceneWorkspaceStage({
         onPointerCancel={interactive ? handlePointerUp : undefined}
         onPointerLeave={interactive ? onScenePointerLeave : undefined}
         onDoubleClick={interactive ? handleDoubleClick : undefined}
-        className={[
-          "relative z-[1]",
-          interactive ? "cursor-default" : "",
-        ]
+        className={["relative z-[1]", interactive ? "cursor-default" : ""]
           .filter(Boolean)
           .join(" ")}
         style={interactionCursor ? { cursor: interactionCursor } : undefined}
@@ -410,14 +465,20 @@ export default function SceneWorkspaceStage({
           guide.axis === "x" ? (
             <div
               key={`x-${guide.position}-${index}`}
-              className="absolute inset-y-0 w-px bg-fuchsia-500/75"
-              style={{ left: `${guide.position}px` }}
+              className="absolute inset-y-0 bg-fuchsia-500/75"
+              style={{
+                left: `${guide.position}px`,
+                width: `${guideThickness}px`,
+              }}
             />
           ) : (
             <div
               key={`y-${guide.position}-${index}`}
-              className="absolute inset-x-0 h-px bg-fuchsia-500/75"
-              style={{ top: `${guide.position}px` }}
+              className="absolute inset-x-0 bg-fuchsia-500/75"
+              style={{
+                top: `${guide.position}px`,
+                height: `${guideThickness}px`,
+              }}
             />
           ),
         )}
@@ -425,7 +486,12 @@ export default function SceneWorkspaceStage({
         {guides.length > 0 ? (
           <div
             className="absolute rounded-md border border-sky-300/60 bg-sky-500/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white shadow"
-            style={{ left: "12px", top: "12px" }}
+            style={{
+              left: "12px",
+              top: "12px",
+              transform: `scale(${overlayUiScale})`,
+              transformOrigin: "top left",
+            }}
           >
             Snap
           </div>
@@ -507,10 +573,14 @@ export default function SceneWorkspaceStage({
         {measurement ? (
           <>
             <div
-              className="absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border border-fuchsia-700 bg-white"
+              className="absolute rounded-full border border-fuchsia-700 bg-white"
               style={{
-                left: `${measurement.centerX}px`,
-                top: `${measurement.centerY}px`,
+                left: `${measurement.centerX - 4}px`,
+                top: `${measurement.centerY - 4}px`,
+                width: "8px",
+                height: "8px",
+                transform: `scale(${overlayUiScale})`,
+                transformOrigin: "center",
               }}
             />
             <div
@@ -518,6 +588,8 @@ export default function SceneWorkspaceStage({
               style={{
                 left: `${measurement.x}px`,
                 top: `${measurement.y - 8}px`,
+                transform: `translateY(-100%) scale(${overlayUiScale})`,
+                transformOrigin: "top left",
               }}
             >
               W {measurement.width} · H {measurement.height}
@@ -527,6 +599,8 @@ export default function SceneWorkspaceStage({
               style={{
                 left: `${measurement.x + 148}px`,
                 top: `${measurement.y - 8}px`,
+                transform: `translateY(-100%) scale(${overlayUiScale})`,
+                transformOrigin: "top left",
               }}
             >
               X {measurement.x} · Y {measurement.y}
@@ -594,96 +668,99 @@ export default function SceneWorkspaceStage({
           />
         ) : null}
       </div>
-      {selectedBounds.map(({ id: nodeId, bounds, controlBounds, isLine }) => (
-        <div
-          key={nodeId}
-          className="pointer-events-none absolute z-3"
-          style={{ left: 0, top: 0, width: "100%", height: "100%" }}
-        >
-          {/* Selection border */}
+      {selectedBounds.map(({ id: nodeId, bounds, controlBounds, isLine }) => {
+        const rotateAnchor = rotationAnchors.get(nodeId);
+        return (
           <div
-            className="pointer-events-none absolute rounded-md border-2 border-sky-500/90 shadow-[0_0_0_1px_rgba(255,255,255,0.85)]"
-            style={{
-              left: `${controlBounds.x}px`,
-              top: `${controlBounds.y}px`,
-              width: `${Math.max(1, controlBounds.width)}px`,
-              height: `${Math.max(1, controlBounds.height)}px`,
-              borderWidth: `${borderWidth}px`,
-            }}
+            key={nodeId}
+            className="pointer-events-none absolute z-3"
+            style={{ left: 0, top: 0, width: "100%", height: "100%" }}
           >
-            {interactive &&
-              !lockedIdSet.has(nodeId) &&
-              HANDLES.map(({ id: handle, cx, cy, cursor }) => (
+            {/* Selection border */}
+            <div
+              className="pointer-events-none absolute rounded-md border-2 border-sky-500/90 shadow-[0_0_0_1px_rgba(255,255,255,0.85)]"
+              style={{
+                left: `${controlBounds.x}px`,
+                top: `${controlBounds.y}px`,
+                width: `${Math.max(1, controlBounds.width)}px`,
+                height: `${Math.max(1, controlBounds.height)}px`,
+                borderWidth: `${borderWidth}px`,
+              }}
+            >
+              {interactive &&
+                !lockedIdSet.has(nodeId) &&
+                HANDLES.map(({ id: handle, cx, cy, cursor }) => (
+                  <div
+                    key={handle}
+                    className="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-sky-600 bg-white shadow-sm active:bg-sky-100"
+                    style={{
+                      left: `${cx * 100}%`,
+                      top: `${cy * 100}%`,
+                      width: `${Math.max(handleSize, isLine ? handleSize * 1.35 : handleSize)}px`,
+                      height: `${Math.max(handleSize, isLine ? handleSize * 1.35 : handleSize)}px`,
+                      cursor,
+                      touchAction: "none",
+                    }}
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      const point = toScenePoint(e.clientX, e.clientY);
+                      if (!point) return;
+                      contentCanvasRef.current?.setPointerCapture(e.pointerId);
+                      onHandlePointerDown?.(
+                        e.pointerId,
+                        nodeId,
+                        handle,
+                        controlBounds,
+                        point.x,
+                        point.y,
+                      );
+                    }}
+                  />
+                ))}
+            </div>
+
+            {/* Rotation handle — circle above top-center of selection */}
+            {interactive && !lockedIdSet.has(nodeId) && rotateAnchor && (
+              <>
+                {/* Connector line */}
                 <div
-                  key={handle}
-                  className="pointer-events-auto absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-sky-600 bg-white shadow-sm active:bg-sky-100"
+                  className="pointer-events-none absolute w-px bg-sky-400/60"
                   style={{
-                    left: `${cx * 100}%`,
-                    top: `${cy * 100}%`,
-                    width: `${Math.max(handleSize, isLine ? handleSize * 1.35 : handleSize)}px`,
-                    height: `${Math.max(handleSize, isLine ? handleSize * 1.35 : handleSize)}px`,
-                    cursor,
+                    left: `${rotateAnchor.x}px`,
+                    top: `${rotateAnchor.connectorTop}px`,
+                    height: `${rotateAnchor.connectorHeight}px`,
+                  }}
+                />
+                {/* Handle circle */}
+                <div
+                  className="pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-sky-500/90 bg-white shadow-md active:cursor-grabbing"
+                  style={{
+                    left: `${rotateAnchor.x}px`,
+                    top: `${rotateAnchor.y}px`,
+                    width: `${Math.max(12, handleSize + 4)}px`,
+                    height: `${Math.max(12, handleSize + 4)}px`,
                     touchAction: "none",
                   }}
+                  title="Rotate"
                   onPointerDown={(e) => {
                     e.stopPropagation();
                     const point = toScenePoint(e.clientX, e.clientY);
                     if (!point) return;
                     contentCanvasRef.current?.setPointerCapture(e.pointerId);
-                    onHandlePointerDown?.(
+                    onRotateHandlePointerDown?.(
                       e.pointerId,
                       nodeId,
-                      handle,
-                      controlBounds,
+                      bounds,
                       point.x,
                       point.y,
                     );
                   }}
                 />
-              ))}
+              </>
+            )}
           </div>
-
-          {/* Rotation handle — circle above top-center of selection */}
-          {interactive && !lockedIdSet.has(nodeId) && (
-            <>
-              {/* Connector line */}
-              <div
-                className="pointer-events-none absolute w-px bg-sky-400/60"
-                style={{
-                  left: `${bounds.x + bounds.width / 2}px`,
-                  top: `${controlBounds.y - rotateHandleOffset}px`,
-                  height: `${rotateHandleOffset}px`,
-                }}
-              />
-              {/* Handle circle */}
-              <div
-                className="pointer-events-auto absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 cursor-grab items-center justify-center rounded-full border-2 border-sky-500/90 bg-white shadow-md active:cursor-grabbing"
-                style={{
-                  left: `${bounds.x + bounds.width / 2}px`,
-                  top: `${controlBounds.y - rotateHandleOffset}px`,
-                  width: `${Math.max(12, handleSize + 4)}px`,
-                  height: `${Math.max(12, handleSize + 4)}px`,
-                  touchAction: "none",
-                }}
-                title="Rotate"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  const point = toScenePoint(e.clientX, e.clientY);
-                  if (!point) return;
-                  contentCanvasRef.current?.setPointerCapture(e.pointerId);
-                  onRotateHandlePointerDown?.(
-                    e.pointerId,
-                    nodeId,
-                    bounds,
-                    point.x,
-                    point.y,
-                  );
-                }}
-              />
-            </>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

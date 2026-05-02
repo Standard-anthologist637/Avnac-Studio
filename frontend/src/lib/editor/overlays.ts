@@ -49,7 +49,7 @@ export function snapMoveBounds(
   threshold = 6,
 ): SnapResult {
   const candidates = collectSnapCandidates(scene, new Set(selectedIds));
-  const xResult = snapAxis(
+  let xResult = snapAxis(
     [
       targetBounds.x,
       targetBounds.x + targetBounds.width / 2,
@@ -59,7 +59,7 @@ export function snapMoveBounds(
     threshold,
     "x",
   );
-  const yResult = snapAxis(
+  let yResult = snapAxis(
     [
       targetBounds.y,
       targetBounds.y + targetBounds.height / 2,
@@ -69,6 +69,34 @@ export function snapMoveBounds(
     threshold,
     "y",
   );
+
+  // Soft-sticky snap when vector-like selections approach square-like shapes.
+  if (isVectorLikeSelection(scene, selectedIds) && threshold > 0) {
+    const stickyThreshold = Math.max(threshold, threshold * 1.8);
+    const stickyX = snapAxis(
+      [
+        targetBounds.x,
+        targetBounds.x + targetBounds.width / 2,
+        targetBounds.x + targetBounds.width,
+      ],
+      candidates.squareX,
+      stickyThreshold,
+      "x",
+    );
+    const stickyY = snapAxis(
+      [
+        targetBounds.y,
+        targetBounds.y + targetBounds.height / 2,
+        targetBounds.y + targetBounds.height,
+      ],
+      candidates.squareY,
+      stickyThreshold,
+      "y",
+    );
+    xResult = pickPreferredSnapAxisResult(xResult, stickyX);
+    yResult = pickPreferredSnapAxisResult(yResult, stickyY);
+  }
+
   return {
     bounds: {
       x: targetBounds.x + xResult.delta,
@@ -180,21 +208,70 @@ function getNodeBoundsRecursive(
 function collectSnapCandidates(
   scene: SaraswatiScene,
   excludeIds: Set<string>,
-): { x: number[]; y: number[] } {
+): { x: number[]; y: number[]; squareX: number[]; squareY: number[] } {
   const x = [0, scene.artboard.width / 2, scene.artboard.width];
   const y = [0, scene.artboard.height / 2, scene.artboard.height];
+  const squareX: number[] = [];
+  const squareY: number[] = [];
 
   for (const [nodeId, node] of Object.entries(scene.nodes)) {
     if (excludeIds.has(nodeId) || !isSaraswatiRenderableNode(node)) continue;
     const bounds = getNodeBounds(node);
     x.push(bounds.x, bounds.x + bounds.width / 2, bounds.x + bounds.width);
     y.push(bounds.y, bounds.y + bounds.height / 2, bounds.y + bounds.height);
+    if (isSquareLikeBounds(bounds)) {
+      squareX.push(
+        bounds.x,
+        bounds.x + bounds.width / 2,
+        bounds.x + bounds.width,
+      );
+      squareY.push(
+        bounds.y,
+        bounds.y + bounds.height / 2,
+        bounds.y + bounds.height,
+      );
+    }
   }
 
   return {
     x: dedupeNumbers(x),
     y: dedupeNumbers(y),
+    squareX: dedupeNumbers(squareX),
+    squareY: dedupeNumbers(squareY),
   };
+}
+
+function isSquareLikeBounds(bounds: SaraswatiBounds): boolean {
+  const maxSide = Math.max(bounds.width, bounds.height);
+  if (maxSide <= 0) return false;
+  const ratio = Math.abs(bounds.width - bounds.height) / maxSide;
+  return ratio <= 0.12;
+}
+
+function isVectorLikeSelection(
+  scene: SaraswatiScene,
+  selectedIds: readonly string[],
+): boolean {
+  for (const id of selectedIds) {
+    const node = scene.nodes[id];
+    if (!node) continue;
+    if (node.type === "group") {
+      const name = (node.name ?? "").toLowerCase();
+      if (name.includes("vector")) return true;
+    }
+  }
+  return false;
+}
+
+function pickPreferredSnapAxisResult(
+  base: SnapAxisResult,
+  sticky: SnapAxisResult,
+): SnapAxisResult {
+  if (!sticky.guide) return base;
+  if (!base.guide) return sticky;
+  const baseDistance = Math.abs(base.delta);
+  const stickyDistance = Math.abs(sticky.delta);
+  return stickyDistance <= baseDistance + 0.5 ? sticky : base;
 }
 
 function dedupeNumbers(values: number[]) {

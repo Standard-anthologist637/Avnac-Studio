@@ -212,6 +212,7 @@ type SceneEditorActions = {
   commitDocumentName: () => Promise<void>;
   /** Persist the current scene snapshot back to IDB via serializer. */
   save: () => Promise<void>;
+  flushAutosaveNow: () => Promise<void>;
   setSnapIntensity: (value: number) => void;
   reset: () => void;
 };
@@ -264,9 +265,21 @@ let detachSceneEngineSubscription: (() => void) | null = null;
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 let latestAutosaveRequestId = 0;
 let pageHistoryRef: PageHistory<AvnacDocumentV1> | null = null;
+let openHistoryBatchDepth = 0;
 
-const AUTOSAVE_DELAY_MS = 1500;
+const AUTOSAVE_DELAY_MS = 900;
 const PAGE_HISTORY_LIMIT = 20;
+
+function closeHistoryBatches() {
+  if (!sceneEngineStore) {
+    openHistoryBatchDepth = 0;
+    return;
+  }
+  while (openHistoryBatchDepth > 0) {
+    openHistoryBatchDepth -= 1;
+    sceneEngineStore.endBatch();
+  }
+}
 
 function scheduleAutosave(
   documentId: string,
@@ -319,6 +332,7 @@ function scheduleAutosave(
 function resetSceneEngineBinding() {
   detachSceneEngineSubscription?.();
   detachSceneEngineSubscription = null;
+  closeHistoryBatches();
   sceneEngineStore = null;
   latestAutosaveRequestId += 1;
   if (autosaveTimer !== null) {
@@ -513,11 +527,13 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
 
   beginHistoryBatch: () => {
     if (!sceneEngineStore) return;
+    openHistoryBatchDepth += 1;
     sceneEngineStore.beginBatch();
   },
 
   endHistoryBatch: () => {
-    if (!sceneEngineStore) return;
+    if (!sceneEngineStore || openHistoryBatchDepth <= 0) return;
+    openHistoryBatchDepth -= 1;
     sceneEngineStore.endBatch();
     const engineState = sceneEngineStore.getState();
     const { documentId } = get();
@@ -570,6 +586,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   resetClipOnSelection: () => resetClipOnSelection(asInsertContext(get())),
 
   undo: () => {
+    closeHistoryBatches();
     const { canUndo: engineCanUndo, documentId, pages, currentPage } = get();
     if (sceneEngineStore && engineCanUndo) {
       sceneEngineStore.undo();
@@ -608,6 +625,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   },
 
   redo: () => {
+    closeHistoryBatches();
     const { canRedo: engineCanRedo, documentId, pages, currentPage } = get();
     if (sceneEngineStore && engineCanRedo) {
       sceneEngineStore.redo();
@@ -726,6 +744,42 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   },
 
   save: async () => {
+    closeHistoryBatches();
+    const { documentId, scene, baseDocument, pages, currentPage } = get();
+    if (!documentId) return;
+    const docToSave = scene ? toAvnacDocument(scene) : baseDocument;
+    if (!docToSave) return;
+    latestAutosaveRequestId += 1;
+    if (autosaveTimer !== null) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = null;
+    }
+    set({ saveState: "saving", saveError: null, hasPendingChanges: true });
+    const updatedPages = pages.map((p, i) =>
+      i === currentPage ? docToSave : p,
+    );
+    try {
+      await Promise.all([
+        idbPutDocument(documentId, docToSave),
+        saveStoredPages(documentId, updatedPages, currentPage),
+      ]);
+      set({
+        baseDocument: docToSave,
+        hasPendingChanges: false,
+        saveState: "saved",
+        saveError: null,
+      });
+    } catch (err) {
+      set({
+        hasPendingChanges: true,
+        saveState: "error",
+        saveError: String(err),
+      });
+    }
+  },
+
+  flushAutosaveNow: async () => {
+    closeHistoryBatches();
     const { documentId, scene, baseDocument, pages, currentPage } = get();
     if (!documentId) return;
     const docToSave = scene ? toAvnacDocument(scene) : baseDocument;

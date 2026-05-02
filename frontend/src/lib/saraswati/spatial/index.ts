@@ -156,7 +156,7 @@ function pointHitsNode(
   }
   const metrics = lineGeometryMetrics(node);
   const tolerance =
-    Math.max(6, metrics.halfStroke * 1.35 + 2) * interactionScale;
+     Math.max(12, metrics.halfStroke * 1.5 + 4) * interactionScale;
   const hitDistance =
     node.pathType === "curved" && node.curveBulge !== 0
       ? pointToPolylineDistance(point.x, point.y, metrics.samples)
@@ -168,7 +168,7 @@ function pointHitsNode(
           node.x2,
           node.y2,
         );
-  if (hitDistance <= tolerance / 2) return true;
+   if (hitDistance <= tolerance) return true;
 
   // Arrowheads should also be easy to pick.
   if (node.arrowStart || node.arrowEnd) {

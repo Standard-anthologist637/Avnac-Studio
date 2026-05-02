@@ -240,17 +240,33 @@ export function useSceneEditorInteractions() {
       if (curveAdjust && curveAdjust.pointerId === pointerId) {
         const dx = x - curveAdjust.startX;
         const dy = y - curveAdjust.startY;
-        const nextT =
-          curveAdjust.startT + dx / Math.max(24, curveAdjust.length * 0.45);
-        const nextBulge = curveAdjust.startBulge - dy;
+        const currentLine = scene.nodes[curveAdjust.nodeId];
+        if (!currentLine || currentLine.type !== "line") return;
+
+        const targetT =
+          curveAdjust.startT + dx / Math.max(80, curveAdjust.length * 1.25);
+        const clampedT = Math.max(0.02, Math.min(0.98, targetT));
+        const maxBulge = Math.max(24, curveAdjust.length * 1.4);
+        const targetBulge = curveAdjust.startBulge - dy * 0.55;
+        const clampedBulge = Math.max(
+          -maxBulge,
+          Math.min(maxBulge, targetBulge),
+        );
+
+        const liveT = Number.isFinite(currentLine.curveT)
+          ? currentLine.curveT
+          : curveAdjust.startT;
+        const liveBulge = Number.isFinite(currentLine.curveBulge)
+          ? currentLine.curveBulge
+          : curveAdjust.startBulge;
+        const nextT = liveT + (clampedT - liveT) * 0.4;
+        const nextBulge = liveBulge + (clampedBulge - liveBulge) * 0.4;
+
         applyCommands([
           {
             type: "REPLACE_NODE",
             node: {
-              ...(scene.nodes[curveAdjust.nodeId] as Extract<
-                (typeof scene.nodes)[string],
-                { type: "line" }
-              >),
+              ...currentLine,
               pathType: "curved",
               curveBulge: nextBulge,
               curveT: nextT,
