@@ -6,7 +6,7 @@ import {
 } from "../../wailsjs/go/avnacio/IOManager";
 import { duplicateStoredPages } from "@/lib/avnac-multi-page-storage";
 import { type AvnacDocumentV1 } from "./avnac-document";
-import { migrateAvnacDocument } from "@/lib/saraswati/migration";
+import { migrateAvnacDocument } from "@/lib/avnac-migration";
 import type { VectorBoardDocument } from "./avnac-vector-board-document";
 import {
   loadVectorBoardDocs,

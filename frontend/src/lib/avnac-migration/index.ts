@@ -2,7 +2,7 @@
  * Pure, chainable migration entry-point for persisted Avnac documents.
  *
  * Usage:
- *   import { migrateAvnacDocument } from "@/lib/saraswati/migration";
+ *   import { migrateAvnacDocument } from "@/lib/avnac-migration";
  *   const doc = migrateAvnacDocument(rawJson); // AvnacDocumentV1 | null
  *
  * Rules:

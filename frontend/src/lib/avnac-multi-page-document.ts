@@ -1,6 +1,6 @@
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
-import { AVNAC_DOC_VERSION, parseAvnacDocument } from "@/lib/avnac-document";
-import { migrateAvnacDocument } from "@/lib/saraswati/migration";
+import { AVNAC_DOC_VERSION } from "@/lib/avnac-document";
+import { migrateAvnacDocument } from "@/lib/avnac-migration";
 import { fromAvnacV2Document } from "@/lib/saraswati/compat/from-avnac-v2";
 import { toAvnacDocument } from "@/lib/saraswati/compat/to-avnac";
 
@@ -73,7 +73,7 @@ export function parseMultiPageDocument(
 }
 
 export function parseAvnacImport(raw: unknown): ParsedAvnacImport | null {
-  const single = parseAvnacDocument(raw);
+  const single = migrateAvnacDocument(raw);
   if (single) return { kind: "single", document: single };
 
   const multi = parseMultiPageDocument(raw);
