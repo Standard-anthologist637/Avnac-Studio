@@ -143,6 +143,29 @@ function commandNodeIdFromCommand(command: {
   return command.id ?? null;
 }
 
+/**
+ * Walk up the parent chain from hitId until we find a node that is a direct
+ * child of the scene root (or is the root itself).  This makes clicking inside
+ * a group select the group instead of the individual child, which is the
+ * standard behaviour in design tools like Figma.
+ *
+ * A depth cap of 64 prevents infinite loops from corrupt scene graphs.
+ */
+function resolveSelectableId(
+  scene: { root: string; nodes: Record<string, { parentId?: string | null }> },
+  hitId: string,
+): string {
+  let id = hitId;
+  for (let depth = 0; depth < 64; depth++) {
+    const node = scene.nodes[id];
+    if (!node) return hitId;
+    // A node whose parentId is the scene root is a top-level selectable.
+    if (node.parentId === scene.root || node.parentId == null) return id;
+    id = node.parentId;
+  }
+  return hitId;
+}
+
 export function useSceneEditorInteractions() {
   const applyCommands = useSceneEditorStore((s) => s.applyCommands);
   const beginHistoryBatch = useSceneEditorStore((s) => s.beginHistoryBatch);
@@ -177,7 +200,10 @@ export function useSceneEditorInteractions() {
       const { scene, selectedIds } = useSceneEditorStore.getState();
       if (!scene) return;
       const additive = Boolean(options?.additive);
-      const hitId = findTopHitNodeId(scene, { x, y });
+      const rawHitId = findTopHitNodeId(scene, { x, y });
+      // Resolve up to the nearest group that is a direct child of the root so
+      // that clicking inside a group selects the group as a whole.
+      const hitId = rawHitId ? resolveSelectableId(scene, rawHitId) : null;
       marqueeRef.current = null;
       setMarqueeBounds(null);
       curveAdjustRef.current = null;
@@ -262,14 +288,17 @@ export function useSceneEditorInteractions() {
           marquee.currentY,
         );
         setMarqueeBounds(bounds);
-        const hits: string[] = [];
+        const hitsSet = new Set<string>();
         for (const [nodeId, node] of Object.entries(scene.nodes)) {
           if (!isSaraswatiRenderableNode(node)) continue;
           const nodeBounds = getNodeBounds(node);
           if (boundsIntersect(bounds, nodeBounds)) {
-            hits.push(nodeId);
+            // Resolve each renderable hit up to its selectable ancestor so that
+            // marquee-selecting across a group adds the group, not its children.
+            hitsSet.add(resolveSelectableId(scene, nodeId));
           }
         }
+        const hits = Array.from(hitsSet);
         const nextSelected = marquee.additive
           ? Array.from(new Set([...marquee.baseSelectedIds, ...hits]))
           : hits;
@@ -358,7 +387,8 @@ export function useSceneEditorInteractions() {
       }
 
       if (pointerStateRef.current.pointerId === null) {
-        setHoveredId(findTopHitNodeId(scene, { x, y }));
+        const rawHover = findTopHitNodeId(scene, { x, y });
+        setHoveredId(rawHover ? resolveSelectableId(scene, rawHover) : null);
         setGuides([]);
         setMeasurement(null);
         return;
@@ -387,9 +417,10 @@ export function useSceneEditorInteractions() {
       const snapThreshold = 6 * snapFactor;
 
       if (command.type === "MOVE_NODE") {
-        const node = scene.nodes[command.id];
-        if (node && isSaraswatiRenderableNode(node)) {
-          const startBounds = getNodeBounds(node);
+        // getRenderableNodeBounds handles both renderable leaf nodes and group
+        // nodes (union bounding box of all children).
+        const startBounds = getRenderableNodeBounds(scene, command.id);
+        if (startBounds) {
           const snapped = snapMoveBounds(
             scene,
             {

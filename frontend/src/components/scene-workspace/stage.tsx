@@ -273,9 +273,8 @@ export default function SceneWorkspaceStage({
   const hoveredBounds = useMemo(() => {
     if (!hoveredId || selectedIds.includes(hoveredId)) return null;
     if (hiddenNodeIdSet.has(hoveredId)) return null;
-    const node = scene.nodes[hoveredId];
-    if (!node || !isSaraswatiRenderableNode(node)) return null;
-    return getNodeBounds(node);
+    // Use getRenderableNodeBounds so hover highlights work for group nodes too.
+    return getRenderableNodeBounds(scene, hoveredId);
   }, [hiddenNodeIdSet, hoveredId, scene, selectedIds]);
 
   const editableClip = useMemo(() => {
