@@ -1,8 +1,7 @@
 import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selection-toolbar";
-import {
-  ARTBOARD_ALIGN_ALREADY_EPS,
-  ARTBOARD_ALIGN_PAD,
-} from "@/components/fabric-editor/constants";
+
+const ARTBOARD_ALIGN_PAD = 32;
+const ARTBOARD_ALIGN_ALREADY_EPS = 2;
 
 export function artboardAlignAlreadySatisfied(
   br: {

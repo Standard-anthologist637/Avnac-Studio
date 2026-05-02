@@ -36,7 +36,7 @@ import TransparencyToolbarPopover from "@/components/editor/color/transparency-t
 import StrokeToolbarPopover from "@/components/editor/color/stroke-toolbar-popover";
 import ShadowToolbarPopover from "@/components/editor/color/shadow-toolbar-popover";
 import BlurToolbarControl from "@/components/editor/color/blur-toolbar-control";
-import { DEFAULT_FABRIC_SHADOW_UI } from "@/lib/avnac-fabric-shadow";
+import { DEFAULT_SHADOW_UI, type ShadowUi } from "@/lib/shadow-ui";
 import CornerRadiusToolbarControl from "@/components/editor/shape/corner-radius-toolbar-control";
 import ImageCropModal from "@/components/editor/dialogs/image-crop-modal";
 import TextFormatToolbar, {
@@ -64,18 +64,18 @@ function toColor(b: BgValue): SaraswatiColor {
 function toPaint(c: SaraswatiColor): BgValue {
   return c as unknown as BgValue;
 }
-// SaraswatiShadow and FabricShadowUi are structurally identical — cast at boundary.
-type FabricShadowUiShape = {
+// SaraswatiShadow and ShadowUi are structurally identical — cast at boundary.
+type ShadowUiShape = {
   blur: number;
   offsetX: number;
   offsetY: number;
   colorHex: string;
   opacityPct: number;
 };
-function toFabricShadow(s: SaraswatiShadow): FabricShadowUiShape {
-  return s as FabricShadowUiShape;
+function toFabricShadow(s: SaraswatiShadow): ShadowUi {
+  return s as ShadowUiShape;
 }
-function fromFabricShadow(s: FabricShadowUiShape): SaraswatiShadow {
+function fromFabricShadow(s: ShadowUi): SaraswatiShadow {
   return s as SaraswatiShadow;
 }
 
@@ -241,8 +241,7 @@ export default function SceneSelectionBar() {
                 <FloatingToolbarDivider />
                 <ShadowToolbarPopover
                   value={toFabricShadow(
-                    textNode.shadow ??
-                      (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                    textNode.shadow ?? (DEFAULT_SHADOW_UI as SaraswatiShadow),
                   )}
                   shadowActive={Boolean(textNode.shadow)}
                   onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
@@ -306,8 +305,7 @@ export default function SceneSelectionBar() {
               <FloatingToolbarDivider />
               <ShadowToolbarPopover
                 value={toFabricShadow(
-                  rectNode.shadow ??
-                    (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                  rectNode.shadow ?? (DEFAULT_SHADOW_UI as SaraswatiShadow),
                 )}
                 shadowActive={Boolean(rectNode.shadow)}
                 onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
@@ -405,7 +403,7 @@ export default function SceneSelectionBar() {
               <ShadowToolbarPopover
                 value={toFabricShadow(
                   (node as unknown as { shadow?: SaraswatiShadow }).shadow ??
-                    (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                    (DEFAULT_SHADOW_UI as SaraswatiShadow),
                 )}
                 shadowActive={Boolean(
                   (node as unknown as { shadow?: SaraswatiShadow }).shadow,
@@ -700,10 +698,9 @@ export default function SceneSelectionBar() {
                             })
                           }
                           className={[
-                            floatingToolbarIconButton(
-                              !!lineNode.arrowStart,
-                              { wide: true },
-                            ),
+                            floatingToolbarIconButton(!!lineNode.arrowStart, {
+                              wide: true,
+                            }),
                             "flex-1 text-[13px] font-medium",
                           ].join(" ")}
                         >
@@ -742,8 +739,7 @@ export default function SceneSelectionBar() {
               <FloatingToolbarDivider />
               <ShadowToolbarPopover
                 value={toFabricShadow(
-                  lineNode.shadow ??
-                    (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                  lineNode.shadow ?? (DEFAULT_SHADOW_UI as SaraswatiShadow),
                 )}
                 shadowActive={Boolean(lineNode.shadow)}
                 onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
@@ -779,7 +775,7 @@ export default function SceneSelectionBar() {
               <FloatingToolbarDivider />
               <ShadowToolbarPopover
                 value={toFabricShadow(
-                  node.shadow ?? (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                  node.shadow ?? (DEFAULT_SHADOW_UI as SaraswatiShadow),
                 )}
                 shadowActive={Boolean(node.shadow)}
                 onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
@@ -852,8 +848,7 @@ export default function SceneSelectionBar() {
                 <FloatingToolbarDivider />
                 <ShadowToolbarPopover
                   value={toFabricShadow(
-                    imageNode.shadow ??
-                      (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                    imageNode.shadow ?? (DEFAULT_SHADOW_UI as SaraswatiShadow),
                   )}
                   shadowActive={Boolean(imageNode.shadow)}
                   onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
@@ -914,7 +909,7 @@ export default function SceneSelectionBar() {
             <ShadowToolbarPopover
               value={toFabricShadow(
                 nodeWithEffects.shadow ??
-                  (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                  (DEFAULT_SHADOW_UI as SaraswatiShadow),
               )}
               shadowActive={Boolean(nodeWithEffects.shadow)}
               onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}

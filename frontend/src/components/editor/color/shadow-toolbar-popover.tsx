@@ -1,8 +1,8 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BackgroundIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FabricShadowUi } from "@/lib/avnac-fabric-shadow";
-import { DEFAULT_FABRIC_SHADOW_UI } from "@/lib/avnac-fabric-shadow";
+import type { ShadowUi } from "@/lib/shadow-ui";
+import { DEFAULT_SHADOW_UI } from "@/lib/shadow-ui";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import {
@@ -15,9 +15,9 @@ const BLUR_MAX = 50;
 const OFFSET_MAX = 40;
 
 type Props = {
-  value: FabricShadowUi;
+  value: ShadowUi;
   shadowActive: boolean;
-  onChange: (next: FabricShadowUi) => void;
+  onChange: (next: ShadowUi) => void;
 };
 
 export default function ShadowToolbarPopover({
@@ -101,13 +101,17 @@ export default function ShadowToolbarPopover({
                 <button
                   type="button"
                   onClick={() =>
-                    onChange({ ...DEFAULT_FABRIC_SHADOW_UI, opacityPct: 0 })
+                    onChange({ ...DEFAULT_SHADOW_UI, opacityPct: 0 })
                   }
                   aria-label="Reset shadow"
                   title="Reset shadow"
                   className="flex size-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-black/[0.06] hover:text-neutral-700"
                 >
-                  <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2} />
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    size={11}
+                    strokeWidth={2}
+                  />
                 </button>
               ) : null}
             </div>

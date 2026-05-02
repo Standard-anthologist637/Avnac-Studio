@@ -19,7 +19,7 @@ import {
   type SaraswatiTextNode,
 } from "../scene";
 
-export type AvnacAdapterPipeline = "direct-avnac" | "legacy-fabric-compat";
+export type AvnacAdapterPipeline = "direct-avnac";
 
 export type AvnacAdapterDiagnostics = {
   pipeline: AvnacAdapterPipeline;
@@ -37,6 +37,10 @@ type RawObject = Record<string, unknown> & {
   visible?: boolean;
   left?: number;
   top?: number;
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
   scaleX?: number;
   scaleY?: number;
   angle?: number;
@@ -89,6 +93,7 @@ type NormalizedObjectType =
   | "rect"
   | "ellipse"
   | "polygon"
+  | "line"
   | "text"
   | "textbox"
   | "i-text"
@@ -267,8 +272,15 @@ function adaptRawObject(
   }
 
   const shapeKind = readShapeKind(raw.avnacShape);
-  if (shapeKind === "arrow" || shapeKind === "line") {
-    const eps = readArrowEndpoints(raw.avnacShape);
+  const normalizedType = normalizeObjectType(raw.type);
+  if (
+    shapeKind === "arrow" ||
+    shapeKind === "line" ||
+    normalizedType === "line"
+  ) {
+    const eps =
+      readArrowEndpoints(raw.avnacShape) ??
+      readLineEndpoints(raw, options?.offsetX ?? 0, options?.offsetY ?? 0);
     if (!eps) {
       return {
         node: null,
@@ -309,10 +321,11 @@ function adaptRawObject(
       curveBulge: readArrowCurveBulge(raw.avnacShape),
       curveT: readArrowCurveT(raw.avnacShape),
     };
-    return { node, issue: supportedIssue(sourceId, shapeKind) };
+    return {
+      node,
+      issue: supportedIssue(sourceId, shapeKind ?? normalizedType),
+    };
   }
-
-  const normalizedType = normalizeObjectType(raw.type);
   switch (normalizedType) {
     case "rect": {
       if (!isPositiveNumber(raw.width) || !isPositiveNumber(raw.height)) {
@@ -643,6 +656,7 @@ function normalizeObjectType(rawType: unknown): NormalizedObjectType {
     value === "rect" ||
     value === "group" ||
     value === "polygon" ||
+    value === "line" ||
     value === "image" ||
     value === "text" ||
     value === "textbox" ||
@@ -674,6 +688,31 @@ function readArrowEndpoints(
   )
     return null;
   return { x1, y1, x2, y2 };
+}
+
+function readLineEndpoints(
+  raw: RawObject,
+  offsetX: number,
+  offsetY: number,
+): { x1: number; y1: number; x2: number; y2: number } | null {
+  const x1 = raw.x1;
+  const y1 = raw.y1;
+  const x2 = raw.x2;
+  const y2 = raw.y2;
+  if (
+    typeof x1 !== "number" ||
+    typeof y1 !== "number" ||
+    typeof x2 !== "number" ||
+    typeof y2 !== "number"
+  ) {
+    return null;
+  }
+  return {
+    x1: x1 + offsetX,
+    y1: y1 + offsetY,
+    x2: x2 + offsetX,
+    y2: y2 + offsetY,
+  };
 }
 
 function readArrowStrokeWidth(raw: unknown): number {

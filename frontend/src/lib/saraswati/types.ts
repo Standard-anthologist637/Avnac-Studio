@@ -31,7 +31,7 @@ export type SaraswatiNodeId = string;
 export type SaraswatiNodeOriginX = "left" | "center" | "right";
 export type SaraswatiNodeOriginY = "top" | "center" | "bottom";
 
-/** Drop-shadow descriptor. Mirrors `FabricShadowUi` but owned by the engine. */
+/** Drop-shadow descriptor owned by the engine. */
 export type SaraswatiShadow = {
   blur: number;
   offsetX: number;

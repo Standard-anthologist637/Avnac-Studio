@@ -1,32 +1,36 @@
-import type { XY } from 'fabric'
+export type Point2D = { x: number; y: number };
 
-export function regularPolygonPoints(sides: number, radius: number): XY[] {
-  const n = Math.max(3, Math.min(32, Math.round(sides)))
-  const pts: XY[] = []
-  for (let i = 0; i < n; i++) {
-    const a = -Math.PI / 2 + (i * 2 * Math.PI) / n
-    pts.push({ x: radius * Math.cos(a), y: radius * Math.sin(a) })
+export function regularPolygonPoints(sides: number, radius: number): Point2D[] {
+  const n = Math.max(3, Math.round(sides));
+  const r = Math.max(0, radius);
+  const step = (Math.PI * 2) / n;
+  const start = -Math.PI / 2;
+  const points: Point2D[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const a = start + i * step;
+    points.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
   }
-  return pts
+  return points;
 }
 
 export function starPolygonPoints(
-  numPoints: number,
-  outerR: number,
-  innerRatio = 0.45,
-): XY[] {
-  const n = Math.max(3, Math.min(24, Math.round(numPoints)))
-  const innerR = outerR * innerRatio
-  const pts: XY[] = []
-  const step = Math.PI / n
-  for (let i = 0; i < n * 2; i++) {
-    const a = -Math.PI / 2 + i * step
-    const r = i % 2 === 0 ? outerR : innerR
-    pts.push({ x: r * Math.cos(a), y: r * Math.sin(a) })
-  }
-  return pts
-}
+  points: number,
+  outerRadius: number,
+  innerRadiusFactor = 0.5,
+): Point2D[] {
+  const n = Math.max(3, Math.round(points));
+  const outer = Math.max(0, outerRadius);
+  const inner = Math.max(0, outer * innerRadiusFactor);
+  const step = Math.PI / n;
+  const start = -Math.PI / 2;
+  const result: Point2D[] = [];
 
-export function bboxMinRadius(br: { width: number; height: number }): number {
-  return Math.max(24, Math.min(br.width, br.height) / 2)
+  for (let i = 0; i < n * 2; i += 1) {
+    const useOuter = i % 2 === 0;
+    const r = useOuter ? outer : inner;
+    const a = start + i * step;
+    result.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
+  }
+
+  return result;
 }

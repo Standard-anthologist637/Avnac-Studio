@@ -25,8 +25,15 @@ import {
   type AvnacAdapterPipeline,
 } from "@/lib/saraswati/compat/from-avnac";
 import { toAvnacDocument } from "@/lib/saraswati/compat/to-avnac";
-import { idbGetEditorRecord, idbPutDocument, idbSetDocumentName } from "@/lib/avnac-editor-idb";
-import { loadStoredPages, saveStoredPages } from "@/lib/avnac-multi-page-storage";
+import {
+  idbGetEditorRecord,
+  idbPutDocument,
+  idbSetDocumentName,
+} from "@/lib/avnac-editor-idb";
+import {
+  loadStoredPages,
+  saveStoredPages,
+} from "@/lib/avnac-multi-page-storage";
 import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";
 import { exportJsonFile } from "@/lib/avnac-native-export";
 import { ConfirmDialog } from "../../../../wailsjs/go/avnacio/IOManager";
@@ -37,13 +44,13 @@ import {
   movePageHistoryIndex,
   pushPageHistory,
   type PageHistory,
-} from "@/features/multi-page-editor/page-history";
-import { clonePageDoc } from "@/features/multi-page-editor/page-state";
+} from "@/features/scene-editor/store/paging/page-history";
+import { clonePageDoc } from "@/features/scene-editor/store/paging/page-state";
 import {
   buildAddPageResult,
   buildDeletePageResult,
   buildInsertImportedPageResult,
-} from "@/features/multi-page-editor/page-recipes";
+} from "@/features/scene-editor/store/paging/page-recipes";
 import { create } from "zustand";
 import {
   addClipToSelection,
@@ -356,10 +363,16 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         // New document — create empty canvas with optional artboard dimensions.
         const emptyDoc = createEmptyPage();
         if (opts?.w != null && Number.isFinite(opts.w)) {
-          emptyDoc.artboard.width = Math.min(16000, Math.max(100, Math.round(opts.w)));
+          emptyDoc.artboard.width = Math.min(
+            16000,
+            Math.max(100, Math.round(opts.w)),
+          );
         }
         if (opts?.h != null && Number.isFinite(opts.h)) {
-          emptyDoc.artboard.height = Math.min(16000, Math.max(100, Math.round(opts.h)));
+          emptyDoc.artboard.height = Math.min(
+            16000,
+            Math.max(100, Math.round(opts.h)),
+          );
         }
         await idbPutDocument(id, emptyDoc);
         doc = emptyDoc;
@@ -424,7 +437,13 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       canRedo: engineState.canRedo,
       baseDocument: nextBaseDocument,
     });
-    if (documentId) scheduleAutosave(documentId, engineState.scene, get().pages, get().currentPage);
+    if (documentId)
+      scheduleAutosave(
+        documentId,
+        engineState.scene,
+        get().pages,
+        get().currentPage,
+      );
   },
 
   beginHistoryBatch: () => {
@@ -444,7 +463,13 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       baseDocument: toAvnacDocument(engineState.scene),
       hasPendingChanges: true,
     });
-    if (documentId) scheduleAutosave(documentId, engineState.scene, get().pages, get().currentPage);
+    if (documentId)
+      scheduleAutosave(
+        documentId,
+        engineState.scene,
+        get().pages,
+        get().currentPage,
+      );
   },
 
   setSelectedIds: (selectedIds: string[]) => set({ selectedIds }),
@@ -488,7 +513,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         baseDocument: toAvnacDocument(engineState.scene),
         hasPendingChanges: true,
       });
-      if (documentId) scheduleAutosave(documentId, engineState.scene, pages, currentPage);
+      if (documentId)
+        scheduleAutosave(documentId, engineState.scene, pages, currentPage);
       return;
     }
     // Page-level undo (add/delete/switch page operations)
@@ -517,7 +543,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         baseDocument: toAvnacDocument(engineState.scene),
         hasPendingChanges: true,
       });
-      if (documentId) scheduleAutosave(documentId, engineState.scene, pages, currentPage);
+      if (documentId)
+        scheduleAutosave(documentId, engineState.scene, pages, currentPage);
       return;
     }
     // Page-level redo
@@ -619,7 +646,9 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     if (!documentId) return;
     const docToSave = scene ? toAvnacDocument(scene) : baseDocument;
     if (!docToSave) return;
-    const updatedPages = pages.map((p, i) => (i === currentPage ? docToSave : p));
+    const updatedPages = pages.map((p, i) =>
+      i === currentPage ? docToSave : p,
+    );
     await Promise.all([
       idbPutDocument(documentId, docToSave),
       saveStoredPages(documentId, updatedPages, currentPage),
@@ -639,7 +668,9 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     const targetIndex = clampPageIndex(pages.length, index);
     if (targetIndex === currentPage) return;
     const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage]!;
-    const updatedPages = pages.map((p, i) => (i === currentPage ? currentDoc : p));
+    const updatedPages = pages.map((p, i) =>
+      i === currentPage ? currentDoc : p,
+    );
     await applyPageTransition(updatedPages, targetIndex, documentId, true, set);
   },
 
@@ -647,7 +678,9 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     const { pages, currentPage, documentId, scene } = get();
     if (!documentId) return;
     const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage]!;
-    const updatedPages = pages.map((p, i) => (i === currentPage ? currentDoc : p));
+    const updatedPages = pages.map((p, i) =>
+      i === currentPage ? currentDoc : p,
+    );
     const { nextState } = buildAddPageResult(
       { currentPage, pages: updatedPages },
       currentDoc,
@@ -701,7 +734,9 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
           ];
     if (!importedDoc) return;
     const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage]!;
-    const updatedPages = pages.map((p, i) => (i === currentPage ? currentDoc : p));
+    const updatedPages = pages.map((p, i) =>
+      i === currentPage ? currentDoc : p,
+    );
     const { nextState } = buildInsertImportedPageResult(
       { currentPage, pages: updatedPages },
       importedDoc,
@@ -728,9 +763,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     const imported = parseAvnacImport(raw);
     if (!imported) return;
     const newPages =
-      imported.kind === "multi"
-        ? imported.document.pages
-        : [imported.document];
+      imported.kind === "multi" ? imported.document.pages : [imported.document];
     const newCurrentPage =
       imported.kind === "multi" ? imported.document.currentPage : 0;
     // Full workspace replace — reset page history.

@@ -24,7 +24,6 @@
         "@tambo-ai/react": "^1.2.6",
         "@tanstack/react-router": "^1.168.10",
         "@tanstack/router-plugin": "^1.167.22",
-        "fabric": "^6.6.1",
         "motion": "^12.38.0",
         "qrcode": "^1.5.4",
         "react": "^19.2.0",

@@ -13,12 +13,6 @@ import {
   useViewportAwarePopoverPlacement,
 } from "@/hooks/use-viewport-aware-popover";
 import {
-  isAvnacStrokeLineLike,
-  type ArrowLineStyle,
-  type ArrowPathType,
-  type AvnacShapeMeta,
-} from "@/lib/avnac-shape-meta";
-import {
   FloatingToolbarDivider,
   FloatingToolbarShell,
   floatingToolbarIconButton,
@@ -28,6 +22,22 @@ import CornerRadiusToolbarControl from "@/components/editor/shape/corner-radius-
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import PaintPopoverControl from "@/components/editor/color/paint-popover-control";
 import type { BgValue } from "@/lib/editor-paint";
+
+type ArrowLineStyle = "solid" | "dashed" | "dotted";
+type ArrowPathType = "straight" | "curved";
+type AvnacShapeMeta = {
+  kind: "rect" | "ellipse" | "polygon" | "star" | "line" | "arrow" | string;
+  polygonSides?: number;
+  starPoints?: number;
+  arrowLineStyle?: ArrowLineStyle;
+  arrowRoundedEnds?: boolean;
+  arrowStrokeWidth?: number;
+  arrowPathType?: ArrowPathType;
+};
+
+function isAvnacStrokeLineLike(meta: AvnacShapeMeta): boolean {
+  return meta.kind === "line" || meta.kind === "arrow";
+}
 
 type Props = {
   meta: AvnacShapeMeta;
