@@ -5,6 +5,20 @@
  */
 import { Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Add01Icon,
+  ArrowDown01Icon,
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Delete02Icon,
+  FileExportIcon,
+  FileImportIcon,
+  Home05Icon,
+} from "@hugeicons/core-free-icons";
+import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
+import { floatingToolbarPopoverMenuClass } from "@/components/editor/shared/floating-toolbar-shell";
+import type { ExportPngOptions } from "@/lib/png-export";
 import EditorAiPanel from "@/components/editor/sidebar/editor-ai-panel";
 import EditorAppsPanel from "@/components/editor/sidebar/editor-apps-panel";
 import EditorFloatingSidebar from "@/components/editor/sidebar/editor-floating-sidebar";
@@ -32,6 +46,75 @@ import { useLayerPanelTools } from "./tools/use-layer-panel-tools";
 import { useSceneEditorAiController } from "./use-scene-editor-ai-controller";
 import { useSceneEditorStore } from "./store";
 
+// ─── Toolbar presentation ───────────────────────────────────────────────────────────────────
+const _topBarShellClass = [
+  "relative z-[70] flex min-h-14 items-center gap-2 overflow-visible rounded-[1.75rem] border border-black/[0.08] bg-white/92 px-2.5 py-2",
+  "shadow-[0_8px_30px_rgba(0,0,0,0.08),0_0_0_1px_rgba(255,255,255,0.8)_inset] backdrop-blur-xl",
+].join(" ");
+const _topBarGroupClass = [
+  "flex items-center gap-1 rounded-full border border-black/[0.06] bg-black/[0.02] p-1",
+  "shadow-[inset_0_0_0_1px_rgba(255,255,255,0.5)]",
+].join(" ");
+const _topBarHomeLinkClass =
+  "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-neutral-700 no-underline transition-colors hover:bg-black/[0.08] hover:text-neutral-900";
+const _topBarDividerClass = "h-6 w-px shrink-0 bg-black/[0.06]";
+const _titleFieldClass = [
+  "min-w-0 rounded-full bg-white/85 px-3 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+  "transition-shadow focus-within:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.08),0_0_0_3px_rgba(24,119,242,0.08)]",
+].join(" ");
+const _pageIconButtonClass = [
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors",
+  "hover:bg-black/[0.08] hover:text-neutral-900 disabled:pointer-events-none disabled:opacity-40",
+].join(" ");
+const _tabRailClass = [
+  "flex min-w-max items-center gap-1 rounded-full bg-white/72 px-1 py-0.5",
+  "shadow-[inset_0_0_0_1px_rgba(0,0,0,0.04)]",
+].join(" ");
+const _tabRailFadeClass =
+  "pointer-events-none absolute inset-y-0 z-10 w-5 bg-gradient-to-r from-white via-white/90 to-transparent";
+const _pageTabButtonClass = [
+  "inline-flex h-8 shrink-0 items-center rounded-full px-3 text-[13px] font-medium transition-[background,color,box-shadow]",
+  "focus-visible:ring-2 focus-visible:ring-[var(--accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+  "disabled:pointer-events-none disabled:opacity-40",
+].join(" ");
+const _pageActionButtonClass = [
+  "inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full px-3.5 text-[13px] font-medium",
+  "text-neutral-800 transition-colors hover:bg-black/[0.08]",
+  "disabled:pointer-events-none disabled:opacity-40",
+].join(" ");
+const _destructiveIconButtonClass = [
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-neutral-700 transition-colors",
+  "hover:bg-black/[0.08] hover:text-neutral-900 disabled:pointer-events-none disabled:opacity-40",
+  "text-neutral-500 hover:bg-red-500/[0.08] hover:text-red-600",
+].join(" ");
+const _actionMenuPopoverClass =
+  "absolute right-0 top-full z-[140] mt-2 w-56 p-1.5";
+const _actionMenuButtonClass = [
+  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-neutral-800",
+  "hover:bg-black/[0.06] disabled:pointer-events-none disabled:opacity-40",
+].join(" ");
+const _actionMenuSeparatorClass = "my-1 border-t border-black/[0.06]";
+const _pngCardClass =
+  "mx-1 mb-1 rounded-xl bg-(--surface-subtle) px-3 pb-3 pt-2 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.03)]";
+function _tabButtonStateClass(active: boolean): string {
+  return active
+    ? "bg-white text-(--text) shadow-[0_4px_14px_rgba(0,0,0,0.08),inset_0_0_0_1px_rgba(0,0,0,0.04)]"
+    : "text-neutral-700 hover:bg-white/72 hover:text-neutral-900";
+}
+function _actionChevronClass(open: boolean): string {
+  return open ? "rotate-180 transition-transform" : "transition-transform";
+}
+function _buildPageTabs(
+  pageCount: number,
+  currentPage: number,
+): { index: number; label: string; active: boolean }[] {
+  return Array.from({ length: pageCount }, (_, i) => ({
+    index: i,
+    label: `Page ${i + 1}`,
+    active: i === currentPage,
+  }));
+}
+
 type Props = {
   documentId: string | null;
 };
@@ -56,8 +139,97 @@ export default function SceneEditorPage({ documentId }: Props) {
   const toggleSidebarPanel = useSceneEditorStore((s) => s.toggleSidebarPanel);
   const setSidebarPanel = useSceneEditorStore((s) => s.setSidebarPanel);
   const insertVectorBoard = useSceneEditorStore((s) => s.insertVectorBoard);
+  const pages = useSceneEditorStore((s) => s.pages);
+  const currentPage = useSceneEditorStore((s) => s.currentPage);
+  const goToPage = useSceneEditorStore((s) => s.goToPage);
+  const addPage = useSceneEditorStore((s) => s.addPage);
+  const deletePage = useSceneEditorStore((s) => s.deletePage);
+  const importPage = useSceneEditorStore((s) => s.importPage);
+  const importWorkspace = useSceneEditorStore((s) => s.importWorkspace);
+  const exportWorkspace = useSceneEditorStore((s) => s.exportWorkspace);
+  const exportCurrentPage = useSceneEditorStore((s) => s.exportCurrentPage);
+  const setDocumentName = useSceneEditorStore((s) => s.setDocumentName);
+  const commitDocumentName = useSceneEditorStore((s) => s.commitDocumentName);
+  const saveStore = useSceneEditorStore((s) => s.save);
   const layerTools = useLayerPanelTools();
   const aiController = useSceneEditorAiController();
+
+  // ─── Toolbar local state ──────────────────────────────────────────────────────────────
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [pngExpanded, setPngExpanded] = useState(false);
+  const [pngMult, setPngMult] = useState(2);
+  const [pngTransparent, setPngTransparent] = useState(false);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const workspaceInputRef = useRef<HTMLInputElement>(null);
+  const pageInputRef = useRef<HTMLInputElement>(null);
+
+  const pageCount = pages.length;
+  const canGoPrev = currentPage > 0;
+  const canGoNext = currentPage < pageCount - 1;
+  const canDelete = pageCount > 1;
+  const pageTabs = useMemo(
+    () => _buildPageTabs(pageCount, currentPage),
+    [pageCount, currentPage],
+  );
+
+  // Close actions menu on outside click
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const onOutside = (e: MouseEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
+        setActionsOpen(false);
+        setPngExpanded(false);
+      }
+    };
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, [actionsOpen]);
+
+  // Page keyboard navigation (Arrow Left/Right, Cmd+N, Cmd+Delete)
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('input, textarea, [contenteditable="true"], [data-avnac-chrome]')) return;
+      const mod = event.metaKey || event.ctrlKey;
+      if (mod && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        void addPage();
+        return;
+      }
+      if (mod && (event.key === "Delete" || event.key === "Backspace")) {
+        if (selectedCount > 0) return;
+        event.preventDefault();
+        void deletePage();
+        return;
+      }
+      if (mod || event.altKey || event.shiftKey) return;
+      if (selectedCount > 0) return;
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        void goToPage(currentPage - 1);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        void goToPage(currentPage + 1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [addPage, deletePage, goToPage, currentPage, selectedCount]);
+
+  // Flush on page unload
+  useEffect(() => {
+    const onBeforeUnload = () => void saveStore();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [saveStore]);
+
+  // PNG export handler (Phase D — stub)
+  const handleExportPng = useCallback(() => {
+    const opts: ExportPngOptions = { multiplier: pngMult, transparent: pngTransparent };
+    console.info("[avnac] PNG export not yet implemented for scene editor", opts);
+    setActionsOpen(false);
+    setPngExpanded(false);
+  }, [pngMult, pngTransparent]);
 
   const [vectorBoards, setVectorBoards] = useState<AvnacVectorBoardMeta[]>([]);
   const [vectorBoardDocs, setVectorBoardDocs] = useState<
@@ -206,70 +378,334 @@ export default function SceneEditorPage({ documentId }: Props) {
 
   return (
     <div
-      className="flex h-screen flex-col overflow-hidden bg-neutral-50"
+      className="flex h-dvh min-h-0 flex-col bg-(--surface-subtle)"
       data-avnac-adapter-pipeline={adapterPipeline}
       data-avnac-adapter-schema={
         adapterSchemaVersion != null ? String(adapterSchemaVersion) : "unknown"
       }
     >
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-black/[0.07] bg-white/95 px-4 py-2.5 backdrop-blur">
-        <Link
-          to="/create"
-          search={{ id: documentId ?? undefined }}
-          className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-100 hover:text-neutral-900"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-            className="shrink-0"
-          >
-            <path
-              d="M9 2L4 7l5 5"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Files
-        </Link>
+      {/* ── Floating toolbar ─────────────────────────────────────────────── */}
+      <div className="flex shrink-0 flex-col gap-3 px-3 py-3 sm:px-4 sm:py-4">
+        <div className={_topBarShellClass}>
+          {/* Group 1: Home + divider + document title */}
+          <div className={`${_topBarGroupClass} shrink-0`}>
+            <Link
+              to="/files"
+              className={_topBarHomeLinkClass}
+              aria-label="All files"
+              title="All files"
+            >
+              <HugeiconsIcon
+                icon={Home05Icon}
+                size={18}
+                strokeWidth={1.65}
+                className="shrink-0"
+              />
+            </Link>
+            <span className={_topBarDividerClass} aria-hidden />
+            <div className={`${_titleFieldClass} min-w-0 w-28 sm:w-44`}>
+              <label htmlFor="avnac-doc-title" className="sr-only">
+                Document name
+              </label>
+              <input
+                id="avnac-doc-title"
+                type="text"
+                value={documentName}
+                onChange={(e) => setDocumentName(e.target.value)}
+                onBlur={() => void commitDocumentName()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="m-0 h-9 w-full min-w-0 truncate border-0 bg-transparent text-sm font-medium leading-snug text-(--text) outline-none focus:ring-0"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+          </div>
 
-        <div className="h-4 w-px bg-black/10" />
+          {/* Group 2: Page tabs + prev / next / add */}
+          <div className={`${_topBarGroupClass} min-w-0 flex-1`}>
+            <button
+              type="button"
+              className={_pageIconButtonClass}
+              onClick={() => void goToPage(currentPage - 1)}
+              disabled={!canGoPrev}
+              aria-label="Previous page"
+              title="Previous page (ArrowLeft)"
+            >
+              <HugeiconsIcon
+                icon={ArrowLeft01Icon}
+                size={18}
+                strokeWidth={1.8}
+              />
+            </button>
 
-        <span className="text-sm font-semibold text-neutral-900">
-          {documentName}
-        </span>
+            <div className="relative min-w-0 flex-1">
+              <div className={`${_tabRailFadeClass} left-0 rounded-l-full`} />
+              <div
+                className={`${_tabRailFadeClass} right-0 rotate-180 rounded-r-full`}
+              />
+              <div className="overflow-x-auto px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className={_tabRailClass}>
+                  {pageTabs.map((tab) => (
+                    <button
+                      key={tab.index}
+                      type="button"
+                      className={[
+                        _pageTabButtonClass,
+                        _tabButtonStateClass(tab.active),
+                      ].join(" ")}
+                      onClick={() => void goToPage(tab.index)}
+                      aria-current={tab.active ? "page" : undefined}
+                      title={tab.label}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-        <span className="rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-sky-700">
-          Scene workspace
-        </span>
+            <button
+              type="button"
+              className={_pageIconButtonClass}
+              onClick={() => void goToPage(currentPage + 1)}
+              disabled={!canGoNext}
+              aria-label="Next page"
+              title="Next page (ArrowRight)"
+            >
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                size={18}
+                strokeWidth={1.8}
+              />
+            </button>
 
-        <span
-          className={
-            adapterPipeline === "direct-avnac"
-              ? "rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-emerald-700"
-              : "rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-amber-700"
-          }
-          title="Active Avnac adapter pipeline"
-        >
-          Adapter {adapterPipeline}
-        </span>
+            <button
+              type="button"
+              className={_pageIconButtonClass}
+              onClick={() => void addPage()}
+              aria-label="New page"
+              title="New page (Cmd/Ctrl+N)"
+            >
+              <HugeiconsIcon icon={Add01Icon} size={18} strokeWidth={1.75} />
+            </button>
+          </div>
 
-        <div className="ml-auto flex items-center gap-2">
-          {adapterIssueCount > 0 && (
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700">
-              {adapterIssueCount} legacy item
-              {adapterIssueCount === 1 ? "" : "s"} not ported
-            </span>
-          )}
-          <span className="text-[11px] text-neutral-400">
-            {hasPendingChanges ? "Unsaved changes" : "Saved"}
-          </span>
+          {/* Group 3: File actions + delete page */}
+          <div className={`${_topBarGroupClass} shrink-0`}>
+            <div
+              ref={actionsRef}
+              className="relative shrink-0"
+              data-avnac-chrome
+            >
+              <button
+                type="button"
+                className={[
+                  _pageActionButtonClass,
+                  actionsOpen ? "bg-black/[0.05]" : "",
+                ].join(" ")}
+                onClick={() => {
+                  setActionsOpen((v) => !v);
+                  if (actionsOpen) setPngExpanded(false);
+                }}
+                aria-label="File actions"
+              >
+                <HugeiconsIcon
+                  icon={FileExportIcon}
+                  size={17}
+                  strokeWidth={1.75}
+                />
+                <span className="hidden sm:inline">File</span>
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  size={14}
+                  strokeWidth={2}
+                  className={_actionChevronClass(actionsOpen)}
+                />
+              </button>
+
+              {actionsOpen && (
+                <div
+                  className={[
+                    floatingToolbarPopoverMenuClass,
+                    _actionMenuPopoverClass,
+                  ].join(" ")}
+                >
+                  <button
+                    type="button"
+                    className={_actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void exportWorkspace();
+                    }}
+                  >
+                    <HugeiconsIcon
+                      icon={FileExportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Export workspace
+                  </button>
+                  <button
+                    type="button"
+                    className={_actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      void exportCurrentPage();
+                    }}
+                  >
+                    <HugeiconsIcon
+                      icon={FileExportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Export page
+                  </button>
+
+                  <div className={_actionMenuSeparatorClass} />
+
+                  <button
+                    type="button"
+                    className={_actionMenuButtonClass}
+                    onClick={() => setPngExpanded((v) => !v)}
+                  >
+                    <HugeiconsIcon
+                      icon={FileExportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    <span className="flex-1 text-left">Download canvas</span>
+                    <HugeiconsIcon
+                      icon={ArrowDown01Icon}
+                      size={13}
+                      strokeWidth={2}
+                      className={_actionChevronClass(pngExpanded)}
+                    />
+                  </button>
+
+                  {pngExpanded && (
+                    <div className={_pngCardClass}>
+                      <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-(--text-muted)">
+                        Scale {pngMult}×
+                      </p>
+                      <EditorRangeSlider
+                        min={1}
+                        max={3}
+                        step={1}
+                        value={pngMult}
+                        onChange={setPngMult}
+                        aria-label="PNG export scale"
+                        aria-valuemin={1}
+                        aria-valuemax={3}
+                        aria-valuenow={pngMult}
+                        trackClassName="mb-3 w-full"
+                      />
+                      <label className="mb-3 flex cursor-pointer items-center gap-2 text-[12px] text-(--text)">
+                        <input
+                          type="checkbox"
+                          checked={pngTransparent}
+                          onChange={(e) =>
+                            setPngTransparent(e.target.checked)
+                          }
+                          className="size-3.5 shrink-0 rounded border border-black/20"
+                          style={{ accentColor: "var(--accent)" }}
+                        />
+                        Transparent background
+                      </label>
+                      <button
+                        type="button"
+                        className="w-full rounded-lg bg-neutral-900 py-2 text-[12px] font-medium text-white transition-colors hover:bg-neutral-800"
+                        onClick={handleExportPng}
+                      >
+                        Download PNG
+                      </button>
+                    </div>
+                  )}
+
+                  <div className={_actionMenuSeparatorClass} />
+
+                  <button
+                    type="button"
+                    className={_actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      workspaceInputRef.current?.click();
+                    }}
+                  >
+                    <HugeiconsIcon
+                      icon={FileImportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Import workspace
+                  </button>
+                  <button
+                    type="button"
+                    className={_actionMenuButtonClass}
+                    onClick={() => {
+                      setActionsOpen(false);
+                      pageInputRef.current?.click();
+                    }}
+                  >
+                    <HugeiconsIcon
+                      icon={FileImportIcon}
+                      size={16}
+                      strokeWidth={1.75}
+                      className="shrink-0 text-neutral-700"
+                    />
+                    Import page
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <span className={_topBarDividerClass} aria-hidden />
+
+            <button
+              type="button"
+              className={_destructiveIconButtonClass}
+              onClick={() => void deletePage()}
+              disabled={!canDelete}
+              aria-label="Delete page"
+              title="Delete page (Cmd/Ctrl+Delete)"
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={17} strokeWidth={1.75} />
+            </button>
+          </div>
         </div>
-      </header>
+      </div>
+
+      {/* Hidden file inputs */}
+      <input
+        ref={workspaceInputRef}
+        type="file"
+        accept=".workspace.avnac,.avnac,.json,application/json"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void importWorkspace(file);
+          event.currentTarget.value = "";
+        }}
+      />
+      <input
+        ref={pageInputRef}
+        type="file"
+        accept=".page.avnac,.avnac,.json,application/json"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void importPage(file);
+          event.currentTarget.value = "";
+        }}
+      />
 
       {/* ── Body ────────────────────────────────────────────────────────── */}
       {isLoading && (
@@ -407,6 +843,21 @@ export default function SceneEditorPage({ documentId }: Props) {
             >
               {adapterPipeline} · schema v
               {adapterSchemaVersion != null ? adapterSchemaVersion : "?"}
+            </span>
+            {adapterIssueCount > 0 && (
+              <>
+                <span className="hidden md:inline text-neutral-300">·</span>
+                <span
+                  className="hidden md:inline text-amber-600"
+                  title="Legacy items not yet ported to scene engine"
+                >
+                  {adapterIssueCount} legacy
+                </span>
+              </>
+            )}
+            <span className="text-neutral-300">·</span>
+            <span title="Auto-save status">
+              {hasPendingChanges ? "Unsaved" : "Saved"}
             </span>
             <button
               type="button"

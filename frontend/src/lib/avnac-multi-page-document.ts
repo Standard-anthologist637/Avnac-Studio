@@ -1,5 +1,6 @@
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import { AVNAC_DOC_VERSION, parseAvnacDocument } from "@/lib/avnac-document";
+import { migrateAvnacDocument } from "@/lib/saraswati/migration";
 import { fromAvnacV2Document } from "@/lib/saraswati/compat/from-avnac-v2";
 import { toAvnacDocument } from "@/lib/saraswati/compat/to-avnac";
 
@@ -56,7 +57,7 @@ export function parseMultiPageDocument(
   }
 
   const pages = candidate.pages
-    .map((page) => parseAvnacDocument(page))
+    .map((page) => migrateAvnacDocument(page))
     .filter((page): page is AvnacDocumentV1 => Boolean(page));
   if (pages.length === 0) return null;
 

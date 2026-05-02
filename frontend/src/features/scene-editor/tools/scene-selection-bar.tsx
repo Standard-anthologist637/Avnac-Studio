@@ -15,8 +15,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown01Icon,
+  BendToolIcon,
   CropIcon,
   Delete02Icon,
+  StraightEdgeIcon,
+  Tick02Icon,
   UngroupItemsIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -24,7 +27,9 @@ import {
   FloatingToolbarShell,
   FloatingToolbarDivider,
   floatingToolbarIconButton,
+  floatingToolbarPopoverClass,
 } from "@/components/editor/shared/floating-toolbar-shell";
+import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import ArtboardResizeToolbarControl from "@/components/editor/canvas/artboard-resize-toolbar-control";
 import PaintPopoverControl from "@/components/editor/color/paint-popover-control";
 import TransparencyToolbarPopover from "@/components/editor/color/transparency-toolbar-popover";
@@ -112,21 +117,30 @@ export default function SceneSelectionBar() {
   );
   const setPolygonSides = useSceneEditorStore((s) => s.setPolygonSides);
   const barRef = useRef<HTMLDivElement>(null);
-  const lineMenuRef = useRef<HTMLDivElement>(null);
+  const linePathRef = useRef<HTMLDivElement>(null);
+  const linePathPanelRef = useRef<HTMLDivElement>(null);
+  const lineWeightRef = useRef<HTMLDivElement>(null);
+  const lineWeightPanelRef = useRef<HTMLDivElement>(null);
   const [cropModalNodeId, setCropModalNodeId] = useState<string | null>(null);
-  const [lineMenuOpen, setLineMenuOpen] = useState(false);
+  const [linePathPanelOpen, setLinePathPanelOpen] = useState(false);
+  const [lineWeightPanelOpen, setLineWeightPanelOpen] = useState(false);
 
   useEffect(() => {
-    if (!lineMenuOpen) return;
+    const anyOpen = linePathPanelOpen || lineWeightPanelOpen;
+    if (!anyOpen) return;
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
-      if (!target || !lineMenuRef.current) return;
-      if (!lineMenuRef.current.contains(target)) {
-        setLineMenuOpen(false);
-      }
+      if (!target) return;
+      if (linePathRef.current?.contains(target)) return;
+      if (lineWeightRef.current?.contains(target)) return;
+      setLinePathPanelOpen(false);
+      setLineWeightPanelOpen(false);
     };
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setLineMenuOpen(false);
+      if (event.key === "Escape") {
+        setLinePathPanelOpen(false);
+        setLineWeightPanelOpen(false);
+      }
     };
     window.addEventListener("mousedown", onPointerDown);
     window.addEventListener("keydown", onEscape);
@@ -134,7 +148,7 @@ export default function SceneSelectionBar() {
       window.removeEventListener("mousedown", onPointerDown);
       window.removeEventListener("keydown", onEscape);
     };
-  }, [lineMenuOpen]);
+  }, [linePathPanelOpen, lineWeightPanelOpen]);
 
   if (!scene) return null;
 
@@ -410,6 +424,8 @@ export default function SceneSelectionBar() {
     if (node.type === "line") {
       const lineNode = node as SaraswatiLineNode;
       const opacityPct = Math.round((lineNode.opacity ?? 1) * 100);
+      const pathType = lineNode.pathType ?? "straight";
+      const strokeW = Math.max(1, Math.round(lineNode.strokeWidth ?? 2));
       const applyLinePatch = (
         patch: Partial<
           Pick<
@@ -446,6 +462,7 @@ export default function SceneSelectionBar() {
         <BarShell barRef={barRef} focusMode={focusMode}>
           <FloatingToolbarShell role="toolbar" aria-label="Line options">
             <div className="flex items-center py-1.5 pl-2.5 pr-1.5">
+              {/* Stroke color */}
               <PaintPopoverControl
                 compact
                 value={toPaint(lineNode.stroke)}
@@ -455,171 +472,282 @@ export default function SceneSelectionBar() {
                 title="Stroke color and gradient"
                 ariaLabel="Stroke color and gradient"
               />
+
               <FloatingToolbarDivider />
-              <div className="flex items-center gap-2 px-2">
-                <label
-                  htmlFor="scene-line-mode"
-                  className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
-                >
-                  Mode
-                </label>
-                <select
-                  id="scene-line-mode"
-                  value={lineNode.pathType}
-                  onChange={(e) =>
-                    applyLinePatch({
-                      pathType: e.target.value as "straight" | "curved",
-                    })
-                  }
-                  className="h-8 rounded-lg border border-black/10 bg-white px-2 text-xs text-neutral-800 outline-none focus:border-black/20"
-                  aria-label="Line mode"
-                >
-                  <option value="straight">Straight</option>
-                  <option value="curved">Curved</option>
-                </select>
-              </div>
-              <FloatingToolbarDivider />
-              <div className="flex items-center gap-2 px-2">
-                <label
-                  htmlFor="scene-line-weight"
-                  className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
-                >
-                  Weight
-                </label>
-                <input
-                  id="scene-line-weight"
-                  type="range"
-                  min={1}
-                  max={32}
-                  step={1}
-                  value={Math.max(1, Math.round(lineNode.strokeWidth))}
-                  onChange={(e) =>
-                    applyLinePatch({ strokeWidth: Number(e.target.value) })
-                  }
-                  className="h-7 w-24"
-                  aria-label="Line weight"
-                />
-              </div>
-              <FloatingToolbarDivider />
-              <div ref={lineMenuRef} className="relative">
+
+              {/* Path type button + flyout */}
+              <div ref={linePathRef} className="relative">
                 <button
                   type="button"
-                  title="More line controls"
-                  aria-label="More line controls"
-                  aria-expanded={lineMenuOpen}
-                  aria-haspopup="menu"
-                  className={floatingToolbarIconButton(lineMenuOpen)}
-                  onClick={() => setLineMenuOpen((open) => !open)}
+                  className={floatingToolbarIconButton(linePathPanelOpen, {
+                    wide: true,
+                  })}
+                  onClick={() => {
+                    setLinePathPanelOpen((o) => !o);
+                    setLineWeightPanelOpen(false);
+                  }}
+                  aria-label="Line type"
+                  title="Line type"
+                  aria-expanded={linePathPanelOpen}
+                  aria-haspopup="dialog"
                 >
                   <HugeiconsIcon
-                    icon={ArrowDown01Icon}
-                    size={16}
+                    icon={
+                      pathType === "curved" ? BendToolIcon : StraightEdgeIcon
+                    }
+                    size={18}
                     strokeWidth={1.75}
                   />
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    size={12}
+                    strokeWidth={1.75}
+                    className={`transition-transform ${
+                      linePathPanelOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
-                {lineMenuOpen ? (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-72 rounded-xl border border-black/8 bg-white p-3 shadow-[0_12px_30px_rgba(0,0,0,0.14)]">
-                    <div className="mb-2 grid gap-2">
-                      <BlurToolbarControl
-                        blurPct={lineNode.blur ?? 0}
-                        onChange={(b) => setNodeBlur(nodeId, b)}
+
+                {linePathPanelOpen ? (
+                  <div
+                    ref={linePathPanelRef}
+                    role="dialog"
+                    aria-label="Line type"
+                    className={[
+                      "absolute left-1/2 z-60 min-w-48 -translate-x-1/2 px-2 py-2 top-full mt-2",
+                      floatingToolbarPopoverClass,
+                    ].join(" ")}
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[13px] font-medium text-neutral-800 hover:bg-black/5"
+                      onClick={() => {
+                        applyLinePatch({ pathType: "straight" });
+                        setLinePathPanelOpen(false);
+                      }}
+                    >
+                      <HugeiconsIcon
+                        icon={StraightEdgeIcon}
+                        size={18}
+                        strokeWidth={1.75}
+                        className="shrink-0 text-neutral-600"
                       />
-                      <TransparencyToolbarPopover
-                        opacityPct={opacityPct}
-                        onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+                      <span className="flex-1">Straight</span>
+                      {pathType === "straight" ? (
+                        <HugeiconsIcon
+                          icon={Tick02Icon}
+                          size={16}
+                          strokeWidth={1.75}
+                          className="shrink-0 text-neutral-700"
+                        />
+                      ) : null}
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-[13px] font-medium text-neutral-800 hover:bg-black/5"
+                      onClick={() => {
+                        applyLinePatch({ pathType: "curved" });
+                        setLinePathPanelOpen(false);
+                      }}
+                    >
+                      <HugeiconsIcon
+                        icon={BendToolIcon}
+                        size={18}
+                        strokeWidth={1.75}
+                        className="shrink-0 text-neutral-600"
                       />
-                      <ShadowToolbarPopover
-                        value={toFabricShadow(
-                          lineNode.shadow ??
-                            (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
-                        )}
-                        shadowActive={Boolean(lineNode.shadow)}
-                        onChange={(s) =>
-                          setNodeShadow(nodeId, fromFabricShadow(s))
-                        }
-                      />
-                    </div>
-                    {lineNode.pathType === "curved" ? (
+                      <span className="flex-1">Curved</span>
+                      {pathType === "curved" ? (
+                        <HugeiconsIcon
+                          icon={Tick02Icon}
+                          size={16}
+                          strokeWidth={1.75}
+                          className="shrink-0 text-neutral-700"
+                        />
+                      ) : null}
+                    </button>
+
+                    {pathType === "curved" ? (
                       <>
-                        <div className="mb-2 flex items-center gap-2">
-                          <label
-                            htmlFor="scene-line-bulge"
-                            className="w-12 text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
-                          >
-                            Bulge
-                          </label>
-                          <input
-                            id="scene-line-bulge"
-                            type="range"
-                            min={-2400}
-                            max={2400}
-                            step={1}
-                            value={Math.round(lineNode.curveBulge ?? 0)}
-                            onChange={(e) =>
-                              applyLinePatch({
-                                curveBulge: Number(e.target.value),
-                              })
-                            }
-                            className="h-7 w-full"
-                            aria-label="Line curve bulge"
-                          />
-                        </div>
-                        <div className="mb-2 flex items-center gap-2">
-                          <label
-                            htmlFor="scene-line-t"
-                            className="w-12 text-[11px] font-semibold uppercase tracking-wide text-neutral-400"
-                          >
-                            T
-                          </label>
-                          <input
-                            id="scene-line-t"
-                            type="range"
-                            min={-4}
-                            max={5}
-                            step={0.01}
-                            value={lineNode.curveT ?? 0.5}
-                            onChange={(e) =>
-                              applyLinePatch({ curveT: Number(e.target.value) })
-                            }
-                            className="h-7 w-full"
-                            aria-label="Line curve position"
-                          />
+                        <div className="mx-2 my-1.5 h-px bg-black/6" />
+                        <div className="flex flex-col gap-3 px-2 py-1.5">
+                          <div>
+                            <span className="mb-1.5 block text-[12px] font-medium text-neutral-700">
+                              Bulge
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <EditorRangeSlider
+                                min={-2400}
+                                max={2400}
+                                step={1}
+                                value={Math.round(lineNode.curveBulge ?? 0)}
+                                onChange={(v) =>
+                                  applyLinePatch({ curveBulge: v })
+                                }
+                                aria-label="Curve bulge"
+                                trackClassName="min-w-0 flex-1"
+                              />
+                              <input
+                                type="number"
+                                min={-2400}
+                                max={2400}
+                                value={Math.round(lineNode.curveBulge ?? 0)}
+                                onChange={(e) => {
+                                  const v = Number(e.target.value);
+                                  if (Number.isFinite(v))
+                                    applyLinePatch({ curveBulge: v });
+                                }}
+                                className="w-16 rounded-md border border-black/12 bg-neutral-50 px-1.5 py-1 text-center text-xs tabular-nums text-neutral-900 outline-none focus:border-black/25"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <span className="mb-1.5 block text-[12px] font-medium text-neutral-700">
+                              Position
+                            </span>
+                            <EditorRangeSlider
+                              min={-4}
+                              max={5}
+                              step={0.01}
+                              value={lineNode.curveT ?? 0.5}
+                              onChange={(v) => applyLinePatch({ curveT: v })}
+                              aria-label="Curve position"
+                              trackClassName="w-full"
+                            />
+                          </div>
                         </div>
                       </>
                     ) : null}
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className={[
-                          "h-8 rounded-md border px-2 text-[11px] font-semibold",
-                          lineNode.arrowStart
-                            ? "border-sky-500/70 bg-sky-50 text-sky-700"
-                            : "border-black/10 bg-white text-neutral-600 hover:bg-neutral-50",
-                        ].join(" ")}
-                        onClick={() =>
-                          applyLinePatch({ arrowStart: !lineNode.arrowStart })
-                        }
-                      >
-                        Start head
-                      </button>
-                      <button
-                        type="button"
-                        className={[
-                          "h-8 rounded-md border px-2 text-[11px] font-semibold",
-                          lineNode.arrowEnd
-                            ? "border-sky-500/70 bg-sky-50 text-sky-700"
-                            : "border-black/10 bg-white text-neutral-600 hover:bg-neutral-50",
-                        ].join(" ")}
-                        onClick={() =>
-                          applyLinePatch({ arrowEnd: !lineNode.arrowEnd })
-                        }
-                      >
-                        End head
-                      </button>
+                  </div>
+                ) : null}
+              </div>
+
+              <FloatingToolbarDivider />
+
+              {/* Stroke weight button + flyout */}
+              <div ref={lineWeightRef} className="relative">
+                <button
+                  type="button"
+                  className={floatingToolbarIconButton(lineWeightPanelOpen, {
+                    wide: true,
+                  })}
+                  onClick={() => {
+                    setLineWeightPanelOpen((o) => !o);
+                    setLinePathPanelOpen(false);
+                  }}
+                  aria-label="Stroke weight"
+                  title="Stroke weight"
+                  aria-expanded={lineWeightPanelOpen}
+                  aria-haspopup="dialog"
+                >
+                  <span className="text-[13px] tabular-nums">{strokeW}</span>
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    size={12}
+                    strokeWidth={1.75}
+                    className={`transition-transform ${
+                      lineWeightPanelOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+
+                {lineWeightPanelOpen ? (
+                  <div
+                    ref={lineWeightPanelRef}
+                    role="dialog"
+                    aria-label="Stroke weight"
+                    className={[
+                      "absolute left-1/2 z-60 w-[min(16rem,calc(100vw-2rem))] -translate-x-1/2 px-4 py-3.5 top-full mt-2",
+                      floatingToolbarPopoverClass,
+                    ].join(" ")}
+                  >
+                    <span className="text-[13px] font-medium text-neutral-700">
+                      Stroke weight
+                    </span>
+                    <div className="mt-2 flex items-center gap-2">
+                      <EditorRangeSlider
+                        min={1}
+                        max={80}
+                        value={strokeW}
+                        onChange={(v) => applyLinePatch({ strokeWidth: v })}
+                        aria-label="Stroke weight"
+                        trackClassName="min-w-0 flex-1"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        max={80}
+                        value={strokeW}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          if (Number.isFinite(v))
+                            applyLinePatch({ strokeWidth: v });
+                        }}
+                        className="w-12 rounded-md border border-black/12 bg-neutral-50 px-1.5 py-1 text-center text-xs tabular-nums text-neutral-900 outline-none focus:border-black/25"
+                      />
+                    </div>
+
+                    <div className="mt-3">
+                      <span className="text-[13px] font-medium text-neutral-700">
+                        Arrow heads
+                      </span>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            applyLinePatch({
+                              arrowStart: !lineNode.arrowStart,
+                            })
+                          }
+                          className={[
+                            floatingToolbarIconButton(
+                              !!lineNode.arrowStart,
+                              { wide: true },
+                            ),
+                            "flex-1 text-[13px] font-medium",
+                          ].join(" ")}
+                        >
+                          ← Start
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            applyLinePatch({ arrowEnd: !lineNode.arrowEnd })
+                          }
+                          className={[
+                            floatingToolbarIconButton(!!lineNode.arrowEnd, {
+                              wide: true,
+                            }),
+                            "flex-1 text-[13px] font-medium",
+                          ].join(" ")}
+                        >
+                          End →
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : null}
               </div>
+
+              <FloatingToolbarDivider />
+              <BlurToolbarControl
+                blurPct={lineNode.blur ?? 0}
+                onChange={(b) => setNodeBlur(nodeId, b)}
+              />
+              <FloatingToolbarDivider />
+              <TransparencyToolbarPopover
+                opacityPct={opacityPct}
+                onChange={(pct) => setNodeOpacity(nodeId, pct / 100)}
+              />
+              <FloatingToolbarDivider />
+              <ShadowToolbarPopover
+                value={toFabricShadow(
+                  lineNode.shadow ??
+                    (DEFAULT_FABRIC_SHADOW_UI as SaraswatiShadow),
+                )}
+                shadowActive={Boolean(lineNode.shadow)}
+                onChange={(s) => setNodeShadow(nodeId, fromFabricShadow(s))}
+              />
               <FloatingToolbarDivider />
               <DeleteBtn onClick={handleDelete} />
             </div>

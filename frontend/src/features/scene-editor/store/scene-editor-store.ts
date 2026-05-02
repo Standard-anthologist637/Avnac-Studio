@@ -5,6 +5,12 @@
  * one scene editor page is open at a time.
  */
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
+import {
+  buildMultiPageDocument,
+  clampPageIndex,
+  createEmptyPage,
+  parseAvnacImport,
+} from "@/lib/avnac-multi-page-document";
 import type { EditorSidebarPanelId } from "@/components/editor/sidebar/editor-floating-sidebar";
 import {
   createSaraswatiEditorStore,
@@ -19,7 +25,25 @@ import {
   type AvnacAdapterPipeline,
 } from "@/lib/saraswati/compat/from-avnac";
 import { toAvnacDocument } from "@/lib/saraswati/compat/to-avnac";
-import { idbGetEditorRecord, idbPutDocument } from "@/lib/avnac-editor-idb";
+import { idbGetEditorRecord, idbPutDocument, idbSetDocumentName } from "@/lib/avnac-editor-idb";
+import { loadStoredPages, saveStoredPages } from "@/lib/avnac-multi-page-storage";
+import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";
+import { exportJsonFile } from "@/lib/avnac-native-export";
+import { ConfirmDialog } from "../../../../wailsjs/go/avnacio/IOManager";
+import {
+  createPageHistory,
+  getPageRedoState,
+  getPageUndoState,
+  movePageHistoryIndex,
+  pushPageHistory,
+  type PageHistory,
+} from "@/features/multi-page-editor/page-history";
+import { clonePageDoc } from "@/features/multi-page-editor/page-state";
+import {
+  buildAddPageResult,
+  buildDeletePageResult,
+  buildInsertImportedPageResult,
+} from "@/features/multi-page-editor/page-recipes";
 import { create } from "zustand";
 import {
   addClipToSelection,
@@ -75,11 +99,17 @@ type SceneEditorState = {
     commands: number;
     duplicateCommands: number;
   };
+  /** All pages in the document (Avnac-serialized, one per slot). */
+  pages: AvnacDocumentV1[];
+  /** Index of the currently active page. */
+  currentPage: number;
 };
 
 type SceneEditorActions = {
-  /** Load a document by persisted ID. Replaces any existing state. */
-  load: (id: string) => Promise<void>;
+  /** Load a document by persisted ID. Replaces any existing state.
+   * When the document does not yet exist (new canvas), pass `opts.w`/`opts.h`
+   * to set artboard dimensions; an empty document is created and saved. */
+  load: (id: string, opts?: { w?: number; h?: number }) => Promise<void>;
   /** Apply one or more Saraswati commands to the live scene. */
   applyCommands: (commands: SaraswatiCommand[]) => void;
   beginHistoryBatch: () => void;
@@ -146,6 +176,24 @@ type SceneEditorActions = {
   ) => void;
   setImageBorderRadius: (id: string, radius: number) => void;
   setPolygonSides: (id: string, sides: number, star?: boolean) => void;
+  /** Navigate to a page by index. */
+  goToPage: (index: number) => Promise<void>;
+  /** Add a blank page after the current page. */
+  addPage: () => Promise<void>;
+  /** Delete the current page (no-op if only one page). */
+  deletePage: () => Promise<void>;
+  /** Import a page from a file and insert it after the current page. */
+  importPage: (file: File) => Promise<void>;
+  /** Replace all pages from a workspace file import. */
+  importWorkspace: (file: File) => Promise<void>;
+  /** Export all pages as a workspace JSON file. */
+  exportWorkspace: () => Promise<void>;
+  /** Export the current page as a single-page JSON file. */
+  exportCurrentPage: () => Promise<void>;
+  /** Optimistic document name update for the title input. */
+  setDocumentName: (name: string) => void;
+  /** Persist the current documentName to IDB. */
+  commitDocumentName: () => Promise<void>;
   /** Persist the current scene snapshot back to IDB via serializer. */
   save: () => Promise<void>;
   reset: () => void;
@@ -184,17 +232,23 @@ const INITIAL: SceneEditorState = {
     commands: 0,
     duplicateCommands: 0,
   },
+  pages: [],
+  currentPage: 0,
 };
 
 let sceneEngineStore: SaraswatiEditorStore | null = null;
 let detachSceneEngineSubscription: (() => void) | null = null;
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+let pageHistoryRef: PageHistory<AvnacDocumentV1> | null = null;
 
 const AUTOSAVE_DELAY_MS = 1500;
+const PAGE_HISTORY_LIMIT = 20;
 
 function scheduleAutosave(
   documentId: string,
   scene: SaraswatiScene,
+  pages: AvnacDocumentV1[],
+  currentPage: number,
 ): void {
   if (autosaveTimer !== null) {
     clearTimeout(autosaveTimer);
@@ -202,6 +256,8 @@ function scheduleAutosave(
   autosaveTimer = setTimeout(() => {
     autosaveTimer = null;
     const doc = toAvnacDocument(scene);
+    const updatedPages = pages.map((p, i) => (i === currentPage ? doc : p));
+    void saveStoredPages(documentId, updatedPages, currentPage);
     idbPutDocument(documentId, doc).catch((err) => {
       console.warn("[avnac] autosave failed", err);
     });
@@ -218,6 +274,64 @@ function resetSceneEngineBinding() {
   }
 }
 
+// ─── Page transition helper ──────────────────────────────────────────────────
+// Shared by all page-switching operations. Loads the target page into the
+// Saraswati engine, optionally records a page-history entry, persists via
+// saveStoredPages, then updates Zustand state.
+async function applyPageTransition(
+  nextPages: AvnacDocumentV1[],
+  nextCurrentPage: number,
+  documentId: string,
+  trackHistory: boolean,
+  set: (partial: Partial<SceneEditorState>) => void,
+): Promise<void> {
+  const targetDoc = nextPages[nextCurrentPage];
+  if (!targetDoc) return;
+
+  const { result: adapted, diagnostics } =
+    fromAvnacDocumentWithDiagnostics(targetDoc);
+  const { scene, issues } = adapted;
+
+  detachSceneEngineSubscription?.();
+  detachSceneEngineSubscription = null;
+  sceneEngineStore = createSaraswatiEditorStore(scene);
+  detachSceneEngineSubscription = sceneEngineStore.subscribe(
+    (nextEngineState) => {
+      set({
+        scene: nextEngineState.scene,
+        canUndo: nextEngineState.canUndo,
+        canRedo: nextEngineState.canRedo,
+      });
+    },
+  );
+
+  if (trackHistory) {
+    pageHistoryRef = pushPageHistory(
+      pageHistoryRef,
+      { pages: nextPages, currentPage: nextCurrentPage },
+      clonePageDoc,
+      PAGE_HISTORY_LIMIT,
+    );
+  }
+
+  void saveStoredPages(documentId, nextPages, nextCurrentPage);
+
+  set({
+    pages: nextPages,
+    currentPage: nextCurrentPage,
+    scene: sceneEngineStore.getState().scene,
+    canUndo: sceneEngineStore.getState().canUndo,
+    canRedo: sceneEngineStore.getState().canRedo,
+    baseDocument: targetDoc,
+    adapterIssueCount: issues.length,
+    adapterPipeline: diagnostics.pipeline,
+    adapterSchemaVersion: diagnostics.schemaVersion,
+    hasPendingChanges: false,
+    selectedIds: [],
+    lockedIds: [],
+  });
+}
+
 function asInsertContext(state: SceneEditorStore): SceneEditorInsertContext {
   return {
     scene: state.scene,
@@ -230,18 +344,39 @@ function asInsertContext(state: SceneEditorStore): SceneEditorInsertContext {
 export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   ...INITIAL,
 
-  load: async (id: string) => {
+  load: async (id: string, opts?: { w?: number; h?: number }) => {
     set({ ...INITIAL, isLoading: true, documentId: id });
     resetSceneEngineBinding();
+    pageHistoryRef = null;
     try {
+      let doc: AvnacDocumentV1;
+      let docName: string;
       const record = await idbGetEditorRecord(id);
       if (!record) {
-        set({ isLoading: false, loadError: "Document not found." });
-        return;
+        // New document — create empty canvas with optional artboard dimensions.
+        const emptyDoc = createEmptyPage();
+        if (opts?.w != null && Number.isFinite(opts.w)) {
+          emptyDoc.artboard.width = Math.min(16000, Math.max(100, Math.round(opts.w)));
+        }
+        if (opts?.h != null && Number.isFinite(opts.h)) {
+          emptyDoc.artboard.height = Math.min(16000, Math.max(100, Math.round(opts.h)));
+        }
+        await idbPutDocument(id, emptyDoc);
+        doc = emptyDoc;
+        docName = "Untitled";
+      } else {
+        doc = record.document;
+        docName = record.name ?? "Untitled";
       }
-      const { result: adapted, diagnostics } = fromAvnacDocumentWithDiagnostics(
-        record.document,
-      );
+
+      // Load multi-page state — backwards-compatible with old Fabric documents
+      // that stored pages via WritePages (pages.json). If no pages file exists,
+      // loadStoredPages wraps the single main document as page 0.
+      const stored = await loadStoredPages(id, doc);
+      const activePage = stored.pages[stored.currentPage] ?? doc;
+
+      const { result: adapted, diagnostics } =
+        fromAvnacDocumentWithDiagnostics(activePage);
       const { scene, issues } = adapted;
       sceneEngineStore = createSaraswatiEditorStore(scene);
       detachSceneEngineSubscription = sceneEngineStore.subscribe(
@@ -253,10 +388,16 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
           });
         },
       );
+      pageHistoryRef = createPageHistory<AvnacDocumentV1>(
+        { currentPage: stored.currentPage, pages: stored.pages },
+        clonePageDoc,
+      );
       set({
         isLoading: false,
-        documentName: record.name ?? "Untitled",
-        baseDocument: record.document,
+        documentName: docName,
+        baseDocument: activePage,
+        pages: stored.pages,
+        currentPage: stored.currentPage,
         scene: sceneEngineStore.getState().scene,
         adapterIssueCount: issues.length,
         adapterPipeline: diagnostics.pipeline,
@@ -283,7 +424,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       canRedo: engineState.canRedo,
       baseDocument: nextBaseDocument,
     });
-    if (documentId) scheduleAutosave(documentId, engineState.scene);
+    if (documentId) scheduleAutosave(documentId, engineState.scene, get().pages, get().currentPage);
   },
 
   beginHistoryBatch: () => {
@@ -303,7 +444,7 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       baseDocument: toAvnacDocument(engineState.scene),
       hasPendingChanges: true,
     });
-    if (documentId) scheduleAutosave(documentId, engineState.scene);
+    if (documentId) scheduleAutosave(documentId, engineState.scene, get().pages, get().currentPage);
   },
 
   setSelectedIds: (selectedIds: string[]) => set({ selectedIds }),
@@ -336,33 +477,61 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   resetClipOnSelection: () => resetClipOnSelection(asInsertContext(get())),
 
   undo: () => {
-    if (!sceneEngineStore) return;
-    sceneEngineStore.undo();
-    const engineState = sceneEngineStore.getState();
-    const { documentId } = get();
-    set({
-      scene: engineState.scene,
-      canUndo: engineState.canUndo,
-      canRedo: engineState.canRedo,
-      baseDocument: toAvnacDocument(engineState.scene),
-      hasPendingChanges: true,
-    });
-    if (documentId) scheduleAutosave(documentId, engineState.scene);
+    const { canUndo: engineCanUndo, documentId, pages, currentPage } = get();
+    if (sceneEngineStore && engineCanUndo) {
+      sceneEngineStore.undo();
+      const engineState = sceneEngineStore.getState();
+      set({
+        scene: engineState.scene,
+        canUndo: engineState.canUndo,
+        canRedo: engineState.canRedo,
+        baseDocument: toAvnacDocument(engineState.scene),
+        hasPendingChanges: true,
+      });
+      if (documentId) scheduleAutosave(documentId, engineState.scene, pages, currentPage);
+      return;
+    }
+    // Page-level undo (add/delete/switch page operations)
+    if (!documentId) return;
+    const prevPageState = getPageUndoState(pageHistoryRef, clonePageDoc);
+    if (!prevPageState) return;
+    pageHistoryRef = movePageHistoryIndex(pageHistoryRef, -1);
+    void applyPageTransition(
+      prevPageState.pages,
+      prevPageState.currentPage,
+      documentId,
+      false,
+      set,
+    );
   },
 
   redo: () => {
-    if (!sceneEngineStore) return;
-    sceneEngineStore.redo();
-    const engineState = sceneEngineStore.getState();
-    const { documentId } = get();
-    set({
-      scene: engineState.scene,
-      canUndo: engineState.canUndo,
-      canRedo: engineState.canRedo,
-      baseDocument: toAvnacDocument(engineState.scene),
-      hasPendingChanges: true,
-    });
-    if (documentId) scheduleAutosave(documentId, engineState.scene);
+    const { canRedo: engineCanRedo, documentId, pages, currentPage } = get();
+    if (sceneEngineStore && engineCanRedo) {
+      sceneEngineStore.redo();
+      const engineState = sceneEngineStore.getState();
+      set({
+        scene: engineState.scene,
+        canUndo: engineState.canUndo,
+        canRedo: engineState.canRedo,
+        baseDocument: toAvnacDocument(engineState.scene),
+        hasPendingChanges: true,
+      });
+      if (documentId) scheduleAutosave(documentId, engineState.scene, pages, currentPage);
+      return;
+    }
+    // Page-level redo
+    if (!documentId) return;
+    const nextPageState = getPageRedoState(pageHistoryRef, clonePageDoc);
+    if (!nextPageState) return;
+    pageHistoryRef = movePageHistoryIndex(pageHistoryRef, 1);
+    void applyPageTransition(
+      nextPageState.pages,
+      nextPageState.currentPage,
+      documentId,
+      false,
+      set,
+    );
   },
 
   toggleFocusMode: () => set((s) => ({ focusMode: !s.focusMode })),
@@ -446,16 +615,161 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
   },
 
   save: async () => {
-    const { documentId, scene, baseDocument } = get();
+    const { documentId, scene, baseDocument, pages, currentPage } = get();
     if (!documentId) return;
-    const documentToSave = scene ? toAvnacDocument(scene) : baseDocument;
-    if (!documentToSave) return;
-    await idbPutDocument(documentId, documentToSave);
-    set({ baseDocument: documentToSave, hasPendingChanges: false });
+    const docToSave = scene ? toAvnacDocument(scene) : baseDocument;
+    if (!docToSave) return;
+    const updatedPages = pages.map((p, i) => (i === currentPage ? docToSave : p));
+    await Promise.all([
+      idbPutDocument(documentId, docToSave),
+      saveStoredPages(documentId, updatedPages, currentPage),
+    ]);
+    set({ baseDocument: docToSave, hasPendingChanges: false });
   },
 
   reset: () => {
     resetSceneEngineBinding();
+    pageHistoryRef = null;
     set(INITIAL);
+  },
+
+  goToPage: async (index: number) => {
+    const { pages, currentPage, documentId, scene } = get();
+    if (!documentId || pages.length === 0) return;
+    const targetIndex = clampPageIndex(pages.length, index);
+    if (targetIndex === currentPage) return;
+    const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage]!;
+    const updatedPages = pages.map((p, i) => (i === currentPage ? currentDoc : p));
+    await applyPageTransition(updatedPages, targetIndex, documentId, true, set);
+  },
+
+  addPage: async () => {
+    const { pages, currentPage, documentId, scene } = get();
+    if (!documentId) return;
+    const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage]!;
+    const updatedPages = pages.map((p, i) => (i === currentPage ? currentDoc : p));
+    const { nextState } = buildAddPageResult(
+      { currentPage, pages: updatedPages },
+      currentDoc,
+    );
+    await applyPageTransition(
+      nextState.pages,
+      nextState.currentPage,
+      documentId,
+      true,
+      set,
+    );
+  },
+
+  deletePage: async () => {
+    const { pages, currentPage, documentId } = get();
+    if (!documentId || pages.length <= 1) return;
+    const confirmed = await ConfirmDialog(
+      "Delete page",
+      "Delete this page? This cannot be undone.",
+    ).catch(() => false);
+    if (!confirmed) return;
+    const { nextState } = buildDeletePageResult({ currentPage, pages });
+    await applyPageTransition(
+      nextState.pages,
+      nextState.currentPage,
+      documentId,
+      true,
+      set,
+    );
+  },
+
+  importPage: async (file: File) => {
+    const { pages, currentPage, documentId, scene } = get();
+    if (!documentId) return;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      return;
+    }
+    const imported = parseAvnacImport(raw);
+    if (!imported) return;
+    const importedDoc =
+      imported.kind === "single"
+        ? imported.document
+        : imported.document.pages[
+            clampPageIndex(
+              imported.document.pages.length,
+              imported.document.currentPage,
+            )
+          ];
+    if (!importedDoc) return;
+    const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage]!;
+    const updatedPages = pages.map((p, i) => (i === currentPage ? currentDoc : p));
+    const { nextState } = buildInsertImportedPageResult(
+      { currentPage, pages: updatedPages },
+      importedDoc,
+    );
+    await applyPageTransition(
+      nextState.pages,
+      nextState.currentPage,
+      documentId,
+      true,
+      set,
+    );
+  },
+
+  importWorkspace: async (file: File) => {
+    const { documentId } = get();
+    if (!documentId) return;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      return;
+    }
+    // Accept both workspace (multi-page) and single-page .avnac files.
+    const imported = parseAvnacImport(raw);
+    if (!imported) return;
+    const newPages =
+      imported.kind === "multi"
+        ? imported.document.pages
+        : [imported.document];
+    const newCurrentPage =
+      imported.kind === "multi" ? imported.document.currentPage : 0;
+    // Full workspace replace — reset page history.
+    pageHistoryRef = null;
+    await applyPageTransition(newPages, newCurrentPage, documentId, false, set);
+    pageHistoryRef = createPageHistory<AvnacDocumentV1>(
+      { pages: newPages, currentPage: newCurrentPage },
+      clonePageDoc,
+    );
+  },
+
+  exportWorkspace: async () => {
+    const { pages, currentPage, documentName, scene } = get();
+    const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage];
+    if (!currentDoc) return;
+    const allPages = pages.map((p, i) => (i === currentPage ? currentDoc : p));
+    await exportJsonFile(
+      `${safeAvnacFileBaseName(documentName)}.workspace.avnac`,
+      buildMultiPageDocument(allPages, currentPage),
+    );
+  },
+
+  exportCurrentPage: async () => {
+    const { pages, currentPage, documentName, scene } = get();
+    const currentDoc = scene ? toAvnacDocument(scene) : pages[currentPage];
+    if (!currentDoc) return;
+    await exportJsonFile(
+      `${safeAvnacFileBaseName(documentName)}-page-${currentPage + 1}.page.avnac`,
+      currentDoc,
+    );
+  },
+
+  setDocumentName: (name: string) => set({ documentName: name }),
+
+  commitDocumentName: async () => {
+    const { documentId, documentName } = get();
+    if (!documentId) return;
+    const name = documentName.trim() || "Untitled";
+    set({ documentName: name });
+    await idbSetDocumentName(documentId, name);
   },
 }));

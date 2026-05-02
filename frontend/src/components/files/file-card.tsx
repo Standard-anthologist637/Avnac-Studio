@@ -141,7 +141,7 @@ export default function FileCard({
             </label>
           </div>
           <Link
-            to="/create"
+            to="/scene"
             search={{ id: row.id }}
             className={openEditorClass}
           >
@@ -228,7 +228,7 @@ export default function FileCard({
           </div>
         </div>
         <Link
-          to="/create"
+          to="/scene"
           search={{ id: row.id }}
           className={`${openEditorClass} flex min-h-0 flex-1 flex-col gap-2 border-t border-black/[0.05] px-4 pb-4 pt-3`}
         >

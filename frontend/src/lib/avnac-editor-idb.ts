@@ -5,7 +5,8 @@ import {
   WriteDocumentRecord,
 } from "../../wailsjs/go/avnacio/IOManager";
 import { duplicateStoredPages } from "@/lib/avnac-multi-page-storage";
-import { parseAvnacDocument, type AvnacDocumentV1 } from "./avnac-document";
+import { type AvnacDocumentV1 } from "./avnac-document";
+import { migrateAvnacDocument } from "@/lib/saraswati/migration";
 import type { VectorBoardDocument } from "./avnac-vector-board-document";
 import {
   loadVectorBoardDocs,
@@ -29,7 +30,7 @@ function parseEditorRecord(raw: string): AvnacEditorIdbRecord | null {
     const updatedAt =
       typeof parsed.updatedAt === "number" ? parsed.updatedAt : null;
     const name = typeof parsed.name === "string" ? parsed.name : undefined;
-    const document = parseAvnacDocument(parsed.document);
+    const document = migrateAvnacDocument(parsed.document);
     if (!id || updatedAt == null || !document) return null;
     return {
       id,
