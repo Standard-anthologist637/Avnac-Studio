@@ -304,10 +304,13 @@ export default function SceneInspectorPanel() {
   const applyCommands = useSceneEditorStore((s) => s.applyCommands);
   const beginHistoryBatch = useSceneEditorStore((s) => s.beginHistoryBatch);
   const endHistoryBatch = useSceneEditorStore((s) => s.endHistoryBatch);
+  // AR lock is stored in the global scene editor store so the canvas
+  // interaction hook can also respect it during handle-drag resizes.
+  const arLocked = useSceneEditorStore((s) => s.arLocked);
+  const setArLocked = useSceneEditorStore((s) => s.setArLocked);
 
   const [open, setOpen] = useState(false);
-  const [arLocked, setArLocked] = useState(false);
-  // Aspect ratio W/H stored in raw (unrounded) bounds space when lock is toggled on.
+  // arRef mirrors arLockedRatio from the store for use in commitW/commitH callbacks.
   const arRef = useRef<number>(1);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -326,16 +329,16 @@ export default function SceneInspectorPanel() {
     if (layout.kind === "none" || layout.kind === "multi") setOpen(false);
   }, [layout.kind]);
 
-  // Reset aspect ratio lock when selection changes
+  // Keep arRef in sync with the store's arLockedRatio for callback use.
+  const arLockedRatio = useSceneEditorStore((s) => s.arLockedRatio);
+  arRef.current = arLockedRatio;
+
+  // Reset aspect ratio lock when selection changes (store handles reset on setSelectedIds).
   const prevIdRef = useRef<string | null>(null);
   const currentId =
     layout.kind !== "none" && layout.kind !== "multi" ? layout.id : null;
   if (currentId !== prevIdRef.current) {
     prevIdRef.current = currentId;
-    arRef.current =
-      layout.kind === "sized" && layout.rawH > 0
-        ? layout.rawW / layout.rawH
-        : 1;
   }
 
   // Close on outside click
@@ -513,10 +516,11 @@ export default function SceneInspectorPanel() {
                       type="button"
                       onClick={() => {
                         const next = !arLocked;
-                        if (next && layout.kind === "sized" && layout.rawH > 0) {
-                          arRef.current = layout.rawW / layout.rawH;
-                        }
-                        setArLocked(next);
+                        const ratio =
+                          next && layout.kind === "sized" && layout.rawH > 0
+                            ? layout.rawW / layout.rawH
+                            : undefined;
+                        setArLocked(next, ratio);
                       }}
                       className={[
                         "flex h-5 w-5 items-center justify-center rounded transition-colors",

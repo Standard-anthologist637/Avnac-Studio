@@ -97,6 +97,10 @@ type SceneEditorState = {
   saveState: "saved" | "dirty" | "saving" | "error";
   saveError: string | null;
   snapIntensity: number;
+  /** Whether the aspect ratio is currently locked in the inspector panel. */
+  arLocked: boolean;
+  /** The locked aspect ratio (W/H). Only meaningful when arLocked is true. */
+  arLockedRatio: number;
   canUndo: boolean;
   canRedo: boolean;
   focusMode: boolean;
@@ -214,6 +218,7 @@ type SceneEditorActions = {
   save: () => Promise<void>;
   flushAutosaveNow: () => Promise<void>;
   setSnapIntensity: (value: number) => void;
+  setArLocked: (locked: boolean, ratio?: number) => void;
   reset: () => void;
 };
 
@@ -238,6 +243,8 @@ const INITIAL: SceneEditorState = {
   saveState: "saved",
   saveError: null,
   snapIntensity: initialSnapIntensity,
+  arLocked: false,
+  arLockedRatio: 1,
   canUndo: false,
   canRedo: false,
   focusMode: false,
@@ -556,7 +563,11 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       );
   },
 
-  setSelectedIds: (selectedIds: string[]) => set({ selectedIds }),
+  setSelectedIds: (selectedIds: string[]) => {
+    const prev = get().selectedIds;
+    const sameFirst = prev[0] === selectedIds[0] && prev.length === 1 && selectedIds.length === 1;
+    set({ selectedIds, ...(!sameFirst ? { arLocked: false } : {}) });
+  },
 
   toggleLockedSelection: () => {
     const { selectedIds, lockedIds } = get();
@@ -820,10 +831,17 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     set({ snapIntensity: next });
   },
 
+  setArLocked: (locked: boolean, ratio?: number) => {
+    set({
+      arLocked: locked,
+      arLockedRatio: locked && ratio != null && ratio > 0 ? ratio : get().arLockedRatio,
+    });
+  },
+
   reset: () => {
     resetSceneEngineBinding();
     pageHistoryRef = null;
-    set({ ...INITIAL, snapIntensity: get().snapIntensity });
+    set({ ...INITIAL, snapIntensity: get().snapIntensity, arLocked: false, arLockedRatio: 1 });
   },
 
   goToPage: async (index: number) => {

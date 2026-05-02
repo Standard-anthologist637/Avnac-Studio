@@ -457,12 +457,24 @@ export function useSceneEditorInteractions() {
           );
           let constrainedBounds = snapped.bounds;
 
-          // Shift-held: constrain to the aspect ratio captured at drag start.
+          // Constrain AR when:
+          //  1. shift is held (ad-hoc AR from drag start), or
+          //  2. the inspector AR lock is active (persistent lock from store).
+          const { arLocked, arLockedRatio } = store as {
+            arLocked: boolean;
+            arLockedRatio: number;
+          };
           if (options?.shiftKey) {
             constrainedBounds = constrainResizeBoundsToAr(
               constrainedBounds,
               resizeState.handle,
               resizeStartArRef.current,
+            );
+          } else if (arLocked && arLockedRatio > 0) {
+            constrainedBounds = constrainResizeBoundsToAr(
+              constrainedBounds,
+              resizeState.handle,
+              arLockedRatio,
             );
           }
 
