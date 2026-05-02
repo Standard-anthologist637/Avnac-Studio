@@ -31,7 +31,8 @@ import {
   idbSetDocumentName,
 } from "@/lib/avnac-editor-idb";
 import {
-  loadStoredPages,
+  mergeStoredPages,
+  readRawStoredPages,
   saveStoredPages,
 } from "@/lib/avnac-multi-page-storage";
 import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";
@@ -358,7 +359,14 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     try {
       let doc: AvnacDocumentV1;
       let docName: string;
-      const record = await idbGetEditorRecord(id);
+
+      // Fire both IPC reads in parallel — cuts load time from 2 sequential
+      // round-trips down to 1 (they are completely independent).
+      const [record, rawPages] = await Promise.all([
+        idbGetEditorRecord(id),
+        readRawStoredPages(id),
+      ]);
+
       if (!record) {
         // New document — create empty canvas with optional artboard dimensions.
         const emptyDoc = createEmptyPage();
@@ -382,10 +390,8 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
         docName = record.name ?? "Untitled";
       }
 
-      // Load multi-page state — backwards-compatible with old Fabric documents
-      // that stored pages via WritePages (pages.json). If no pages file exists,
-      // loadStoredPages wraps the single main document as page 0.
-      const stored = await loadStoredPages(id, doc);
+      // Merge the two parallel results synchronously — no extra await.
+      const stored = mergeStoredPages(rawPages, doc);
       const activePage = stored.pages[stored.currentPage] ?? doc;
 
       const { result: adapted, diagnostics } =

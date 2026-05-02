@@ -79,7 +79,13 @@ export function parseAvnacImport(raw: unknown): ParsedAvnacImport | null {
   const multi = parseMultiPageDocument(raw);
   if (multi) return { kind: "multi", document: multi };
 
-  // Try V2 (web schema) — convert to V1 for desktop storage
+  // Try V2 (web schema) — convert to V1 for desktop storage.
+  // Supports both single-page and multi-page web exports.
+  const v2Multi = parseV2WorkspaceImport(raw);
+  if (v2Multi) {
+    return { kind: "multi", document: v2Multi };
+  }
+
   const v2Scene = fromAvnacV2Document(raw);
   if (v2Scene) {
     const v1Doc = toAvnacDocument(v2Scene);
@@ -109,4 +115,51 @@ export function clonePages(
   pages: readonly AvnacDocumentV1[],
 ): AvnacDocumentV1[] {
   return pages.map(cloneDoc);
+}
+
+function parseV2WorkspaceImport(raw: unknown): AvnacMultiPageDocumentV1 | null {
+  if (!raw || typeof raw !== "object") return null;
+  const doc = raw as Record<string, unknown>;
+  if (doc.v !== 2 || !Array.isArray(doc.pages)) return null;
+  if (doc.pages.length === 0) return null;
+
+  const baseArtboard =
+    doc.artboard && typeof doc.artboard === "object" ? doc.artboard : null;
+  const baseBg = doc.bg;
+
+  const pages: AvnacDocumentV1[] = [];
+  const pageIds: string[] = [];
+  for (const pageRaw of doc.pages) {
+    if (!pageRaw || typeof pageRaw !== "object") continue;
+    const page = pageRaw as Record<string, unknown>;
+    const pageId = typeof page.id === "string" ? page.id : null;
+    const asV2Single = {
+      v: 2,
+      artboard:
+        page.artboard && typeof page.artboard === "object"
+          ? page.artboard
+          : baseArtboard,
+      bg: page.bg ?? baseBg,
+      objects: Array.isArray(page.objects) ? page.objects : [],
+    };
+    const scene = fromAvnacV2Document(asV2Single);
+    if (!scene) continue;
+    pages.push(toAvnacDocument(scene));
+    pageIds.push(pageId ?? "");
+  }
+
+  if (pages.length === 0) return null;
+
+  const activePageId =
+    typeof doc.activePageId === "string" ? doc.activePageId : null;
+  const activeById = activePageId ? pageIds.indexOf(activePageId) : -1;
+  const currentPage =
+    activeById >= 0
+      ? activeById
+      : clampPageIndex(
+          pages.length,
+          typeof doc.currentPage === "number" ? doc.currentPage : 0,
+        );
+
+  return buildMultiPageDocument(pages, currentPage);
 }

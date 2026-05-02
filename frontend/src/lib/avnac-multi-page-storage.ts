@@ -24,19 +24,40 @@ async function readStorage(
   }
 }
 
+/**
+ * Read the raw stored pages without needing the current document.
+ * Use together with {@link mergeStoredPages} when you want to parallelise
+ * the pages read with the IDB document read.
+ */
+export async function readRawStoredPages(
+  persistId: string,
+): Promise<AvnacMultiPageDocumentV1 | null> {
+  return readStorage(persistId);
+}
+
+/**
+ * Synchronously merge a raw stored-pages result with the authoritative
+ * document from IDB.  Equivalent to the second half of {@link loadStoredPages}.
+ */
+export function mergeStoredPages(
+  stored: AvnacMultiPageDocumentV1 | null,
+  currentDoc: AvnacDocumentV1,
+): AvnacMultiPageDocumentV1 {
+  if (!stored) {
+    return buildMultiPageDocument([currentDoc], 0);
+  }
+  const pages = clonePages(stored.pages);
+  const index = Math.min(stored.currentPage, pages.length - 1);
+  pages[index] = currentDoc;
+  return buildMultiPageDocument(pages, index);
+}
+
 export async function loadStoredPages(
   persistId: string,
   currentDoc: AvnacDocumentV1,
 ): Promise<AvnacMultiPageDocumentV1> {
   const stored = await readStorage(persistId);
-  if (!stored) {
-    return buildMultiPageDocument([currentDoc], 0);
-  }
-
-  const pages = clonePages(stored.pages);
-  const index = Math.min(stored.currentPage, pages.length - 1);
-  pages[index] = currentDoc;
-  return buildMultiPageDocument(pages, index);
+  return mergeStoredPages(stored, currentDoc);
 }
 
 export async function saveStoredPages(
