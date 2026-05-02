@@ -466,7 +466,7 @@ export default function SceneInspectorPanel() {
         {canEdit && (
           <span
             className={[
-              "ml-0.5 text-neutral-400 transition-transform",
+              "ml-0.5 text-[20px] leading-none text-neutral-400 transition-transform",
               open ? "rotate-180" : "",
             ].join(" ")}
             aria-hidden
