@@ -65,7 +65,6 @@ export default function SceneEditorCanvas({
   const setCanvasPan = useSceneEditorStore((s) => s.setCanvasPan);
   const setRenderStats = useSceneEditorStore((s) => s.setRenderStats);
   const dropActions = useSceneEditorDropActions();
-  const interactions = useSceneEditorInteractions();
   const actions = useSceneSelectionActions();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -254,6 +253,25 @@ export default function SceneEditorCanvas({
   const scaledWidth = Math.round(artboardWidth * scale);
   const scaledHeight = Math.round(artboardHeight * scale);
 
+  // Convert screen-space clientX/clientY to scene coordinates.
+  // Used by the global window pointermove handler in useSceneEditorInteractions
+  // to continue drag operations when the pointer exits the canvas element.
+  const getScenePoint = useCallback(
+    (clientX: number, clientY: number) => {
+      const surface = surfaceRef.current;
+      if (!surface || scale <= 0) return null;
+      const rect = surface.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      return {
+        x: (clientX - rect.left) / scale,
+        y: (clientY - rect.top) / scale,
+      };
+    },
+    [scale],
+  );
+
+  const interactions = useSceneEditorInteractions({ getScenePoint });
+
   const rotateHandleClearance = 36;
   const toolbarPlacement: "above" | "below" =
     actions.selectionBounds &&
@@ -435,7 +453,7 @@ export default function SceneEditorCanvas({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex flex-1 overflow-auto bg-neutral-100/80 p-8"
+      className={`flex flex-1 bg-neutral-100/80 p-8 ${interactions.activeCursor ? "overflow-hidden" : "overflow-auto"}`}
       style={viewportPanCursor ? { cursor: viewportPanCursor } : undefined}
       onPointerMove={(event) => {
         if (viewportPanDragRef.current) return;

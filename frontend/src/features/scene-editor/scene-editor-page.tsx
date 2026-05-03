@@ -41,15 +41,12 @@ import {
 } from "@/lib/avnac-vector-boards-storage";
 import {
   getSceneDeveloperMode,
-  getSceneRotationSensitivity,
   getSceneSnapIntensity,
   loadSceneRotationSensitivityFromConfig,
   loadSceneSnapIntensityFromConfig,
   onSceneDeveloperModeChange,
-  onSceneRotationSensitivityChange,
   onSceneSnapIntensityChange,
 } from "@/lib/scene-editor-preferences";
-import { setSaraswatiRotationSensitivity } from "@/lib/saraswati";
 import SceneEditorCanvas from "./scene-editor-canvas";
 import SceneInspectorPanel from "./scene-inspector-panel";
 import BottomFloatingToolbar from "./tools/bottom-floating-toolbar";
@@ -271,15 +268,9 @@ export default function SceneEditorPage({ documentId }: Props) {
   }, [setSnapIntensity]);
 
   useEffect(() => {
-    // Apply rotation speed from preferences at mount and on live updates.
-    setSaraswatiRotationSensitivity(getSceneRotationSensitivity());
-    void loadSceneRotationSensitivityFromConfig().then((value) => {
-      setSaraswatiRotationSensitivity(value);
-    });
-
-    return onSceneRotationSensitivityChange((value) => {
-      setSaraswatiRotationSensitivity(value);
-    });
+    // Trigger loading rotation sensitivity from the Go config so the
+    // preferences event fires and the interactions hook picks it up.
+    void loadSceneRotationSensitivityFromConfig();
   }, []);
 
   useEffect(() => {

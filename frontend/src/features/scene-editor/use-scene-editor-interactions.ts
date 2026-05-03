@@ -26,10 +26,26 @@ import {
   type SaraswatiGuideLine,
   type SaraswatiMeasurement,
 } from "@/lib/editor/overlays";
+import {
+  getSceneRotationSensitivity,
+  onSceneRotationSensitivityChange,
+} from "@/lib/scene-editor-preferences";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import type { SaraswatiClipPath } from "@/lib/saraswati/types";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSceneEditorStore } from "./store";
+
+type ScenePointConverter = (
+  clientX: number,
+  clientY: number,
+) => { x: number; y: number } | null;
+
+type UseSceneEditorInteractionsOptions = {
+  /** Convert screen clientX/clientY to scene coordinates. When provided a
+   *  global window pointermove listener will forward drag events even when the
+   *  pointer has left the canvas element boundary. */
+  getScenePoint?: ScenePointConverter;
+};
 
 type ClipResizeState = {
   pointerId: number;
@@ -166,7 +182,9 @@ function resolveSelectableId(
   return hitId;
 }
 
-export function useSceneEditorInteractions() {
+export function useSceneEditorInteractions(
+  options?: UseSceneEditorInteractionsOptions,
+) {
   const applyCommands = useSceneEditorStore((s) => s.applyCommands);
   const beginHistoryBatch = useSceneEditorStore((s) => s.beginHistoryBatch);
   const endHistoryBatch = useSceneEditorStore((s) => s.endHistoryBatch);
@@ -180,6 +198,14 @@ export function useSceneEditorInteractions() {
   const curveAdjustRef = useRef<CurveAdjustState | null>(null);
   /** Aspect ratio (W/H) captured when a handle-resize drag begins. */
   const resizeStartArRef = useRef<number>(1);
+  /** Rotation sensitivity read live from preferences so the engine stays pure. */
+  const rotationSensitivityRef = useRef<number>(getSceneRotationSensitivity());
+  /** Latest getScenePoint converter supplied by the canvas layer. */
+  const getScenePointRef = useRef<ScenePointConverter | undefined>(
+    options?.getScenePoint,
+  );
+  getScenePointRef.current = options?.getScenePoint;
+
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [guides, setGuides] = useState<SaraswatiGuideLine[]>([]);
   const [measurement, setMeasurement] = useState<SaraswatiMeasurement | null>(
@@ -237,7 +263,8 @@ export function useSceneEditorInteractions() {
       const { scene, selectedIds } = useSceneEditorStore.getState();
       if (!scene) return;
       const additive = Boolean(options?.additive);
-      const rawHitId = findTopHitNodeId(scene, { x, y });
+      const hitScale = useSceneEditorStore.getState().snapIntensity ?? 1;
+      const rawHitId = findTopHitNodeId(scene, { x, y }, { hitScale });
       // Resolve up to the nearest group that is a direct child of the root so
       // that clicking inside a group selects the group as a whole.
       const hitId = rawHitId ? resolveSelectableId(scene, rawHitId) : null;
@@ -429,7 +456,8 @@ export function useSceneEditorInteractions() {
       }
 
       if (pointerStateRef.current.pointerId === null) {
-        const rawHover = findTopHitNodeId(scene, { x, y });
+        const hitScale = store.snapIntensity ?? 1;
+        const rawHover = findTopHitNodeId(scene, { x, y }, { hitScale });
         setHoveredId(rawHover ? resolveSelectableId(scene, rawHover) : null);
         setGuides([]);
         setMeasurement(null);
@@ -448,7 +476,9 @@ export function useSceneEditorInteractions() {
         return;
       }
 
-      const result = pointerMove(pointerStateRef.current, pointerId, x, y);
+      const result = pointerMove(pointerStateRef.current, pointerId, x, y, {
+        rotationSensitivity: rotationSensitivityRef.current,
+      });
       pointerStateRef.current = result.state;
       if (!result.command) return;
 
@@ -825,18 +855,69 @@ export function useSceneEditorInteractions() {
       }
     };
 
+    // Continue resize/rotate drags when the pointer moves outside the canvas
+    // element. The canvas has pointer capture, but on some platforms (e.g.
+    // Wails WebView on macOS) pointermove stops firing on the canvas once the
+    // cursor exits the app window. A window-level capture listener guarantees
+    // the drag keeps running.
+    const onWindowPointerMove = (event: PointerEvent) => {
+      const ps = pointerStateRef.current;
+      if (ps.pointerId === null || ps.pointerId !== event.pointerId) return;
+      if (!ps.resize && !ps.rotate) return;
+      const converter = getScenePointRef.current;
+      if (!converter) return;
+      const point = converter(event.clientX, event.clientY);
+      if (!point) return;
+      onPointerMove(event.pointerId, point.x, point.y, {
+        shiftKey: event.shiftKey,
+      });
+    };
+
     window.addEventListener("pointerup", onWindowPointerUp, true);
     window.addEventListener("pointercancel", onWindowPointerUp, true);
     window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("pointermove", onWindowPointerMove, true);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       window.removeEventListener("pointerup", onWindowPointerUp, true);
       window.removeEventListener("pointercancel", onWindowPointerUp, true);
       window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("pointermove", onWindowPointerMove, true);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [cancelActiveInteraction, onPointerUp]);
+  }, [cancelActiveInteraction, onPointerMove, onPointerUp]);
+
+  // Keep the rotation sensitivity ref in sync with the preferences system.
+  // This runs once on mount and subscribes to future changes from Settings.
+  useEffect(() => {
+    return onSceneRotationSensitivityChange((value) => {
+      rotationSensitivityRef.current = value;
+    });
+  }, []);
+
+  // While a drag is active (resize / rotate / clip / marquee), apply a global
+  // cursor override and disable text-selection on the document. This stops the
+  // browser from snapping the cursor back to "default" when the pointer moves
+  // outside the canvas element and prevents the WebKit grey-overlay / content-
+  // selection visual artifact that appears during rotation drags on macOS.
+  useEffect(() => {
+    const el = document.documentElement;
+    if (!activeCursor) {
+      el.style.removeProperty("cursor");
+      el.style.removeProperty("user-select");
+      el.style.removeProperty("-webkit-user-select");
+      return;
+    }
+    el.style.cursor = activeCursor;
+    el.style.userSelect = "none";
+    (el.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
+    return () => {
+      el.style.removeProperty("cursor");
+      el.style.removeProperty("user-select");
+      el.style.removeProperty("-webkit-user-select");
+    };
+  }, [activeCursor]);
 
   return {
     hoveredId,

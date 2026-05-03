@@ -17,6 +17,9 @@ type AppConfig struct {
 	SnapIntensity float64 `json:"snap_intensity"`
 	// DeveloperMode hides scene footer diagnostics when enabled.
 	DeveloperMode bool `json:"developer_mode"`
+	// RotationSensitivity controls how fast the rotation handle responds to
+	// pointer movement (0.1–1.5). Defaults to 0.75.
+	RotationSensitivity float64 `json:"rotation_sensitivity"`
 }
 
 // Load reads the config file from <appDir>/config/config.json. If the file

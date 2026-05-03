@@ -8,6 +8,8 @@ import { findTopHitNodeId } from "../spatial";
 
 export type { SaraswatiResizeHandle };
 
+const DEFAULT_ROTATION_SENSITIVITY = 0.75;
+
 type ResizeDragState = {
   handle: SaraswatiResizeHandle;
   nodeId: string;
@@ -23,17 +25,6 @@ type RotateDragState = {
   lastAngle: number;
   lastRotation: number;
 };
-
-let rotationSensitivity = 0.45;
-const ROTATION_SMOOTHING = 0.22;
-
-export function setSaraswatiRotationSensitivity(value: number): void {
-  if (!Number.isFinite(value)) {
-    rotationSensitivity = 0.45;
-    return;
-  }
-  rotationSensitivity = Math.max(0.1, Math.min(1.5, value));
-}
 
 export type SaraswatiPointerState = {
   activeNodeId: string | null;
@@ -130,6 +121,7 @@ export function pointerMove(
   pointerId: number,
   x: number,
   y: number,
+  options?: { rotationSensitivity?: number },
 ): { state: SaraswatiPointerState; command: SaraswatiCommand | null } {
   if (state.pointerId !== pointerId || !state.activeNodeId) {
     return { state, command: null };
@@ -148,29 +140,27 @@ export function pointerMove(
   }
 
   if (state.rotate) {
+    const sensitivity = Math.max(
+      0.1,
+      Math.min(1.5, options?.rotationSensitivity ?? DEFAULT_ROTATION_SENSITIVITY),
+    );
     const { nodeId, centerX, centerY, lastAngle, lastRotation } = state.rotate;
     const currentAngle = Math.atan2(y - centerY, x - centerX);
     const deltaDeg = shortestAngularDelta(
       (lastAngle * 180) / Math.PI,
       (currentAngle * 180) / Math.PI,
     );
-    const rawRotation = normalizeDegrees(
-      lastRotation + deltaDeg * rotationSensitivity,
-    );
-    const smoothedRotation = normalizeDegrees(
-      lastRotation +
-        shortestAngularDelta(lastRotation, rawRotation) * ROTATION_SMOOTHING,
-    );
+    const nextRotation = normalizeDegrees(lastRotation + deltaDeg * sensitivity);
     return {
       state: {
         ...newState,
         rotate: {
           ...state.rotate,
           lastAngle: currentAngle,
-          lastRotation: smoothedRotation,
+          lastRotation: nextRotation,
         },
       },
-      command: { type: "ROTATE_NODE", id: nodeId, rotation: smoothedRotation },
+      command: { type: "ROTATE_NODE", id: nodeId, rotation: nextRotation },
     };
   }
 

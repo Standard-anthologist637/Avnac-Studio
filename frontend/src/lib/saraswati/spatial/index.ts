@@ -12,15 +12,9 @@ export type SaraswatiBounds = {
   height: number;
 };
 
-let interactionScale = 1;
-
-function clampInteractionScale(value: number): number {
-  if (!Number.isFinite(value)) return 1;
-  return Math.max(0, Math.min(1, value));
-}
-
-export function setSaraswatiInteractionScale(value: number): void {
-  interactionScale = clampInteractionScale(value);
+/** @deprecated Use the `hitScale` option on findTopHitNodeId instead. */
+export function setSaraswatiInteractionScale(_value: number): void {
+  // No-op. The scale is now passed explicitly to findTopHitNodeId via options.
 }
 
 export function buildSpatialIndex(
@@ -49,13 +43,14 @@ export function buildSpatialIndex(
 export function findTopHitNodeId(
   scene: SaraswatiScene,
   point: SaraswatiPoint,
-  options?: { excludeIds?: ReadonlySet<string> },
+  options?: { excludeIds?: ReadonlySet<string>; hitScale?: number },
 ): string | null {
   const ordered = listSaraswatiNodesInRenderOrder(scene);
+  const hitScale = options?.hitScale ?? 1;
   for (let index = ordered.length - 1; index >= 0; index -= 1) {
     const node = ordered[index]!;
     if (options?.excludeIds?.has(node.id)) continue;
-    if (pointHitsNode(point, node)) return node.id;
+    if (pointHitsNode(point, node, hitScale)) return node.id;
   }
   return null;
 }
@@ -129,6 +124,7 @@ export function getNodeBounds(node: SaraswatiRenderableNode): SaraswatiBounds {
 function pointHitsNode(
   point: SaraswatiPoint,
   node: SaraswatiRenderableNode,
+  hitScale = 1,
 ): boolean {
   if (node.type !== "line") {
     const width = node.type === "text" ? Math.max(1, node.width) : node.width;
@@ -155,8 +151,7 @@ function pointHitsNode(
     });
   }
   const metrics = lineGeometryMetrics(node);
-  const tolerance =
-     Math.max(12, metrics.halfStroke * 1.5 + 4) * interactionScale;
+  const tolerance = Math.max(12, metrics.halfStroke * 1.5 + 4) * hitScale;
   const hitDistance =
     node.pathType === "curved" && node.curveBulge !== 0
       ? pointToPolylineDistance(point.x, point.y, metrics.samples)
@@ -168,7 +163,7 @@ function pointHitsNode(
           node.x2,
           node.y2,
         );
-   if (hitDistance <= tolerance) return true;
+  if (hitDistance <= tolerance) return true;
 
   // Arrowheads should also be easy to pick.
   if (node.arrowStart || node.arrowEnd) {
@@ -222,7 +217,9 @@ function lineArrowheadLength(strokeWidth: number) {
   return Math.max(5, Math.min(72, raw));
 }
 
-function lineGeometryMetrics(node: Extract<SaraswatiRenderableNode, { type: "line" }>) {
+function lineGeometryMetrics(
+  node: Extract<SaraswatiRenderableNode, { type: "line" }>,
+) {
   const curved = node.pathType === "curved" && node.curveBulge !== 0;
   const dx = node.x2 - node.x1;
   const dy = node.y2 - node.y1;
@@ -273,9 +270,12 @@ function lineGeometryMetrics(node: Extract<SaraswatiRenderableNode, { type: "lin
     minY,
     maxX,
     maxY,
-    halfStroke: Math.max(1, node.strokeWidth * Math.max(node.scaleX, node.scaleY)) / 2,
+    halfStroke:
+      Math.max(1, node.strokeWidth * Math.max(node.scaleX, node.scaleY)) / 2,
     arrowPad:
-      node.arrowStart || node.arrowEnd ? lineArrowheadLength(node.strokeWidth) : 0,
+      node.arrowStart || node.arrowEnd
+        ? lineArrowheadLength(node.strokeWidth)
+        : 0,
   };
 }
 

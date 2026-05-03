@@ -4,6 +4,7 @@ export namespace avnacconfig {
 	    unsplash_access_key?: string;
 	    snap_intensity: number;
 	    developer_mode: boolean;
+	    rotation_sensitivity: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -14,6 +15,7 @@ export namespace avnacconfig {
 	        this.unsplash_access_key = source["unsplash_access_key"];
 	        this.snap_intensity = source["snap_intensity"];
 	        this.developer_mode = source["developer_mode"];
+	        this.rotation_sensitivity = source["rotation_sensitivity"];
 	    }
 	}
 

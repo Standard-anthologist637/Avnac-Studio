@@ -119,6 +119,10 @@ function rotateNode(
   const node = scene.nodes[nodeId];
   if (!node || nodeId === scene.root) return scene;
   if (node.type === "group") return scene;
+  // Skip clone when rotation is already the same value.
+  if ("rotation" in node && (node as { rotation?: number }).rotation === rotation) {
+    return scene;
+  }
   const next = cloneSaraswatiScene(scene);
   if (node.type === "line") {
     const centerX = (node.x1 + node.x2) / 2;
@@ -482,6 +486,27 @@ function resizeGroupNode(
         y: ny,
         width: mappedBounds.width / node.scaleX,
       };
+      continue;
+    }
+
+    if (node.type === "polygon") {
+      const prevW = Math.max(1e-6, node.width);
+      const prevH = Math.max(1e-6, node.height);
+      const newW = mappedBounds.width / node.scaleX;
+      const newH = mappedBounds.height / node.scaleY;
+      const ptSx = newW / prevW;
+      const ptSy = newH / prevH;
+      next.nodes[id] = {
+        ...node,
+        x: nx,
+        y: ny,
+        width: newW,
+        height: newH,
+        points: node.points.map((point) => ({
+          x: point.x * ptSx,
+          y: point.y * ptSy,
+        })),
+      } as SaraswatiNode;
       continue;
     }
 

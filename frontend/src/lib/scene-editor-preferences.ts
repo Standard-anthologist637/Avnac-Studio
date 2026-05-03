@@ -8,7 +8,6 @@
  */
 
 const SNAP_INTENSITY_KEY = "avnac:scene:snap-intensity";
-const ROTATION_SENSITIVITY_KEY = "avnac:scene:rotation-sensitivity";
 const DEVELOPER_MODE_KEY = "avnac:scene:developer-mode";
 const SNAP_INTENSITY_EVENT = "avnac:scene-preferences";
 const ROTATION_SENSITIVITY_EVENT = "avnac:scene-rotation-sensitivity";
@@ -17,10 +16,11 @@ const DEVELOPER_MODE_EVENT = "avnac:scene-developer-mode";
 // ─── Wails bridge ─────────────────────────────────────────────────────────────
 
 type ConfigBridge = {
-  Get: () => Promise<{ snap_intensity: number; developer_mode: boolean }>;
+  Get: () => Promise<{ snap_intensity: number; developer_mode: boolean; rotation_sensitivity: number }>;
   Save: (cfg: {
     snap_intensity?: number;
     developer_mode?: boolean;
+    rotation_sensitivity?: number;
   }) => Promise<void>;
 };
 
@@ -43,7 +43,7 @@ function clamp01(value: number): number {
 }
 
 function clampRotationSensitivity(value: number): number {
-  if (!Number.isFinite(value)) return 0.45;
+  if (!Number.isFinite(value)) return 0.75;
   return Math.max(0.1, Math.min(1.5, value));
 }
 
@@ -146,25 +146,22 @@ export function onSceneSnapIntensityChange(
 // ─── rotation sensitivity ─────────────────────────────────────────────────────
 
 export function getSceneRotationSensitivity(): number {
-  if (typeof localStorage === "undefined") return 0.45;
-  try {
-    const raw = localStorage.getItem(ROTATION_SENSITIVITY_KEY);
-    if (raw == null) return 0.45;
-    return clampRotationSensitivity(Number(raw));
-  } catch {
-    return 0.45;
-  }
+  return 0.75;
 }
 
 export function setSceneRotationSensitivity(value: number): void {
   const next = clampRotationSensitivity(value);
-  if (typeof localStorage !== "undefined") {
+  // Persist to native config (fire-and-forget).
+  void (async () => {
+    const bridge = getConfigBridge();
+    if (!bridge) return;
     try {
-      localStorage.setItem(ROTATION_SENSITIVITY_KEY, String(next));
+      const current = await bridge.Get();
+      await bridge.Save({ ...current, rotation_sensitivity: next });
     } catch {
-      // Ignore localStorage failures.
+      /* ignore */
     }
-  }
+  })();
   if (typeof window !== "undefined") {
     window.dispatchEvent(
       new CustomEvent<number>(ROTATION_SENSITIVITY_EVENT, { detail: next }),
@@ -173,7 +170,20 @@ export function setSceneRotationSensitivity(value: number): void {
 }
 
 export async function loadSceneRotationSensitivityFromConfig(): Promise<number> {
-  return getSceneRotationSensitivity();
+  const bridge = getConfigBridge();
+  if (!bridge) return getSceneRotationSensitivity();
+  try {
+    const cfg = await bridge.Get();
+    const value = clampRotationSensitivity(cfg.rotation_sensitivity ?? 0.75);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent<number>(ROTATION_SENSITIVITY_EVENT, { detail: value }),
+      );
+    }
+    return value;
+  } catch {
+    return getSceneRotationSensitivity();
+  }
 }
 
 export function onSceneRotationSensitivityChange(
@@ -186,23 +196,16 @@ export function onSceneRotationSensitivityChange(
     listener(clampRotationSensitivity(Number(custom.detail)));
   };
 
-  const onStorage = (event: StorageEvent) => {
-    if (event.key !== ROTATION_SENSITIVITY_KEY) return;
-    listener(clampRotationSensitivity(Number(event.newValue ?? 0.45)));
-  };
-
   window.addEventListener(
     ROTATION_SENSITIVITY_EVENT,
     onLocalEvent as EventListener,
   );
-  window.addEventListener("storage", onStorage);
 
   return () => {
     window.removeEventListener(
       ROTATION_SENSITIVITY_EVENT,
       onLocalEvent as EventListener,
     );
-    window.removeEventListener("storage", onStorage);
   };
 }
 
