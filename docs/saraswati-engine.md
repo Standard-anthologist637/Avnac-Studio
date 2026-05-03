@@ -149,7 +149,12 @@ frontend/src/lib/
 
 The important rule is not the folder shape. The important rule is the contract.
 
-Both renderers must implement the same `RenderCommand` language.
+All renderers must implement the same `RenderCommand` language.
+
+Current implementation:
+
+- **Canvas2D**: fully implemented and in production use
+- **Pixi**: planned for future iteration; structure is in place but not yet implemented
 
 Conceptually:
 
@@ -169,7 +174,7 @@ type RenderCommand =
 
 The real command types in this repo carry more detail such as paint, stroke, crop, scale, origin, and rotation, but the rule stays the same: backend-specific types must not leak into the command model.
 
-If Pixi introduces Pixi-specific scene objects into Saraswati state, abstraction is already broken.
+If any renderer (Pixi, WebGL, or future backend) introduces renderer-specific scene objects into Saraswati state, abstraction is already broken.
 
 This is the correct dependency direction:
 
@@ -183,20 +188,25 @@ This is the correct dependency direction:
 
 Renderers are replaceable implementations.
 
-Examples:
+**Current implementation:**
 
-- Canvas2D renderer for the current first slice
-- Pixi or WebGL renderer in a future slice
-- WebGPU renderer later if it becomes justified
-- Go-native renderer only if there is a strong product reason
+- Canvas2D: live, rendering the editor UI and exports
 
-Renderers:
+**Planned implementations:**
+
+- Pixi: reserved for GPU-accelerated rendering in a future slice (structure in place; not yet implemented)
+- WebGL or WebGPU: if performance demands require it
+- Go-native: for Wails desktop export path
+
+The decision to add a new renderer is not a technical constraint — it is a product decision about performance or platform needs.
+
+All renderer implementations:
 
 - must not contain business logic
 - must not mutate scene state
 - must stay output-only
 
-Saraswati is renderer-agnostic by design. A renderer is an implementation detail, not the engine definition.
+Saraswati is renderer-agnostic by design. A renderer is an implementation detail, not the engine definition. The current Canvas2D renderer can be swapped or run in parallel with other backends without any changes to Saraswati itself.
 
 What swappable renderer really means:
 

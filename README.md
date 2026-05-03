@@ -159,43 +159,43 @@ The original [Avnac web app](https://github.com/akinloluwami/avnac) is a browser
 
 - **Frontend:** React, Vite, TypeScript, Tailwind CSS, TanStack Router
 - **Desktop runtime:** Wails v2 + Go
-- **Canvas runtime today:** Fabric.js
-- **Scene engine migration:** Saraswati under `frontend/src/lib/saraswati/`
+- **Canvas/runtime engine:** Saraswati (Canvas2D renderer) under `frontend/src/lib/saraswati/`
 - **AI UI/runtime:** `@tambo-ai/react`
-- **Analytics:** PostHog
 
 ---
 
 ## Saraswati Engine
 
-Avnac Studio now includes Saraswati, a renderer-agnostic 2D scene engine layer that is being built in parallel with the current Fabric editor.
+Avnac Studio runs on Saraswati, a renderer-agnostic 2D scene engine.
 
-The goal is not to hard-replace Fabric in one rewrite. The goal is to move document structure, commands, interaction translation, and rendering intent into a clean engine boundary that can outlive any single renderer.
+Fabric has been sunset and removed from the active editor runtime. Saraswati now owns document structure, commands, interaction translation, and rendering intent.
 
 Current Saraswati slice:
 
 - strict scene graph and scene validation
 - pure command reducer
 - render-command pipeline
-- Canvas2D renderer for the first engine-backed preview path
-- Fabric compatibility adapter at the edge
-- safe fallback to Fabric for unsupported preview content
+- Canvas2D renderer in the active editor path
+- deterministic interaction math and bounds system
+- workspace integration across files, pages, and vector boards
 
 Important boundary:
 
-- Saraswati should import Fabric data through adapters
-- basic grouping belongs in the compatibility adapter, not the engine core
-- Saraswati should not inherit Fabric lifecycle, event, selection, or canvas-state behavior
+- Saraswati state remains renderer-independent
+- render backends consume commands but do not own scene truth
+- UI surfaces dispatch commands instead of mutating scene objects directly
 
 Expected impact so far:
 
-- lower preview startup cost for supported documents because the fast path avoids Fabric object hydration
-- lower preview heap churn because supported previews do not need a temporary Fabric canvas
-- safer long-term renderer replacement because scene and command logic are now separated from the renderer
+- predictable undo/redo and state transitions through command reduction
+- lower runtime coupling between editor logic and rendering implementation
+- safer long-term renderer replacement because scene and command logic are separated from backend details
 
-Formal benchmarks are not published yet, but the current work is aimed at making preview generation cheaper first and the full editor migration safer second.
+Formal benchmarks are not published yet, but the architecture is now in place as the primary runtime path.
 
 Detailed design and rules live in [docs/saraswati-engine.md](./docs/saraswati-engine.md).
+
+If you are interested in the architecture rationale and migration details, read [docs/saraswati-architecture-decisions.md](./docs/saraswati-architecture-decisions.md).
 
 ---
 
@@ -224,7 +224,7 @@ Each file gets a dedicated folder in the OS app config directory:
 ```
 
 - `meta.json` powers the Files list quickly without loading full canvas data
-- `document.json` stores the main Fabric document payload
+- `document.json` stores the main Saraswati document payload
 - `pages.json` stores page-level workspace state
 - `vector-boards.json` and `vector-board-docs.json` store vector board state
 
