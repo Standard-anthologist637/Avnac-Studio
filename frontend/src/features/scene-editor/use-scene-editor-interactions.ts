@@ -77,6 +77,12 @@ type CurveAdjustState = {
   length: number;
 };
 
+type RotationIndicator = {
+  angle: number;
+  snapped: boolean;
+  snapTarget: number | null;
+};
+
 /**
  * Given a resize bounds and the handle being dragged, constrain the shorter
  * dimension so the result matches `ar` (width/height).
@@ -214,6 +220,8 @@ export function useSceneEditorInteractions(
   const [marqueeBounds, setMarqueeBounds] = useState<SaraswatiBounds | null>(
     null,
   );
+  const [rotationIndicator, setRotationIndicator] =
+    useState<RotationIndicator | null>(null);
   const [activeCursor, setActiveCursor] = useState<string | null>(null);
 
   const cancelActiveInteraction = useCallback(() => {
@@ -249,6 +257,7 @@ export function useSceneEditorInteractions(
 
     setGuides([]);
     setMeasurement(null);
+    setRotationIndicator(null);
     setActiveCursor(null);
     setHoveredId(null);
   }, [endHistoryBatch]);
@@ -488,6 +497,20 @@ export function useSceneEditorInteractions(
       const snapFactor = Math.max(0, Math.min(1, store.snapIntensity ?? 1));
       const snapThreshold = 6 * snapFactor;
 
+      if (command.type === "ROTATE_NODE") {
+        const indicator = detectRotationSnap(
+          command.rotation,
+          rotationSensitivityRef.current,
+        );
+        setRotationIndicator({
+          angle: normalizeDegrees(command.rotation),
+          snapped: indicator.snapped,
+          snapTarget: indicator.target,
+        });
+      } else {
+        setRotationIndicator(null);
+      }
+
       if (command.type === "MOVE_NODE") {
         // getRenderableNodeBounds handles both renderable leaf nodes and group
         // nodes (union bounding box of all children).
@@ -510,7 +533,7 @@ export function useSceneEditorInteractions(
             dy: snapped.bounds.y - startBounds.y,
           };
           nextGuides = snapped.guides;
-          nextMeasurement = measurementFromBounds(snapped.bounds);
+          nextMeasurement = measurementFromBounds(snapped.bounds, "move");
         }
       } else if (command.type === "RESIZE_NODE") {
         const resizeState = pointerStateRef.current.resize;
@@ -639,6 +662,7 @@ export function useSceneEditorInteractions(
       }
       setGuides([]);
       setMeasurement(null);
+      setRotationIndicator(null);
       setActiveCursor(null);
     },
     [endHistoryBatch],
@@ -678,6 +702,7 @@ export function useSceneEditorInteractions(
       setActiveCursor(cursorByHandle[handle]);
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
+      setRotationIndicator(null);
     },
     [beginHistoryBatch],
   );
@@ -695,7 +720,7 @@ export function useSceneEditorInteractions(
       const startRotation =
         node && node.type === "line"
           ? (Math.atan2(node.y2 - node.y1, node.x2 - node.x1) * 180) / Math.PI
-          : node && "rotation" in node
+          : node && "rotation" in node && Number.isFinite(node.rotation)
             ? (node.rotation as number)
             : 0;
       const adjustedBounds =
@@ -718,6 +743,15 @@ export function useSceneEditorInteractions(
       setActiveCursor("grabbing");
       setHoveredId(null);
       setMeasurement(null);
+      const indicator = detectRotationSnap(
+        startRotation,
+        rotationSensitivityRef.current,
+      );
+      setRotationIndicator({
+        angle: normalizeDegrees(startRotation),
+        snapped: indicator.snapped,
+        snapTarget: indicator.target,
+      });
     },
     [beginHistoryBatch],
   );
@@ -751,6 +785,7 @@ export function useSceneEditorInteractions(
       setActiveCursor("crosshair");
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
+      setRotationIndicator(null);
     },
     [beginHistoryBatch],
   );
@@ -794,6 +829,7 @@ export function useSceneEditorInteractions(
     setHoveredId(null);
     setGuides([]);
     setMeasurement(null);
+    setRotationIndicator(null);
     setActiveCursor(null);
   }, []);
 
@@ -825,6 +861,7 @@ export function useSceneEditorInteractions(
       setHoveredId(null);
       setGuides([]);
       setMeasurement(null);
+      setRotationIndicator(null);
     },
     [beginHistoryBatch],
   );
@@ -923,6 +960,7 @@ export function useSceneEditorInteractions(
     hoveredId,
     guides,
     measurement,
+    rotationIndicator,
     marqueeBounds,
     activeCursor,
     onPointerDown,
@@ -935,6 +973,41 @@ export function useSceneEditorInteractions(
     onCurveHandlePointerDown,
     onPointerLeave,
   };
+}
+
+function normalizeDegrees(value: number): number {
+  return ((value % 360) + 360) % 360 || 0;
+}
+
+function shortestAngularDelta(from: number, to: number): number {
+  const forward = normalizeDegrees(to) - normalizeDegrees(from);
+  if (forward > 180) return forward - 360;
+  if (forward < -180) return forward + 360;
+  return forward;
+}
+
+function detectRotationSnap(rotation: number, sensitivity: number): {
+  snapped: boolean;
+  target: number | null;
+} {
+  const normalized = normalizeDegrees(rotation);
+  const sensitivityNorm = Math.max(0, Math.min(1, (sensitivity - 0.1) / 1.4));
+  const baseWindow = 2 + (1 - sensitivityNorm) * 7;
+
+  let bestAngle = 0;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (let step = 0; step < 360; step += 15) {
+    const delta = Math.abs(shortestAngularDelta(normalized, step));
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestAngle = step;
+    }
+  }
+
+  if (bestDelta <= baseWindow) {
+    return { snapped: true, target: bestAngle };
+  }
+  return { snapped: false, target: null };
 }
 
 function normalizeBounds(

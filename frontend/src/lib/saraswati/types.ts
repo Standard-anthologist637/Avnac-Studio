@@ -167,6 +167,8 @@ export type SaraswatiGroupNode = {
   id: SaraswatiNodeId;
   type: "group";
   parentId: SaraswatiNodeId | null;
+  /** Virtual editor rotation used to track group rotation gestures. */
+  rotation?: number;
   name?: string;
   visible: boolean;
   opacity: number;

@@ -17,6 +17,7 @@ export type SaraswatiMeasurement = {
   height: number;
   centerX: number;
   centerY: number;
+  kind: "move" | "resize";
 };
 
 type SnapAxisResult = {
@@ -31,6 +32,7 @@ type SnapResult = {
 
 export function measurementFromBounds(
   bounds: SaraswatiBounds,
+  kind: "move" | "resize" = "resize",
 ): SaraswatiMeasurement {
   return {
     x: Math.round(bounds.x),
@@ -39,6 +41,7 @@ export function measurementFromBounds(
     height: Math.round(bounds.height),
     centerX: Math.round(bounds.x + bounds.width / 2),
     centerY: Math.round(bounds.y + bounds.height / 2),
+    kind,
   };
 }
 

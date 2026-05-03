@@ -233,7 +233,7 @@ export default function SceneWorkspaceStage({
 
     for (const { id, bounds, controlBounds } of selectedBounds) {
       const node = scene.nodes[id];
-      if (!node || node.type === "group") continue;
+      if (!node) continue;
       const centerX = bounds.x + bounds.width / 2;
       const handleY = controlBounds.y - rotateHandleOffset;
       const connectorTop = Math.min(handleY, controlBounds.y);
@@ -569,28 +569,6 @@ export default function SceneWorkspaceStage({
                 transformOrigin: "center",
               }}
             />
-            <div
-              className="absolute -translate-y-full rounded-md border border-black/10 bg-black/80 px-2 py-1 text-[11px] font-semibold tracking-wide text-white shadow-lg"
-              style={{
-                left: `${measurement.x}px`,
-                top: `${measurement.y - 8}px`,
-                transform: `translateY(-100%) scale(${overlayUiScale})`,
-                transformOrigin: "top left",
-              }}
-            >
-              W {measurement.width} · H {measurement.height}
-            </div>
-            <div
-              className="absolute -translate-y-full rounded-md border border-fuchsia-300/40 bg-fuchsia-600/90 px-2 py-1 text-[11px] font-semibold tracking-wide text-white shadow-lg"
-              style={{
-                left: `${measurement.x + 148}px`,
-                top: `${measurement.y - 8}px`,
-                transform: `translateY(-100%) scale(${overlayUiScale})`,
-                transformOrigin: "top left",
-              }}
-            >
-              X {measurement.x} · Y {measurement.y}
-            </div>
           </>
         ) : null}
 

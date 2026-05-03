@@ -150,7 +150,8 @@ export function pointerMove(
       (lastAngle * 180) / Math.PI,
       (currentAngle * 180) / Math.PI,
     );
-    const nextRotation = normalizeDegrees(lastRotation + deltaDeg * sensitivity);
+    const rawRotation = normalizeDegrees(lastRotation + deltaDeg * sensitivity);
+    const nextRotation = snapRotationToCommonDegrees(rawRotation, sensitivity);
     return {
       state: {
         ...newState,
@@ -225,4 +226,26 @@ function shortestAngularDelta(from: number, to: number): number {
   if (forward > 180) return forward - 360;
   if (forward < -180) return forward + 360;
   return forward;
+}
+
+function snapRotationToCommonDegrees(rotation: number, sensitivity: number): number {
+  const normalized = normalizeDegrees(rotation);
+  const sensitivityNorm = Math.max(0, Math.min(1, (sensitivity - 0.1) / 1.4));
+  // Lower sensitivity => stronger magnetic snapping around common angles.
+  const baseWindow = 2 + (1 - sensitivityNorm) * 7;
+
+  let bestAngle = normalized;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (let step = 0; step < 360; step += 15) {
+    const delta = Math.abs(shortestAngularDelta(normalized, step));
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestAngle = step;
+    }
+  }
+
+  if (bestDelta <= baseWindow) {
+    return normalizeDegrees(bestAngle);
+  }
+  return normalized;
 }

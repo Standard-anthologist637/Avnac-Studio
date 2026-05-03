@@ -18,6 +18,7 @@ export function createSaraswatiRootGroup(
     id,
     type: "group",
     parentId: null,
+    rotation: 0,
     visible: true,
     opacity: 1,
     children: [],

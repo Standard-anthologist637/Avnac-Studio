@@ -111,6 +111,38 @@ function moveNode(
   return next;
 }
 
+function safeAbsScale(value: number): number {
+  return Math.max(1e-6, Math.abs(value));
+}
+
+function normalizeDegrees(value: number): number {
+  return ((value % 360) + 360) % 360 || 0;
+}
+
+function shortestAngularDelta(from: number, to: number): number {
+  const forward = normalizeDegrees(to) - normalizeDegrees(from);
+  if (forward > 180) return forward - 360;
+  if (forward < -180) return forward + 360;
+  return forward;
+}
+
+function rotatePointAround(
+  x: number,
+  y: number,
+  cx: number,
+  cy: number,
+  rad: number,
+): { x: number; y: number } {
+  const dx = x - cx;
+  const dy = y - cy;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  return {
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos,
+  };
+}
+
 function rotateNode(
   scene: SaraswatiScene,
   nodeId: string,
@@ -118,7 +150,9 @@ function rotateNode(
 ): SaraswatiScene {
   const node = scene.nodes[nodeId];
   if (!node || nodeId === scene.root) return scene;
-  if (node.type === "group") return scene;
+  if (node.type === "group") {
+    return rotateGroupNode(scene, nodeId, rotation);
+  }
   // Skip clone when rotation is already the same value.
   if ("rotation" in node && (node as { rotation?: number }).rotation === rotation) {
     return scene;
@@ -146,6 +180,74 @@ function rotateNode(
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   next.nodes[nodeId] = { ...(node as any), rotation } as SaraswatiNode;
+  return next;
+}
+
+function rotateGroupNode(
+  scene: SaraswatiScene,
+  groupId: string,
+  targetRotation: number,
+): SaraswatiScene {
+  const group = scene.nodes[groupId];
+  if (!group || group.type !== "group") return scene;
+
+  const sourceBounds = getGroupBounds(scene, groupId, new Set<string>());
+  if (!sourceBounds || sourceBounds.width <= 0 || sourceBounds.height <= 0) {
+    return scene;
+  }
+
+  const currentRotation = normalizeDegrees(group.rotation ?? 0);
+  const nextRotation = normalizeDegrees(targetRotation);
+  const delta = shortestAngularDelta(currentRotation, nextRotation);
+  if (delta === 0) return scene;
+
+  const centerX = sourceBounds.x + sourceBounds.width / 2;
+  const centerY = sourceBounds.y + sourceBounds.height / 2;
+  const rad = (delta * Math.PI) / 180;
+
+  const next = cloneSaraswatiScene(scene);
+
+  const descendantIds = collectGroupDescendantIds(scene, groupId, new Set());
+  for (const id of descendantIds) {
+    const current = next.nodes[id];
+    if (!current) continue;
+
+    if (current.type === "group") {
+      next.nodes[id] = {
+        ...current,
+        rotation: normalizeDegrees((current.rotation ?? 0) + delta),
+      };
+      continue;
+    }
+
+    if (current.type === "line") {
+      const p1 = rotatePointAround(current.x1, current.y1, centerX, centerY, rad);
+      const p2 = rotatePointAround(current.x2, current.y2, centerX, centerY, rad);
+      next.nodes[id] = {
+        ...current,
+        x1: p1.x,
+        y1: p1.y,
+        x2: p2.x,
+        y2: p2.y,
+        rotation: normalizeDegrees(current.rotation + delta),
+      };
+      continue;
+    }
+
+    const anchor = rotatePointAround(current.x, current.y, centerX, centerY, rad);
+    next.nodes[id] = {
+      ...current,
+      x: anchor.x,
+      y: anchor.y,
+      rotation: normalizeDegrees(current.rotation + delta),
+    } as SaraswatiNode;
+  }
+
+  next.nodes[groupId] = {
+    ...group,
+    rotation: nextRotation,
+  };
+
   return next;
 }
 
@@ -271,6 +373,7 @@ function groupNodes(
     id: groupId,
     type: "group",
     parentId,
+    rotation: 0,
     visible: true,
     opacity: 1,
     children: orderedChildren,
@@ -375,19 +478,20 @@ function resizeNode(
   const nx = boundsToAnchorX(clamped.bx, node.originX, clamped.bw);
   const ny = boundsToAnchorY(clamped.by, node.originY, clamped.bh);
   if (node.type === "text") {
+    const sx = safeAbsScale(node.scaleX);
     next.nodes[nodeId] = {
       ...node,
       x: nx,
       y: ny,
-      width: clamped.bw / node.scaleX,
+      width: clamped.bw / sx,
     };
     return next;
   }
   if (node.type === "polygon") {
     const prevW = Math.max(1, node.width);
     const prevH = Math.max(1, node.height);
-    const nextW = clamped.bw / node.scaleX;
-    const nextH = clamped.bh / node.scaleY;
+    const nextW = clamped.bw / safeAbsScale(node.scaleX);
+    const nextH = clamped.bh / safeAbsScale(node.scaleY);
     const sx = nextW / prevW;
     const sy = nextH / prevH;
     next.nodes[nodeId] = {
@@ -407,8 +511,8 @@ function resizeNode(
     ...node,
     x: nx,
     y: ny,
-    width: clamped.bw / node.scaleX,
-    height: clamped.bh / node.scaleY,
+    width: clamped.bw / safeAbsScale(node.scaleX),
+    height: clamped.bh / safeAbsScale(node.scaleY),
   } as SaraswatiNode;
   return next;
 }
@@ -480,11 +584,12 @@ function resizeGroupNode(
     );
 
     if (node.type === "text") {
+      const sxAbs = safeAbsScale(node.scaleX);
       next.nodes[id] = {
         ...node,
         x: nx,
         y: ny,
-        width: mappedBounds.width / node.scaleX,
+        width: mappedBounds.width / sxAbs,
       };
       continue;
     }
@@ -492,8 +597,8 @@ function resizeGroupNode(
     if (node.type === "polygon") {
       const prevW = Math.max(1e-6, node.width);
       const prevH = Math.max(1e-6, node.height);
-      const newW = mappedBounds.width / node.scaleX;
-      const newH = mappedBounds.height / node.scaleY;
+      const newW = mappedBounds.width / safeAbsScale(node.scaleX);
+      const newH = mappedBounds.height / safeAbsScale(node.scaleY);
       const ptSx = newW / prevW;
       const ptSy = newH / prevH;
       next.nodes[id] = {
@@ -514,8 +619,8 @@ function resizeGroupNode(
       ...node,
       x: nx,
       y: ny,
-      width: mappedBounds.width / node.scaleX,
-      height: mappedBounds.height / node.scaleY,
+      width: mappedBounds.width / safeAbsScale(node.scaleX),
+      height: mappedBounds.height / safeAbsScale(node.scaleY),
     } as SaraswatiNode;
   }
 
@@ -537,6 +642,28 @@ function collectRenderableDescendants(
   const result: string[] = [];
   for (const childId of node.children) {
     result.push(...collectRenderableDescendants(scene, childId, visited));
+  }
+  return result;
+}
+
+function collectGroupDescendantIds(
+  scene: SaraswatiScene,
+  nodeId: string,
+  visited: Set<string>,
+): string[] {
+  if (visited.has(nodeId)) return [];
+  visited.add(nodeId);
+  const node = scene.nodes[nodeId];
+  if (!node || node.type !== "group") return [];
+
+  const result: string[] = [];
+  for (const childId of node.children) {
+    const child = scene.nodes[childId];
+    if (!child) continue;
+    result.push(childId);
+    if (child.type === "group") {
+      result.push(...collectGroupDescendantIds(scene, childId, visited));
+    }
   }
   return result;
 }
