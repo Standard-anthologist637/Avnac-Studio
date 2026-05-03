@@ -19,11 +19,12 @@ func main() {
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "Avnac",
-		Width:  1024,
-		Height: 768,
-		MinWidth: 600,
-		MinHeight: 600,
+		Title:      "Avnac",
+		Width:      600,
+		Height:     600,
+		MinWidth:   600,
+		MinHeight:  600,
+		Fullscreen: true,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.MediaProxyMiddleware(),
