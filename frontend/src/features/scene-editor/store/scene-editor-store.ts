@@ -40,7 +40,7 @@ import {
   setSceneSnapIntensity,
 } from "@/lib/scene-editor-preferences";
 import { safeAvnacFileBaseName } from "@/lib/avnac-files-export";
-import { exportJsonFile } from "@/lib/avnac-native-export";
+import { exportJsonFile, exportSceneAsPng } from "@/lib/avnac-native-export";
 import { ConfirmDialog } from "../../../../wailsjs/go/avnacio/IOManager";
 import { setSaraswatiInteractionScale } from "@/lib/saraswati/spatial";
 import {
@@ -210,6 +210,8 @@ type SceneEditorActions = {
   exportWorkspace: () => Promise<void>;
   /** Export the current page as a single-page JSON file. */
   exportCurrentPage: () => Promise<void>;
+  /** Render the current scene to a PNG and export via native save dialog. */
+  exportPng: (multiplier: number, transparent: boolean) => Promise<void>;
   /** Optimistic document name update for the title input. */
   setDocumentName: (name: string) => void;
   /** Persist the current documentName to IDB. */
@@ -976,6 +978,13 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
       `${safeAvnacFileBaseName(documentName)}-page-${currentPage + 1}.page.avnac`,
       currentDoc,
     );
+  },
+
+  exportPng: async (multiplier: number, transparent: boolean) => {
+    const { scene, documentName, currentPage } = get();
+    if (!scene) return;
+    const filename = `${safeAvnacFileBaseName(documentName)}-page-${currentPage + 1}.png`;
+    await exportSceneAsPng(filename, scene, { multiplier, transparent });
   },
 
   setDocumentName: (name: string) => set({ documentName: name }),

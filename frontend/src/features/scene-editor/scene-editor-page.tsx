@@ -18,7 +18,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import { floatingToolbarPopoverMenuClass } from "@/components/editor/shared/floating-toolbar-shell";
-import type { ExportPngOptions } from "@/lib/png-export";
 import EditorAiPanel from "@/components/editor/sidebar/editor-ai-panel";
 import EditorAppsPanel from "@/components/editor/sidebar/editor-apps-panel";
 import EditorFloatingSidebar from "@/components/editor/sidebar/editor-floating-sidebar";
@@ -154,6 +153,7 @@ export default function SceneEditorPage({ documentId }: Props) {
   const importWorkspace = useSceneEditorStore((s) => s.importWorkspace);
   const exportWorkspace = useSceneEditorStore((s) => s.exportWorkspace);
   const exportCurrentPage = useSceneEditorStore((s) => s.exportCurrentPage);
+  const exportPng = useSceneEditorStore((s) => s.exportPng);
   const setDocumentName = useSceneEditorStore((s) => s.setDocumentName);
   const commitDocumentName = useSceneEditorStore((s) => s.commitDocumentName);
   const saveStore = useSceneEditorStore((s) => s.save);
@@ -277,19 +277,12 @@ export default function SceneEditorPage({ documentId }: Props) {
     return "File compatibility mode is active";
   }, [adapterIssueCount, adapterSchemaVersion]);
 
-  // PNG export handler (Phase D — stub)
+  // PNG export handler
   const handleExportPng = useCallback(() => {
-    const opts: ExportPngOptions = {
-      multiplier: pngMult,
-      transparent: pngTransparent,
-    };
-    console.info(
-      "[avnac] PNG export not yet implemented for scene editor",
-      opts,
-    );
+    void exportPng(pngMult, pngTransparent);
     setActionsOpen(false);
     setPngExpanded(false);
-  }, [pngMult, pngTransparent]);
+  }, [exportPng, pngMult, pngTransparent]);
 
   const [vectorBoards, setVectorBoards] = useState<AvnacVectorBoardMeta[]>([]);
   const [vectorBoardDocs, setVectorBoardDocs] = useState<
