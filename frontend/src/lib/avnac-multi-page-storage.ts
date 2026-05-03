@@ -7,7 +7,6 @@ import {
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import {
   buildMultiPageDocument,
-  clonePages,
   parseMultiPageDocument,
   type AvnacMultiPageDocumentV1,
 } from "@/lib/avnac-multi-page-document";
@@ -44,12 +43,16 @@ export function mergeStoredPages(
   currentDoc: AvnacDocumentV1,
 ): AvnacMultiPageDocumentV1 {
   if (!stored) {
+    // No multi-page state saved yet — bootstrap from the IDB document.
     return buildMultiPageDocument([currentDoc], 0);
   }
-  const pages = clonePages(stored.pages);
-  const index = Math.min(stored.currentPage, pages.length - 1);
-  pages[index] = currentDoc;
-  return buildMultiPageDocument(pages, index);
+  // Trust saveStoredPages as the authoritative multi-page state.
+  // Do NOT overwrite stored.pages[currentPage] with the IDB document:
+  // idbPutDocument is always written for the *active* page at save time, but
+  // after a page navigation it becomes stale (still pointing at the old page).
+  // Overwriting stored.pages[0] with a stale page-3 document is exactly what
+  // caused the "close on page 3 corrupts page 1" data-loss bug.
+  return stored;
 }
 
 export async function loadStoredPages(

@@ -361,6 +361,16 @@ async function applyPageTransition(
   trackHistory: boolean,
   set: (partial: Partial<SceneEditorState>) => void,
 ): Promise<void> {
+  // Cancel any pending autosave before switching pages.
+  // A stale autosave timer captures the old page's scene + currentPage index;
+  // if it fired after navigation it would write idbPutDocument with the wrong
+  // page content, causing mergeStoredPages to corrupt pages on next load.
+  latestAutosaveRequestId += 1;
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+
   const targetDoc = nextPages[nextCurrentPage];
   if (!targetDoc) return;
 
