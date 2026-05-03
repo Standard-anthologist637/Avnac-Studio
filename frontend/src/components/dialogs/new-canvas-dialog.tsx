@@ -49,10 +49,10 @@ export default function NewCanvasDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  const goCreate = (w: number, h: number, presetLabel?: string) => {
+  const goCreate = (w: number, h: number, _presetLabel?: string) => {
     const W = Math.min(CANVAS_MAX, Math.max(CANVAS_MIN, Math.round(w)));
     const H = Math.min(CANVAS_MAX, Math.max(CANVAS_MIN, Math.round(h)));
-    void navigate({ to: "/create", search: { w: W, h: H } });
+    void navigate({ to: "/scene", search: { w: W, h: H } });
     onClose();
   };
 

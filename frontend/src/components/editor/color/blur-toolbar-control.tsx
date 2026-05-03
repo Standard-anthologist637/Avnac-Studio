@@ -13,9 +13,16 @@ const PANEL_ESTIMATE_H = 120;
 type Props = {
   blurPct: number;
   onChange: (blurPct: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 };
 
-export default function BlurToolbarControl({ blurPct, onChange }: Props) {
+export default function BlurToolbarControl({
+  blurPct,
+  onChange,
+  onInteractionStart,
+  onInteractionEnd,
+}: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -97,6 +104,8 @@ export default function BlurToolbarControl({ blurPct, onChange }: Props) {
             max={100}
             value={rounded}
             onChange={onChange}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Blur"
             aria-valuemin={0}
             aria-valuemax={100}

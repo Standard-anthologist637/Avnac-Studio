@@ -7,7 +7,6 @@ import {
 import type { AvnacDocumentV1 } from "@/lib/avnac-document";
 import {
   buildMultiPageDocument,
-  clonePages,
   parseMultiPageDocument,
   type AvnacMultiPageDocumentV1,
 } from "@/lib/avnac-multi-page-document";
@@ -24,19 +23,44 @@ async function readStorage(
   }
 }
 
+/**
+ * Read the raw stored pages without needing the current document.
+ * Use together with {@link mergeStoredPages} when you want to parallelise
+ * the pages read with the IDB document read.
+ */
+export async function readRawStoredPages(
+  persistId: string,
+): Promise<AvnacMultiPageDocumentV1 | null> {
+  return readStorage(persistId);
+}
+
+/**
+ * Synchronously merge a raw stored-pages result with the authoritative
+ * document from IDB.  Equivalent to the second half of {@link loadStoredPages}.
+ */
+export function mergeStoredPages(
+  stored: AvnacMultiPageDocumentV1 | null,
+  currentDoc: AvnacDocumentV1,
+): AvnacMultiPageDocumentV1 {
+  if (!stored) {
+    // No multi-page state saved yet — bootstrap from the IDB document.
+    return buildMultiPageDocument([currentDoc], 0);
+  }
+  // Trust saveStoredPages as the authoritative multi-page state.
+  // Do NOT overwrite stored.pages[currentPage] with the IDB document:
+  // idbPutDocument is always written for the *active* page at save time, but
+  // after a page navigation it becomes stale (still pointing at the old page).
+  // Overwriting stored.pages[0] with a stale page-3 document is exactly what
+  // caused the "close on page 3 corrupts page 1" data-loss bug.
+  return stored;
+}
+
 export async function loadStoredPages(
   persistId: string,
   currentDoc: AvnacDocumentV1,
 ): Promise<AvnacMultiPageDocumentV1> {
   const stored = await readStorage(persistId);
-  if (!stored) {
-    return buildMultiPageDocument([currentDoc], 0);
-  }
-
-  const pages = clonePages(stored.pages);
-  const index = Math.min(stored.currentPage, pages.length - 1);
-  pages[index] = currentDoc;
-  return buildMultiPageDocument(pages, index);
+  return mergeStoredPages(stored, currentDoc);
 }
 
 export async function saveStoredPages(

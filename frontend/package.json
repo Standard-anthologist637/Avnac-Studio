@@ -24,7 +24,6 @@
         "@tambo-ai/react": "^1.2.6",
         "@tanstack/react-router": "^1.168.10",
         "@tanstack/router-plugin": "^1.167.22",
-        "fabric": "^6.6.1",
         "motion": "^12.38.0",
         "qrcode": "^1.5.4",
         "react": "^19.2.0",
@@ -32,7 +31,8 @@
         "react-markdown": "^10.1.0",
         "remark-gfm": "^4.0.1",
         "tailwindcss": "^4.1.18",
-        "zod": "^4.3.6"
+        "zod": "^4.3.6",
+        "zustand": "^5.0.12"
     },
     "devDependencies": {
         "@rolldown/plugin-babel": "^0.2.3",

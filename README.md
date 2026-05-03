@@ -83,7 +83,6 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 <!-- screenshot: files screen showing file grid and management actions -->
 <img width="1575" height="981" alt="image" src="https://github.com/user-attachments/assets/58e26032-1362-4c14-88f5-ca0c0893411e" />
 
-
 ---
 
 ### Full canvas editor
@@ -95,7 +94,6 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 
 <!-- screenshot: canvas editor with a poster layout open -->
 <img width="1918" height="1126" alt="image" src="https://github.com/user-attachments/assets/c340c44b-4703-49e1-8c5e-35a53e71d89d" />
-
 
 ---
 
@@ -110,7 +108,6 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 <!-- screenshot: layer panel and element styling controls -->
 <img width="1912" height="1117" alt="image" src="https://github.com/user-attachments/assets/d92a2277-7fe5-439a-bc72-e03a8bdafe18" />
 
-
 ---
 
 ### Multi-page workspaces
@@ -122,7 +119,6 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 <!-- screenshot: multi-page workspace with page tabs -->
 <img width="1907" height="1120" alt="image" src="https://github.com/user-attachments/assets/b0a5c42a-7a47-4beb-87e6-001bb1c273e5" />
 
-
 ---
 
 ### Vector boards
@@ -133,7 +129,6 @@ In short: Avnac Studio starts fast, uses very little memory, ships as a light ex
 
 <!-- screenshot: vector board panel and embedded vector board on canvas -->
 <img width="1913" height="1055" alt="image" src="https://github.com/user-attachments/assets/7ab9b13e-e514-4f5a-a522-07764e0cc602" />
-
 
 ---
 
@@ -164,9 +159,43 @@ The original [Avnac web app](https://github.com/akinloluwami/avnac) is a browser
 
 - **Frontend:** React, Vite, TypeScript, Tailwind CSS, TanStack Router
 - **Desktop runtime:** Wails v2 + Go
-- **Canvas engine:** Fabric.js
+- **Canvas/runtime engine:** Saraswati (Canvas2D renderer) under `frontend/src/lib/saraswati/`
 - **AI UI/runtime:** `@tambo-ai/react`
-- **Analytics:** PostHog
+
+---
+
+## Saraswati Engine
+
+Avnac Studio runs on Saraswati, a renderer-agnostic 2D scene engine.
+
+Fabric has been sunset and removed from the active editor runtime. Saraswati now owns document structure, commands, interaction translation, and rendering intent.
+
+Current Saraswati slice:
+
+- strict scene graph and scene validation
+- pure command reducer
+- render-command pipeline
+- Canvas2D renderer in the active editor path
+- deterministic interaction math and bounds system
+- workspace integration across files, pages, and vector boards
+
+Important boundary:
+
+- Saraswati state remains renderer-independent
+- render backends consume commands but do not own scene truth
+- UI surfaces dispatch commands instead of mutating scene objects directly
+
+Expected impact so far:
+
+- predictable undo/redo and state transitions through command reduction
+- lower runtime coupling between editor logic and rendering implementation
+- safer long-term renderer replacement because scene and command logic are separated from backend details
+
+Formal benchmarks are not published yet, but the architecture is now in place as the primary runtime path.
+
+Detailed design and rules live in [docs/saraswati-engine.md](./docs/saraswati-engine.md).
+
+If you are interested in the architecture rationale and migration details, read [docs/saraswati-architecture-decisions.md](./docs/saraswati-architecture-decisions.md).
 
 ---
 
@@ -195,7 +224,7 @@ Each file gets a dedicated folder in the OS app config directory:
 ```
 
 - `meta.json` powers the Files list quickly without loading full canvas data
-- `document.json` stores the main Fabric document payload
+- `document.json` stores the main Saraswati document payload
 - `pages.json` stores page-level workspace state
 - `vector-boards.json` and `vector-board-docs.json` store vector board state
 
@@ -275,12 +304,13 @@ go build ./...
 
 ## Where To Work
 
-| Area                                      | Path                       |
-| ----------------------------------------- | -------------------------- |
-| Editor UI and behavior                    | `frontend/src/components/` |
-| Routes and navigation                     | `frontend/src/routes/`     |
-| Frontend storage and document logic       | `frontend/src/lib/`        |
-| Native IO, config, and workspace services | `avnac-system/`            |
+| Area                                      | Path                          |
+| ----------------------------------------- | ----------------------------- |
+| Editor UI and behavior                    | `frontend/src/components/`    |
+| Routes and navigation                     | `frontend/src/routes/`        |
+| Frontend storage and document logic       | `frontend/src/lib/`           |
+| Saraswati engine and renderer migration   | `frontend/src/lib/saraswati/` |
+| Native IO, config, and workspace services | `avnac-system/`               |
 
 ---
 

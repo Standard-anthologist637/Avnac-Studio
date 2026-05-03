@@ -15,7 +15,7 @@ import {
   FlipVerticalIcon,
   GroupItemsIcon,
   Layers02Icon,
-  More01Icon,
+  ArrowDown01Icon,
   UngroupItemsIcon,
   SquareLock01Icon,
   SquareUnlock01Icon,
@@ -456,7 +456,7 @@ const CanvasSelectionToolbar = forwardRef<
                   }}
                 >
                   <HugeiconsIcon
-                    icon={More01Icon}
+                    icon={ArrowDown01Icon}
                     size={18}
                     strokeWidth={1.75}
                   />

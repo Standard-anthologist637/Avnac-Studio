@@ -18,6 +18,8 @@ type Props = {
   strokePaint: BgValue;
   onStrokeWidthChange: (px: number) => void;
   onStrokePaintChange: (v: BgValue) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
   strokeWidthMin?: number;
   strokeWidthMax?: number;
 };
@@ -27,6 +29,8 @@ export default function StrokeToolbarPopover({
   strokePaint,
   onStrokeWidthChange,
   onStrokePaintChange,
+  onInteractionStart,
+  onInteractionEnd,
   strokeWidthMin = 0,
   strokeWidthMax = STROKE_WIDTH_MAX,
 }: Props) {
@@ -114,6 +118,8 @@ export default function StrokeToolbarPopover({
             max={strokeWidthMax}
             value={w}
             onChange={onStrokeWidthChange}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Stroke width"
             aria-valuemin={strokeWidthMin}
             aria-valuemax={strokeWidthMax}

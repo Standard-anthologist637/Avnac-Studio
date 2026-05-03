@@ -11,19 +11,19 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-var appVersion = "v0.1.1"
+var appVersion = "v0.2.0"
 
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
-	// Create application with options
-	err := wails.Run(&options.App{
-		Title:  "Avnac",
-		Width:  1024,
-		Height: 768,
-		MinWidth: 600,
-		MinHeight: 600,
+	appOptions := &options.App{
+		Title:            "Avnac",
+		Width:            600,
+		Height:           600,
+		MinWidth:         600,
+		MinHeight:        600,
+		WindowStartState: options.Maximised,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.MediaProxyMiddleware(),
@@ -39,7 +39,10 @@ func main() {
 			app.Config,
 			app.Secrets,
 		},
-	})
+	}
+
+	// Create application with options
+	err := wails.Run(appOptions)
 
 	if err != nil {
 		println("Error:", err.Error())

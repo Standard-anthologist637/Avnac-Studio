@@ -10,6 +10,21 @@ import {
   AlertDiamondIcon,
   AiMagicIcon,
 } from "@hugeicons/core-free-icons";
+import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
+import {
+  getSceneDeveloperMode,
+  getSceneRotationSensitivity,
+  getSceneSnapIntensity,
+  loadSceneDeveloperModeFromConfig,
+  loadSceneRotationSensitivityFromConfig,
+  loadSceneSnapIntensityFromConfig,
+  onSceneDeveloperModeChange,
+  onSceneRotationSensitivityChange,
+  onSceneSnapIntensityChange,
+  setSceneDeveloperMode,
+  setSceneRotationSensitivity,
+  setSceneSnapIntensity,
+} from "@/lib/scene-editor-preferences";
 import { useUpdateCheck } from "../lib/use-update-check";
 
 import type { HugeiconsProps } from "@hugeicons/react";
@@ -22,7 +37,9 @@ type SecretsBridge = {
 
 function getSecretsBridge(): SecretsBridge | null {
   if (typeof window === "undefined") return null;
-  const go = (window as Window & { go?: Record<string, Record<string, unknown>> }).go;
+  const go = (
+    window as Window & { go?: Record<string, Record<string, unknown>> }
+  ).go;
   const mgr = go?.["avnacsecrets"]?.["SecretsManager"] as
     | SecretsBridge
     | undefined;
@@ -182,9 +199,26 @@ export const Route = createFileRoute("/settings")({
     const [tamboSaving, setTamboSaving] = useState(false);
     const [tamboError, setTamboError] = useState<string | null>(null);
     const [tamboNotice, setTamboNotice] = useState<string | null>(null);
+    const [snapIntensity, setSnapIntensityState] = useState(() =>
+      getSceneSnapIntensity(),
+    );
+    const [rotationSensitivity, setRotationSensitivityState] = useState(() =>
+      getSceneRotationSensitivity(),
+    );
+    const [snapNotice, setSnapNotice] = useState<string | null>(null);
+    const [rotationNotice, setRotationNotice] = useState<string | null>(null);
+    const [developerMode, setDeveloperModeState] = useState(() =>
+      getSceneDeveloperMode(),
+    );
+    const [developerNotice, setDeveloperNotice] = useState<string | null>(null);
 
-    const { currentVersion, updateAvailable, isChecking, lastChecked, checkNow } =
-      useUpdateCheck();
+    const {
+      currentVersion,
+      updateAvailable,
+      isChecking,
+      lastChecked,
+      checkNow,
+    } = useUpdateCheck();
 
     // Load both keys on mount
     useEffect(() => {
@@ -234,7 +268,9 @@ export const Route = createFileRoute("/settings")({
           if (!bridge) throw new Error("Secrets bridge unavailable");
           await bridge.SetKey("unsplash", next);
           setUnsplashKey(next);
-          setUnsplashNotice(next ? "Unsplash API key saved." : "Unsplash API key cleared.");
+          setUnsplashNotice(
+            next ? "Unsplash API key saved." : "Unsplash API key cleared.",
+          );
         } catch (err) {
           setUnsplashError(formatSecretsError(err, "save"));
         } finally {
@@ -254,7 +290,9 @@ export const Route = createFileRoute("/settings")({
           if (!bridge) throw new Error("Secrets bridge unavailable");
           await bridge.SetKey("tambo", next);
           setTamboKey(next);
-          setTamboNotice(next ? "Tambo API key saved." : "Tambo API key cleared.");
+          setTamboNotice(
+            next ? "Tambo API key saved." : "Tambo API key cleared.",
+          );
         } catch (err) {
           setTamboError(formatSecretsError(err, "save"));
         } finally {
@@ -262,6 +300,37 @@ export const Route = createFileRoute("/settings")({
         }
       })();
     }, [tamboKey]);
+
+    useEffect(() => {
+      return onSceneSnapIntensityChange((value) => {
+        setSnapIntensityState(value);
+      });
+    }, []);
+
+    useEffect(() => {
+      return onSceneRotationSensitivityChange((value) => {
+        setRotationSensitivityState(value);
+      });
+    }, []);
+
+    // Load persisted values from native config on mount.
+    useEffect(() => {
+      void loadSceneSnapIntensityFromConfig().then((v) =>
+        setSnapIntensityState(v),
+      );
+      void loadSceneRotationSensitivityFromConfig().then((v) =>
+        setRotationSensitivityState(v),
+      );
+      void loadSceneDeveloperModeFromConfig().then((v) =>
+        setDeveloperModeState(v),
+      );
+    }, []);
+
+    useEffect(() => {
+      return onSceneDeveloperModeChange((value) => {
+        setDeveloperModeState(value);
+      });
+    }, []);
 
     return (
       <main className="hero-page relative flex min-h-[100dvh] flex-col overflow-hidden">
@@ -357,6 +426,147 @@ export const Route = createFileRoute("/settings")({
                   notice={unsplashNotice}
                 />
 
+                {/* Scene snap intensity */}
+                <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                  <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+                    <div className="min-w-0">
+                      <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-white/80 px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                        Scene
+                      </div>
+                      <h2 className="m-0 text-base font-semibold text-[var(--text)] sm:text-lg">
+                        Snap Intensity
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                        Controls global stickiness for snapping and hit
+                        heuristics.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-black/[0.08] bg-white/85 px-4 py-3">
+                      <div className="mb-2 flex items-center justify-between text-sm text-[var(--text-muted)]">
+                        <span>0.00</span>
+                        <span className="font-medium text-[var(--text)]">
+                          {snapIntensity.toFixed(2)}
+                        </span>
+                        <span>1.00</span>
+                      </div>
+                      <EditorRangeSlider
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        value={snapIntensity}
+                        onChange={(value) => {
+                          const next = Math.max(0, Math.min(1, value));
+                          setSnapIntensityState(next);
+                          setSceneSnapIntensity(next);
+                          setSnapNotice("Snap intensity updated.");
+                        }}
+                        aria-label="Snap intensity"
+                        trackClassName="w-full"
+                      />
+                    </div>
+                    {snapNotice ? (
+                      <p className="text-sm text-emerald-700">{snapNotice}</p>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Scene rotation sensitivity */}
+                <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                  <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+                    <div className="min-w-0">
+                      <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-white/80 px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                        Scene
+                      </div>
+                      <h2 className="m-0 text-base font-semibold text-[var(--text)] sm:text-lg">
+                        Rotation Speed
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                        Controls how fast drag-to-rotate responds in the canvas.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-black/[0.08] bg-white/85 px-4 py-3">
+                      <div className="mb-2 flex items-center justify-between text-sm text-[var(--text-muted)]">
+                        <span>0.10</span>
+                        <span className="font-medium text-[var(--text)]">
+                          {rotationSensitivity.toFixed(2)}
+                        </span>
+                        <span>1.50</span>
+                      </div>
+                      <EditorRangeSlider
+                        min={0.1}
+                        max={1.5}
+                        step={0.01}
+                        value={rotationSensitivity}
+                        onChange={(value) => {
+                          const next = Math.max(0.1, Math.min(1.5, value));
+                          setRotationSensitivityState(next);
+                          setSceneRotationSensitivity(next);
+                          setRotationNotice("Rotation speed updated.");
+                        }}
+                        aria-label="Rotation speed"
+                        trackClassName="w-full"
+                      />
+                    </div>
+                    {rotationNotice ? (
+                      <p className="text-sm text-emerald-700">
+                        {rotationNotice}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Developer mode */}
+                <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                  <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+                    <div className="min-w-0">
+                      <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-white/80 px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                        Advanced
+                      </div>
+                      <h2 className="m-0 text-base font-semibold text-[var(--text)] sm:text-lg">
+                        Developer Mode
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                        Hide the scene footer and technical diagnostics in the
+                        editor.
+                      </p>
+                    </div>
+
+                    <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-black/[0.08] bg-white/85 px-4 py-3">
+                      <div className="pr-4">
+                        <p className="text-sm font-medium text-[var(--text)]">
+                          Enable developer mode
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          When enabled, footer details are hidden on the scene
+                          page.
+                        </p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={developerMode}
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setDeveloperModeState(next);
+                          setSceneDeveloperMode(next);
+                          setDeveloperNotice(
+                            next
+                              ? "Developer mode enabled."
+                              : "Developer mode disabled.",
+                          );
+                        }}
+                        className="size-4 shrink-0 rounded border border-black/20"
+                        style={{ accentColor: "var(--accent)" }}
+                      />
+                    </label>
+
+                    {developerNotice ? (
+                      <p className="text-sm text-emerald-700">
+                        {developerNotice}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
                 {/* Updates section */}
                 <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">
                   <div className="flex flex-col gap-4 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -415,7 +625,11 @@ export const Route = createFileRoute("/settings")({
                           </p>
                           <button
                             type="button"
-                            onClick={() => BrowserOpenURL("https://avnac.design/studio#platform-downloads")}
+                            onClick={() =>
+                              BrowserOpenURL(
+                                "https://avnac.design/studio#platform-downloads",
+                              )
+                            }
                             className="mt-3 inline-flex h-9 cursor-pointer items-center justify-center rounded-full border-0 bg-[var(--text)] px-5 text-xs font-medium text-white transition hover:bg-[#262626]"
                           >
                             Download {updateAvailable.latestVersion}

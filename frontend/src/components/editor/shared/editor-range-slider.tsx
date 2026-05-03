@@ -1,3 +1,5 @@
+import { useCallback, useRef } from "react"
+
 export const editorRangeInputClassName = [
   'relative z-10 h-8 w-full cursor-pointer appearance-none bg-transparent',
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/45 focus-visible:ring-offset-1',
@@ -19,6 +21,8 @@ type EditorRangeSliderProps = {
   step?: number
   value: number
   onChange: (value: number) => void
+  onInteractionStart?: () => void
+  onInteractionEnd?: () => void
   disabled?: boolean
   id?: string
   'aria-label'?: string
@@ -35,6 +39,8 @@ export default function EditorRangeSlider({
   step = 1,
   value,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
   disabled,
   id,
   'aria-label': ariaLabel,
@@ -43,6 +49,20 @@ export default function EditorRangeSlider({
   'aria-valuenow': ariaValuenow,
   trackClassName = 'w-full min-w-[6rem]',
 }: EditorRangeSliderProps) {
+  const editingRef = useRef(false)
+
+  const beginInteraction = useCallback(() => {
+    if (editingRef.current) return
+    editingRef.current = true
+    onInteractionStart?.()
+  }, [onInteractionStart])
+
+  const endInteraction = useCallback(() => {
+    if (!editingRef.current) return
+    editingRef.current = false
+    onInteractionEnd?.()
+  }, [onInteractionEnd])
+
   return (
     <div
       className={['relative flex h-8 shrink-0 items-center', trackClassName]
@@ -74,6 +94,12 @@ export default function EditorRangeSlider({
         aria-valuemax={ariaValuemax}
         aria-valuenow={ariaValuenow}
         onChange={(e) => onChange(Number(e.target.value))}
+        onPointerDown={beginInteraction}
+        onPointerUp={endInteraction}
+        onPointerCancel={endInteraction}
+        onKeyDown={beginInteraction}
+        onKeyUp={endInteraction}
+        onBlur={endInteraction}
         className={editorRangeInputClassName}
       />
     </div>

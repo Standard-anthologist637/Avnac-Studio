@@ -210,11 +210,26 @@ export default function EditorImagesPanel({
                   "Unsplash photo";
                 const busy = addingId === photo.id;
                 const profileUrl = unsplashReferralLink(photo.user.links.html);
+                const dragUrl = photo.urls.regular;
                 return (
                   <li key={photo.id}>
                     <button
                       type="button"
                       disabled={busy}
+                      draggable={!busy}
+                      onDragStart={(e) => {
+                        if (busy) {
+                          e.preventDefault();
+                          return;
+                        }
+                        e.dataTransfer.setData("text/uri-list", dragUrl);
+                        e.dataTransfer.setData("text/plain", dragUrl);
+                        e.dataTransfer.setData(
+                          "DownloadURL",
+                          `image/jpeg:${photo.id}.jpg:${dragUrl}`,
+                        );
+                        e.dataTransfer.effectAllowed = "copy";
+                      }}
                       onClick={() => void addPhoto(photo)}
                       className="group flex w-full flex-col overflow-hidden rounded-xl border border-black/[0.06] bg-white text-left transition-colors hover:border-black/[0.12] disabled:opacity-60"
                     >

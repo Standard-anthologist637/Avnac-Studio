@@ -1,8 +1,8 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BackgroundIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FabricShadowUi } from "@/lib/avnac-fabric-shadow";
-import { DEFAULT_FABRIC_SHADOW_UI } from "@/lib/avnac-fabric-shadow";
+import type { ShadowUi } from "@/lib/shadow-ui";
+import { DEFAULT_SHADOW_UI } from "@/lib/shadow-ui";
 import { useViewportAwarePopoverPlacement } from "@/hooks/use-viewport-aware-popover";
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import {
@@ -15,15 +15,19 @@ const BLUR_MAX = 50;
 const OFFSET_MAX = 40;
 
 type Props = {
-  value: FabricShadowUi;
+  value: ShadowUi;
   shadowActive: boolean;
-  onChange: (next: FabricShadowUi) => void;
+  onChange: (next: ShadowUi) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 };
 
 export default function ShadowToolbarPopover({
   value,
   shadowActive,
   onChange,
+  onInteractionStart,
+  onInteractionEnd,
 }: Props) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -101,13 +105,17 @@ export default function ShadowToolbarPopover({
                 <button
                   type="button"
                   onClick={() =>
-                    onChange({ ...DEFAULT_FABRIC_SHADOW_UI, opacityPct: 0 })
+                    onChange({ ...DEFAULT_SHADOW_UI, opacityPct: 0 })
                   }
                   aria-label="Reset shadow"
                   title="Reset shadow"
                   className="flex size-5 items-center justify-center rounded-md text-neutral-400 transition-colors hover:bg-black/[0.06] hover:text-neutral-700"
                 >
-                  <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2} />
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    size={11}
+                    strokeWidth={2}
+                  />
                 </button>
               ) : null}
             </div>
@@ -141,6 +149,8 @@ export default function ShadowToolbarPopover({
             max={BLUR_MAX}
             value={blur}
             onChange={(n) => onChange({ ...value, blur: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow blur"
             trackClassName="mb-3 w-full"
           />
@@ -157,6 +167,8 @@ export default function ShadowToolbarPopover({
             max={100}
             value={op}
             onChange={(n) => onChange({ ...value, opacityPct: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow opacity"
             trackClassName="mb-3 w-full"
           />
@@ -173,6 +185,8 @@ export default function ShadowToolbarPopover({
             max={OFFSET_MAX}
             value={ox}
             onChange={(n) => onChange({ ...value, offsetX: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow offset X"
             trackClassName="mb-3 w-full"
           />
@@ -189,6 +203,8 @@ export default function ShadowToolbarPopover({
             max={OFFSET_MAX}
             value={oy}
             onChange={(n) => onChange({ ...value, offsetY: n })}
+            onInteractionStart={onInteractionStart}
+            onInteractionEnd={onInteractionEnd}
             aria-label="Shadow offset Y"
             trackClassName="w-full"
           />

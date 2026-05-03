@@ -18,6 +18,10 @@ const config = defineConfig(() => {
     resolve: {
       tsconfigPaths: true,
       alias: [
+        {
+          find: "@",
+          replacement: fileURLToPath(new URL("./src", import.meta.url)),
+        },
         // Rolldown/Vite 8 can't parse `.cjs` files that contain dynamic
         // `await import(...)`. Force this dep to its ESM entry so the
         // `require` condition from @tambo-ai/client never pulls the CJS

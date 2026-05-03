@@ -116,6 +116,7 @@ function FilesActionCard({
 function FilesPage() {
   const [items, setItems] = useState<AvnacEditorIdbListItem[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [newCanvasOpen, setNewCanvasOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteDialog, setDeleteDialog] = useState<{
@@ -255,10 +256,24 @@ function FilesPage() {
 
       void (async () => {
         try {
+          setImportError(null);
           const text = await file.text();
-          const parsed = JSON.parse(text) as unknown;
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(text) as unknown;
+          } catch {
+            setImportError(
+              "File is not valid JSON. Make sure you exported from Avnac.",
+            );
+            return;
+          }
           const imported = parseAvnacImport(parsed);
-          if (!imported) return;
+          if (!imported) {
+            setImportError(
+              "File format not recognised. Export a file from Avnac Studio or avnac.design, then import it here.",
+            );
+            return;
+          }
 
           const id = crypto.randomUUID();
           const baseName =
@@ -283,6 +298,9 @@ function FilesPage() {
           refreshList();
         } catch (err) {
           console.error("[avnac] workspace import failed", err);
+          setImportError(
+            "Something went wrong while importing. Check the console for details.",
+          );
         }
       })();
     },
@@ -352,6 +370,12 @@ function FilesPage() {
             {loadError ? (
               <p className="text-base leading-relaxed text-red-600">
                 {loadError}
+              </p>
+            ) : null}
+
+            {importError ? (
+              <p className="text-base leading-relaxed text-red-600">
+                {importError}
               </p>
             ) : null}
 

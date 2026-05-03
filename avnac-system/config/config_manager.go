@@ -73,9 +73,35 @@ func (m *ConfigManager) apply(cfg *AppConfig) {
 
 func normalizeConfig(cfg *AppConfig) *AppConfig {
 	if cfg == nil {
-		return &AppConfig{}
+		return &AppConfig{SnapIntensity: 1, RotationSensitivity: 0.75}
 	}
 	// UnsplashAccessKey is intentionally omitted — secrets are stored in the
 	// OS keyring via SecretsManager, not in this config file.
-	return &AppConfig{}
+	snap := cfg.SnapIntensity
+	if snap < 0 {
+		snap = 0
+	}
+	if snap > 1 {
+		snap = 1
+	}
+	// Clamp rotation sensitivity to valid range; default to 0.75 when unset.
+	rotSensitivity := cfg.RotationSensitivity
+	if rotSensitivity < 0.1 || !isFiniteFloat(rotSensitivity) {
+		rotSensitivity = 0.75
+	}
+	if rotSensitivity > 1.5 {
+		rotSensitivity = 1.5
+	}
+	// If snap is exactly 0 and was never set (zero-value), default to 1.
+	// We distinguish "explicitly 0" from "never saved" only when the field
+	// is already present on the struct — keep it as-is if it has been set.
+	return &AppConfig{
+		SnapIntensity:       snap,
+		DeveloperMode:       cfg.DeveloperMode,
+		RotationSensitivity: rotSensitivity,
+	}
+}
+
+func isFiniteFloat(f float64) bool {
+	return f == f && f+1 != f // NaN check and infinity check
 }

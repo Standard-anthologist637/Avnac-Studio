@@ -13,6 +13,13 @@ type AppConfig struct {
 	// UnsplashAccessKey is the Unsplash API "Access Key" for the client-side
 	// API. When empty, Unsplash endpoints return 503.
 	UnsplashAccessKey string `json:"unsplash_access_key,omitempty"`
+	// SnapIntensity controls global snapping strength (0.0–1.0). Defaults to 1.
+	SnapIntensity float64 `json:"snap_intensity"`
+	// DeveloperMode hides scene footer diagnostics when enabled.
+	DeveloperMode bool `json:"developer_mode"`
+	// RotationSensitivity controls how fast the rotation handle responds to
+	// pointer movement (0.1–1.5). Defaults to 0.75.
+	RotationSensitivity float64 `json:"rotation_sensitivity"`
 }
 
 // Load reads the config file from <appDir>/config/config.json. If the file

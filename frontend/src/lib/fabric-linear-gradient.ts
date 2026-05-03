@@ -5,7 +5,14 @@ import type { GradientStop } from "@/lib/editor-paint";
  * `angleDeg` matches CSS `linear-gradient`: 0° = up, 90° = right (canvas Y grows downward).
  */
 export function linearGradientForBox(
-  mod: typeof import("fabric"),
+  mod: {
+    Gradient: new (options: {
+      type: "linear";
+      gradientUnits: "pixels";
+      coords: { x1: number; y1: number; x2: number; y2: number };
+      colorStops: Array<{ offset: number; color: string }>;
+    }) => unknown;
+  },
   stops: GradientStop[],
   angleDeg: number,
   w: number,
