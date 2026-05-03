@@ -24,7 +24,7 @@ func main() {
 		Height:     600,
 		MinWidth:   600,
 		MinHeight:  600,
-		Fullscreen: true,
+		WindowStartState: options.Maximised,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.MediaProxyMiddleware(),
