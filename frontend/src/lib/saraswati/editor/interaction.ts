@@ -20,13 +20,20 @@ type RotateDragState = {
   nodeId: string;
   centerX: number;
   centerY: number;
-  startAngle: number;
-  startRotation: number;
+  lastAngle: number;
   lastRotation: number;
 };
 
-const ROTATION_SENSITIVITY = 0.45;
+let rotationSensitivity = 0.45;
 const ROTATION_SMOOTHING = 0.22;
+
+export function setSaraswatiRotationSensitivity(value: number): void {
+  if (!Number.isFinite(value)) {
+    rotationSensitivity = 0.45;
+    return;
+  }
+  rotationSensitivity = Math.max(0.1, Math.min(1.5, value));
+}
 
 export type SaraswatiPointerState = {
   activeNodeId: string | null;
@@ -112,8 +119,7 @@ export function rotateHandlePointerDown(
       nodeId,
       centerX,
       centerY,
-      startAngle: Math.atan2(y - centerY, x - centerX),
-      startRotation: normalizeDegrees(startRotation),
+      lastAngle: Math.atan2(y - centerY, x - centerX),
       lastRotation: normalizeDegrees(startRotation),
     },
   };
@@ -142,12 +148,14 @@ export function pointerMove(
   }
 
   if (state.rotate) {
-    const { nodeId, centerX, centerY, startAngle, startRotation, lastRotation } =
-      state.rotate;
+    const { nodeId, centerX, centerY, lastAngle, lastRotation } = state.rotate;
     const currentAngle = Math.atan2(y - centerY, x - centerX);
-    const deltaDeg = normalizeDegrees((currentAngle - startAngle) * (180 / Math.PI));
+    const deltaDeg = shortestAngularDelta(
+      (lastAngle * 180) / Math.PI,
+      (currentAngle * 180) / Math.PI,
+    );
     const rawRotation = normalizeDegrees(
-      startRotation + deltaDeg * ROTATION_SENSITIVITY,
+      lastRotation + deltaDeg * rotationSensitivity,
     );
     const smoothedRotation = normalizeDegrees(
       lastRotation +
@@ -158,6 +166,7 @@ export function pointerMove(
         ...newState,
         rotate: {
           ...state.rotate,
+          lastAngle: currentAngle,
           lastRotation: smoothedRotation,
         },
       },
@@ -218,7 +227,7 @@ export function pointerUp(
 }
 
 function normalizeDegrees(value: number): number {
-  return (((value % 360) + 360) % 360) || 0;
+  return ((value % 360) + 360) % 360 || 0;
 }
 
 function shortestAngularDelta(from: number, to: number): number {

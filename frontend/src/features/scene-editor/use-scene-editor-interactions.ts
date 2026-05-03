@@ -28,7 +28,7 @@ import {
 } from "@/lib/editor/overlays";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import type { SaraswatiClipPath } from "@/lib/saraswati/types";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSceneEditorStore } from "./store";
 
 type ClipResizeState = {
@@ -98,7 +98,7 @@ function constrainResizeBoundsToAr(
   if (hPrimary && vPrimary) {
     // Corner handle: use the dominant axis (larger delta from AR-neutral size).
     const hFromH = height * ar; // width that would match height
-    const vFromW = width / ar;  // height that would match width
+    const vFromW = width / ar; // height that would match width
     // Pick whichever gives the larger overall area (i.e. honour the bigger drag).
     if (hFromH >= vFromW) {
       newW = hFromH;
@@ -190,6 +190,43 @@ export function useSceneEditorInteractions() {
   );
   const [activeCursor, setActiveCursor] = useState<string | null>(null);
 
+  const cancelActiveInteraction = useCallback(() => {
+    let shouldEndHistoryBatch = false;
+
+    if (marqueeRef.current) {
+      marqueeRef.current = null;
+      setMarqueeBounds(null);
+    }
+    if (clipResizeRef.current) {
+      clipResizeRef.current = null;
+      shouldEndHistoryBatch = true;
+    }
+    if (curveAdjustRef.current) {
+      curveAdjustRef.current = null;
+      shouldEndHistoryBatch = true;
+    }
+    if (pointerStateRef.current.pointerId !== null) {
+      if (
+        pointerStateRef.current.activeNodeId &&
+        (pointerStateRef.current.resize !== null ||
+          pointerStateRef.current.rotate !== null ||
+          pointerStateRef.current.pointerId !== null)
+      ) {
+        shouldEndHistoryBatch = true;
+      }
+      pointerStateRef.current = createIdlePointerState();
+    }
+
+    if (shouldEndHistoryBatch) {
+      endHistoryBatch();
+    }
+
+    setGuides([]);
+    setMeasurement(null);
+    setActiveCursor(null);
+    setHoveredId(null);
+  }, [endHistoryBatch]);
+
   const onPointerDown = useCallback(
     (
       pointerId: number,
@@ -272,7 +309,12 @@ export function useSceneEditorInteractions() {
   );
 
   const onPointerMove = useCallback(
-    (pointerId: number, x: number, y: number, options?: { shiftKey?: boolean }) => {
+    (
+      pointerId: number,
+      x: number,
+      y: number,
+      options?: { shiftKey?: boolean },
+    ) => {
       const store = useSceneEditorStore.getState();
       const scene = store.scene;
       if (!scene) return;
@@ -756,6 +798,45 @@ export function useSceneEditorInteractions() {
     },
     [beginHistoryBatch],
   );
+
+  useEffect(() => {
+    const onWindowPointerUp = (event: PointerEvent) => {
+      const pointerId = event.pointerId;
+      if (
+        (pointerStateRef.current.pointerId != null &&
+          pointerStateRef.current.pointerId === pointerId) ||
+        (clipResizeRef.current &&
+          clipResizeRef.current.pointerId === pointerId) ||
+        (curveAdjustRef.current &&
+          curveAdjustRef.current.pointerId === pointerId) ||
+        (marqueeRef.current && marqueeRef.current.pointerId === pointerId)
+      ) {
+        onPointerUp(pointerId);
+      }
+    };
+
+    const onWindowBlur = () => {
+      cancelActiveInteraction();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        cancelActiveInteraction();
+      }
+    };
+
+    window.addEventListener("pointerup", onWindowPointerUp, true);
+    window.addEventListener("pointercancel", onWindowPointerUp, true);
+    window.addEventListener("blur", onWindowBlur);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pointerup", onWindowPointerUp, true);
+      window.removeEventListener("pointercancel", onWindowPointerUp, true);
+      window.removeEventListener("blur", onWindowBlur);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [cancelActiveInteraction, onPointerUp]);
 
   return {
     hoveredId,

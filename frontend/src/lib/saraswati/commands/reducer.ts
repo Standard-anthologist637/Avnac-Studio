@@ -118,6 +118,7 @@ function rotateNode(
 ): SaraswatiScene {
   const node = scene.nodes[nodeId];
   if (!node || nodeId === scene.root) return scene;
+  if (node.type === "group") return scene;
   const next = cloneSaraswatiScene(scene);
   if (node.type === "line") {
     const centerX = (node.x1 + node.x2) / 2;
@@ -433,6 +434,11 @@ function resizeGroupNode(
   const sy = target.height / sourceBounds.height;
   if (!Number.isFinite(sx) || !Number.isFinite(sy)) return scene;
 
+  // Keep child geometry proportional at very small group sizes. A hard 1px
+  // floor per child causes overlap/collapse when a group is shrunk near its
+  // minimum size.
+  const minChildSize = 0.0001;
+
   const next = cloneSaraswatiScene(scene);
   const descendants = collectRenderableDescendants(scene, groupId, new Set());
 
@@ -454,8 +460,8 @@ function resizeGroupNode(
     const mappedBounds = {
       x: target.x + (nodeBounds.x - sourceBounds.x) * sx,
       y: target.y + (nodeBounds.y - sourceBounds.y) * sy,
-      width: Math.max(1, nodeBounds.width * sx),
-      height: Math.max(1, nodeBounds.height * sy),
+      width: Math.max(minChildSize, nodeBounds.width * sx),
+      height: Math.max(minChildSize, nodeBounds.height * sy),
     };
 
     const nx = boundsToAnchorX(
