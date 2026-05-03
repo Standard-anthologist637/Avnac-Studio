@@ -1,4 +1,4 @@
-import { ExportFile } from "../../wailsjs/go/avnacio/IOManager";
+import { ExportFile, ExportPng } from "../../wailsjs/go/avnacio/IOManager";
 import type { SaraswatiScene } from "./saraswati/scene";
 import { buildRenderCommands } from "./saraswati/render/commands";
 import { canvas2DRendererBackend } from "./renderer/backends/canvas2d/renderer";
@@ -89,15 +89,10 @@ export async function exportSceneAsPng(
     return;
   }
 
-  // Convert data URL to byte array for native export dialog.
-  const base64 = dataUrl.split(",")[1];
-  if (!base64) return;
-  const binaryStr = atob(base64);
-  const bytes = Array.from({ length: binaryStr.length }, (_, i) =>
-    binaryStr.charCodeAt(i),
-  );
+  // Pass the data URL directly to Go — Go decodes the base64 there, which
+  // avoids marshalling a large Array<number> through the Wails JSON IPC layer.
   try {
-    await ExportFile(filename, bytes);
+    await ExportPng(filename, dataUrl);
   } catch (error) {
     console.error("[avnac] native PNG export failed, falling back to browser download", error);
     downloadPngViaBrowser(filename, dataUrl);

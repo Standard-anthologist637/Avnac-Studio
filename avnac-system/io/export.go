@@ -2,9 +2,11 @@ package avnacio
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -136,6 +138,54 @@ func (m *IOManager) ExportFile(title string, data []byte) error {
 
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("write file: %w", err)
+	}
+
+	return nil
+}
+
+// ExportPng opens a native Save File dialog pre-set for PNG files. The
+// dataURL argument should be the string returned by canvas.toDataURL (i.e.
+// "data:image/png;base64,...").  The base64 payload is decoded in Go, which
+// avoids the overhead of marshalling a large Array<number> through the Wails
+// JSON IPC layer.
+func (m *IOManager) ExportPng(filename string, dataURL string) error {
+	if m.ctx == nil {
+		return fmt.Errorf("io manager not initialised")
+	}
+
+	// Strip the optional "data:image/png;base64," prefix.
+	b64 := dataURL
+	if idx := strings.Index(dataURL, ","); idx >= 0 {
+		b64 = dataURL[idx+1:]
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return fmt.Errorf("decode base64 PNG: %w", err)
+	}
+
+	path, err := runtime.SaveFileDialog(m.ctx, runtime.SaveDialogOptions{
+		Title:           "Export PNG",
+		DefaultFilename: filename,
+		Filters: []runtime.FileFilter{
+			{DisplayName: "PNG Image (*.png)", Pattern: "*.png"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("save dialog: %w", err)
+	}
+
+	// User cancelled the dialog.
+	if path == "" {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create parent directories: %w", err)
+	}
+
+	if err := os.WriteFile(path, decoded, 0o644); err != nil {
+		return fmt.Errorf("write PNG: %w", err)
 	}
 
 	return nil

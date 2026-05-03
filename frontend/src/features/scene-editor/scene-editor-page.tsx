@@ -690,7 +690,7 @@ export default function SceneEditorPage({ documentId }: Props) {
                       </label>
                       <button
                         type="button"
-                        className="w-full rounded-lg bg-neutral-900 py-2 text-[12px] font-medium text-white transition-colors hover:bg-neutral-800"
+                        className="w-full rounded-lg cursor-pointer bg-neutral-900 py-2 text-[12px] font-medium text-white transition-colors hover:bg-neutral-800"
                         onClick={handleExportPng}
                       >
                         Download PNG
