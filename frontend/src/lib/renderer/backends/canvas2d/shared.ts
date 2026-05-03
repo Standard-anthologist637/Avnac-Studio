@@ -153,6 +153,8 @@ export function loadCanvas2DImage(src: string): Promise<CanvasImageSource> {
   if (existing) return existing;
   const pending = new Promise<CanvasImageSource>((resolve, reject) => {
     const image = new Image();
+    // Required for canvas export with remote assets (e.g. Unsplash).
+    image.crossOrigin = "anonymous";
     image.decoding = "async";
     image.onload = () => {
       if (typeof createImageBitmap === "function") {

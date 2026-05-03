@@ -79,7 +79,16 @@ export async function exportSceneAsPng(
   await canvas2DRendererBackend.render(ctx, buildRenderCommands(scene));
   ctx.restore();
 
-  const dataUrl = canvas.toDataURL("image/png");
+  let dataUrl: string;
+  try {
+    dataUrl = canvas.toDataURL("image/png");
+  } catch (error) {
+    throw new Error(
+      "PNG export failed because at least one remote image tainted the canvas. " +
+        "This usually happens when the source does not allow cross-origin export.",
+      { cause: error },
+    );
+  }
   const hasNativeBridge =
     typeof window !== "undefined" &&
     typeof (window as unknown as { go?: unknown }).go !== "undefined";

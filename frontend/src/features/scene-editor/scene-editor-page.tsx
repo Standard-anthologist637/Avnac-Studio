@@ -161,7 +161,7 @@ export default function SceneEditorPage({ documentId }: Props) {
   const commitDocumentName = useSceneEditorStore((s) => s.commitDocumentName);
   const saveStore = useSceneEditorStore((s) => s.save);
   const flushAutosaveNow = useSceneEditorStore((s) => s.flushAutosaveNow);
-  const setSnapIntensity = useSceneEditorStore((s) => s.setSnapIntensity);
+  const applySnapIntensity = useSceneEditorStore((s) => s.applySnapIntensity);
   const layerTools = useLayerPanelTools();
   const aiController = useSceneEditorAiController();
 
@@ -237,35 +237,37 @@ export default function SceneEditorPage({ documentId }: Props) {
 
   // Flush on page unload
   useEffect(() => {
-    const onBeforeUnload = () => void flushAutosaveNow();
-    const onPageHide = () => void flushAutosaveNow();
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") {
-        void flushAutosaveNow();
-      }
+    const onBeforeUnload = () => {
+      void flushAutosaveNow().catch((err) => {
+        // Wails can tear down the bridge channel before page lifecycle events
+        // finish; ignore those transient transport errors during unload.
+        if (
+          String(err).includes("can't access property \"send\"") ||
+          String(err).includes("Unknown message from front end")
+        ) {
+          return;
+        }
+        console.warn("SceneEditor: unload flush failed", err);
+      });
     };
     window.addEventListener("beforeunload", onBeforeUnload);
-    window.addEventListener("pagehide", onPageHide);
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
-      window.removeEventListener("pagehide", onPageHide);
-      document.removeEventListener("visibilitychange", onVisibility);
       void saveStore();
     };
   }, [flushAutosaveNow, saveStore]);
 
   useEffect(() => {
     // Seed from local cache immediately, then refresh from native config.
-    setSnapIntensity(getSceneSnapIntensity());
+    applySnapIntensity(getSceneSnapIntensity());
     void loadSceneSnapIntensityFromConfig().then((value) => {
-      setSnapIntensity(value);
+      applySnapIntensity(value);
     });
 
     return onSceneSnapIntensityChange((value) => {
-      setSnapIntensity(value);
+      applySnapIntensity(value);
     });
-  }, [setSnapIntensity]);
+  }, [applySnapIntensity]);
 
   useEffect(() => {
     // Trigger loading rotation sensitivity from the Go config so the

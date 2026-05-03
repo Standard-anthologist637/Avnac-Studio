@@ -220,6 +220,8 @@ type SceneEditorActions = {
   save: () => Promise<void>;
   flushAutosaveNow: () => Promise<void>;
   setSnapIntensity: (value: number) => void;
+  /** Apply snap intensity from preferences/events without re-persisting. */
+  applySnapIntensity: (value: number) => void;
   setArLocked: (locked: boolean, ratio?: number) => void;
   reset: () => void;
 };
@@ -843,6 +845,12 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     set({ snapIntensity: next });
   },
 
+  applySnapIntensity: (value: number) => {
+    const next = Math.max(0, Math.min(1, value));
+    setSaraswatiInteractionScale(next);
+    set({ snapIntensity: next });
+  },
+
   setArLocked: (locked: boolean, ratio?: number) => {
     set({
       arLocked: locked,
@@ -994,7 +1002,11 @@ export const useSceneEditorStore = create<SceneEditorStore>()((set, get) => ({
     const { scene, documentName, currentPage } = get();
     if (!scene) return;
     const filename = `${safeAvnacFileBaseName(documentName)}-page-${currentPage + 1}.png`;
-    await exportSceneAsPng(filename, scene, { multiplier, transparent });
+    try {
+      await exportSceneAsPng(filename, scene, { multiplier, transparent });
+    } catch (err) {
+      console.error("[avnac] PNG export failed", err);
+    }
   },
 
   setDocumentName: (name: string) => set({ documentName: name }),
