@@ -6,7 +6,6 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
-	"runtime"
 )
 
 //go:embed all:frontend/dist
@@ -24,6 +23,7 @@ func main() {
 		Height:           600,
 		MinWidth:         600,
 		MinHeight:        600,
+		WindowStartState: options.Maximised,
 		AssetServer: &assetserver.Options{
 			Assets:     assets,
 			Middleware: app.MediaProxyMiddleware(),
@@ -39,10 +39,6 @@ func main() {
 			app.Config,
 			app.Secrets,
 		},
-	}
-
-	if runtime.GOOS != "darwin" {
-		appOptions.WindowStartState = options.Maximised
 	}
 
 	// Create application with options
