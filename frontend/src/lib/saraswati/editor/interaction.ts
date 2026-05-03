@@ -23,6 +23,8 @@ type RotateDragState = {
   centerX: number;
   centerY: number;
   lastAngle: number;
+  /** Raw (unsnapped) accumulated rotation in degrees — used as the accumulation
+   * base so snap zones don't become sticky. */
   lastRotation: number;
 };
 
@@ -150,18 +152,20 @@ export function pointerMove(
       (lastAngle * 180) / Math.PI,
       (currentAngle * 180) / Math.PI,
     );
+    // Accumulate into raw (unsnapped) rotation so snap zones don't become sticky.
     const rawRotation = normalizeDegrees(lastRotation + deltaDeg * sensitivity);
-    const nextRotation = snapRotationToCommonDegrees(rawRotation, sensitivity);
+    // Snap is applied only to the command output, not to the state accumulator.
+    const commandRotation = snapRotationToCommonDegrees(rawRotation, sensitivity);
     return {
       state: {
         ...newState,
         rotate: {
           ...state.rotate,
           lastAngle: currentAngle,
-          lastRotation: nextRotation,
+          lastRotation: rawRotation,
         },
       },
-      command: { type: "ROTATE_NODE", id: nodeId, rotation: nextRotation },
+      command: { type: "ROTATE_NODE", id: nodeId, rotation: commandRotation },
     };
   }
 
@@ -230,13 +234,14 @@ function shortestAngularDelta(from: number, to: number): number {
 
 function snapRotationToCommonDegrees(rotation: number, sensitivity: number): number {
   const normalized = normalizeDegrees(rotation);
+  // sensitivity 0.1 → very tight snap (~1°); 1.5 → wider snap (~6°)
+  // window is intentionally small so snap only activates when very close.
   const sensitivityNorm = Math.max(0, Math.min(1, (sensitivity - 0.1) / 1.4));
-  // Lower sensitivity => stronger magnetic snapping around common angles.
-  const baseWindow = 2 + (1 - sensitivityNorm) * 7;
+  const snapWindow = 1 + sensitivityNorm * 5;
 
   let bestAngle = normalized;
   let bestDelta = Number.POSITIVE_INFINITY;
-  for (let step = 0; step < 360; step += 15) {
+  for (let step = 0; step < 360; step += 30) {
     const delta = Math.abs(shortestAngularDelta(normalized, step));
     if (delta < bestDelta) {
       bestDelta = delta;
@@ -244,7 +249,7 @@ function snapRotationToCommonDegrees(rotation: number, sensitivity: number): num
     }
   }
 
-  if (bestDelta <= baseWindow) {
+  if (bestDelta <= snapWindow) {
     return normalizeDegrees(bestAngle);
   }
   return normalized;

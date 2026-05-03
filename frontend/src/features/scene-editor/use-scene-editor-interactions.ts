@@ -501,6 +501,7 @@ export function useSceneEditorInteractions(
         const indicator = detectRotationSnap(
           command.rotation,
           rotationSensitivityRef.current,
+          snapFactor,
         );
         setRotationIndicator({
           angle: normalizeDegrees(command.rotation),
@@ -746,6 +747,7 @@ export function useSceneEditorInteractions(
       const indicator = detectRotationSnap(
         startRotation,
         rotationSensitivityRef.current,
+        Math.max(0, Math.min(1, useSceneEditorStore.getState().snapIntensity ?? 1)),
       );
       setRotationIndicator({
         angle: normalizeDegrees(startRotation),
@@ -986,17 +988,21 @@ function shortestAngularDelta(from: number, to: number): number {
   return forward;
 }
 
-function detectRotationSnap(rotation: number, sensitivity: number): {
+function detectRotationSnap(rotation: number, sensitivity: number, snapIntensity = 1): {
   snapped: boolean;
   target: number | null;
 } {
+  // No snapping when snap is fully disabled.
+  if (snapIntensity <= 0) return { snapped: false, target: null };
+
   const normalized = normalizeDegrees(rotation);
+  // Window: 1° (tight) → 6° (wide), scaled by snapIntensity.
   const sensitivityNorm = Math.max(0, Math.min(1, (sensitivity - 0.1) / 1.4));
-  const baseWindow = 2 + (1 - sensitivityNorm) * 7;
+  const snapWindow = (1 + sensitivityNorm * 5) * snapIntensity;
 
   let bestAngle = 0;
   let bestDelta = Number.POSITIVE_INFINITY;
-  for (let step = 0; step < 360; step += 15) {
+  for (let step = 0; step < 360; step += 30) {
     const delta = Math.abs(shortestAngularDelta(normalized, step));
     if (delta < bestDelta) {
       bestDelta = delta;
@@ -1004,7 +1010,7 @@ function detectRotationSnap(rotation: number, sensitivity: number): {
     }
   }
 
-  if (bestDelta <= baseWindow) {
+  if (bestDelta <= snapWindow) {
     return { snapped: true, target: bestAngle };
   }
   return { snapped: false, target: null };
