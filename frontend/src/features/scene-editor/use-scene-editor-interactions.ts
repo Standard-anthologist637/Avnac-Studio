@@ -26,10 +26,26 @@ import {
   type SaraswatiGuideLine,
   type SaraswatiMeasurement,
 } from "@/lib/editor/overlays";
+import {
+  getSceneRotationSensitivity,
+  onSceneRotationSensitivityChange,
+} from "@/lib/scene-editor-preferences";
 import type { SaraswatiBounds } from "@/lib/saraswati/spatial";
 import type { SaraswatiClipPath } from "@/lib/saraswati/types";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSceneEditorStore } from "./store";
+
+type ScenePointConverter = (
+  clientX: number,
+  clientY: number,
+) => { x: number; y: number } | null;
+
+type UseSceneEditorInteractionsOptions = {
+  /** Convert screen clientX/clientY to scene coordinates. When provided a
+   *  global window pointermove listener will forward drag events even when the
+   *  pointer has left the canvas element boundary. */
+  getScenePoint?: ScenePointConverter;
+};
 
 type ClipResizeState = {
   pointerId: number;
@@ -59,6 +75,12 @@ type CurveAdjustState = {
   startX: number;
   startY: number;
   length: number;
+};
+
+type RotationIndicator = {
+  angle: number;
+  snapped: boolean;
+  snapTarget: number | null;
 };
 
 /**
@@ -98,7 +120,7 @@ function constrainResizeBoundsToAr(
   if (hPrimary && vPrimary) {
     // Corner handle: use the dominant axis (larger delta from AR-neutral size).
     const hFromH = height * ar; // width that would match height
-    const vFromW = width / ar;  // height that would match width
+    const vFromW = width / ar; // height that would match width
     // Pick whichever gives the larger overall area (i.e. honour the bigger drag).
     if (hFromH >= vFromW) {
       newW = hFromH;
@@ -166,7 +188,9 @@ function resolveSelectableId(
   return hitId;
 }
 
-export function useSceneEditorInteractions() {
+export function useSceneEditorInteractions(
+  options?: UseSceneEditorInteractionsOptions,
+) {
   const applyCommands = useSceneEditorStore((s) => s.applyCommands);
   const beginHistoryBatch = useSceneEditorStore((s) => s.beginHistoryBatch);
   const endHistoryBatch = useSceneEditorStore((s) => s.endHistoryBatch);
@@ -180,6 +204,14 @@ export function useSceneEditorInteractions() {
   const curveAdjustRef = useRef<CurveAdjustState | null>(null);
   /** Aspect ratio (W/H) captured when a handle-resize drag begins. */
   const resizeStartArRef = useRef<number>(1);
+  /** Rotation sensitivity read live from preferences so the engine stays pure. */
+  const rotationSensitivityRef = useRef<number>(getSceneRotationSensitivity());
+  /** Latest getScenePoint converter supplied by the canvas layer. */
+  const getScenePointRef = useRef<ScenePointConverter | undefined>(
+    options?.getScenePoint,
+  );
+  getScenePointRef.current = options?.getScenePoint;
+
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [guides, setGuides] = useState<SaraswatiGuideLine[]>([]);
   const [measurement, setMeasurement] = useState<SaraswatiMeasurement | null>(
@@ -188,7 +220,47 @@ export function useSceneEditorInteractions() {
   const [marqueeBounds, setMarqueeBounds] = useState<SaraswatiBounds | null>(
     null,
   );
+  const [rotationIndicator, setRotationIndicator] =
+    useState<RotationIndicator | null>(null);
   const [activeCursor, setActiveCursor] = useState<string | null>(null);
+
+  const cancelActiveInteraction = useCallback(() => {
+    let shouldEndHistoryBatch = false;
+
+    if (marqueeRef.current) {
+      marqueeRef.current = null;
+      setMarqueeBounds(null);
+    }
+    if (clipResizeRef.current) {
+      clipResizeRef.current = null;
+      shouldEndHistoryBatch = true;
+    }
+    if (curveAdjustRef.current) {
+      curveAdjustRef.current = null;
+      shouldEndHistoryBatch = true;
+    }
+    if (pointerStateRef.current.pointerId !== null) {
+      if (
+        pointerStateRef.current.activeNodeId &&
+        (pointerStateRef.current.resize !== null ||
+          pointerStateRef.current.rotate !== null ||
+          pointerStateRef.current.pointerId !== null)
+      ) {
+        shouldEndHistoryBatch = true;
+      }
+      pointerStateRef.current = createIdlePointerState();
+    }
+
+    if (shouldEndHistoryBatch) {
+      endHistoryBatch();
+    }
+
+    setGuides([]);
+    setMeasurement(null);
+    setRotationIndicator(null);
+    setActiveCursor(null);
+    setHoveredId(null);
+  }, [endHistoryBatch]);
 
   const onPointerDown = useCallback(
     (
@@ -200,7 +272,8 @@ export function useSceneEditorInteractions() {
       const { scene, selectedIds } = useSceneEditorStore.getState();
       if (!scene) return;
       const additive = Boolean(options?.additive);
-      const rawHitId = findTopHitNodeId(scene, { x, y });
+      const hitScale = useSceneEditorStore.getState().snapIntensity ?? 1;
+      const rawHitId = findTopHitNodeId(scene, { x, y }, { hitScale });
       // Resolve up to the nearest group that is a direct child of the root so
       // that clicking inside a group selects the group as a whole.
       const hitId = rawHitId ? resolveSelectableId(scene, rawHitId) : null;
@@ -272,7 +345,12 @@ export function useSceneEditorInteractions() {
   );
 
   const onPointerMove = useCallback(
-    (pointerId: number, x: number, y: number, options?: { shiftKey?: boolean }) => {
+    (
+      pointerId: number,
+      x: number,
+      y: number,
+      options?: { shiftKey?: boolean },
+    ) => {
       const store = useSceneEditorStore.getState();
       const scene = store.scene;
       if (!scene) return;
@@ -387,7 +465,8 @@ export function useSceneEditorInteractions() {
       }
 
       if (pointerStateRef.current.pointerId === null) {
-        const rawHover = findTopHitNodeId(scene, { x, y });
+        const hitScale = store.snapIntensity ?? 1;
+        const rawHover = findTopHitNodeId(scene, { x, y }, { hitScale });
         setHoveredId(rawHover ? resolveSelectableId(scene, rawHover) : null);
         setGuides([]);
         setMeasurement(null);
@@ -406,7 +485,9 @@ export function useSceneEditorInteractions() {
         return;
       }
 
-      const result = pointerMove(pointerStateRef.current, pointerId, x, y);
+      const result = pointerMove(pointerStateRef.current, pointerId, x, y, {
+        rotationSensitivity: rotationSensitivityRef.current,
+      });
       pointerStateRef.current = result.state;
       if (!result.command) return;
 
@@ -415,6 +496,20 @@ export function useSceneEditorInteractions() {
       let nextMeasurement: SaraswatiMeasurement | null = null;
       const snapFactor = Math.max(0, Math.min(1, store.snapIntensity ?? 1));
       const snapThreshold = 6 * snapFactor;
+
+      if (command.type === "ROTATE_NODE") {
+        const indicator = detectRotationSnap(
+          command.rotation,
+          rotationSensitivityRef.current,
+        );
+        setRotationIndicator({
+          angle: normalizeDegrees(command.rotation),
+          snapped: indicator.snapped,
+          snapTarget: indicator.target,
+        });
+      } else {
+        setRotationIndicator(null);
+      }
 
       if (command.type === "MOVE_NODE") {
         // getRenderableNodeBounds handles both renderable leaf nodes and group
@@ -438,7 +533,7 @@ export function useSceneEditorInteractions() {
             dy: snapped.bounds.y - startBounds.y,
           };
           nextGuides = snapped.guides;
-          nextMeasurement = measurementFromBounds(snapped.bounds);
+          nextMeasurement = measurementFromBounds(snapped.bounds, "move");
         }
       } else if (command.type === "RESIZE_NODE") {
         const resizeState = pointerStateRef.current.resize;
@@ -567,6 +662,7 @@ export function useSceneEditorInteractions() {
       }
       setGuides([]);
       setMeasurement(null);
+      setRotationIndicator(null);
       setActiveCursor(null);
     },
     [endHistoryBatch],
@@ -606,6 +702,7 @@ export function useSceneEditorInteractions() {
       setActiveCursor(cursorByHandle[handle]);
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
+      setRotationIndicator(null);
     },
     [beginHistoryBatch],
   );
@@ -623,7 +720,7 @@ export function useSceneEditorInteractions() {
       const startRotation =
         node && node.type === "line"
           ? (Math.atan2(node.y2 - node.y1, node.x2 - node.x1) * 180) / Math.PI
-          : node && "rotation" in node
+          : node && "rotation" in node && Number.isFinite(node.rotation)
             ? (node.rotation as number)
             : 0;
       const adjustedBounds =
@@ -646,6 +743,15 @@ export function useSceneEditorInteractions() {
       setActiveCursor("grabbing");
       setHoveredId(null);
       setMeasurement(null);
+      const indicator = detectRotationSnap(
+        startRotation,
+        rotationSensitivityRef.current,
+      );
+      setRotationIndicator({
+        angle: normalizeDegrees(startRotation),
+        snapped: indicator.snapped,
+        snapTarget: indicator.target,
+      });
     },
     [beginHistoryBatch],
   );
@@ -679,6 +785,7 @@ export function useSceneEditorInteractions() {
       setActiveCursor("crosshair");
       setHoveredId(null);
       setMeasurement(measurementFromBounds(startBounds));
+      setRotationIndicator(null);
     },
     [beginHistoryBatch],
   );
@@ -722,6 +829,7 @@ export function useSceneEditorInteractions() {
     setHoveredId(null);
     setGuides([]);
     setMeasurement(null);
+    setRotationIndicator(null);
     setActiveCursor(null);
   }, []);
 
@@ -753,14 +861,106 @@ export function useSceneEditorInteractions() {
       setHoveredId(null);
       setGuides([]);
       setMeasurement(null);
+      setRotationIndicator(null);
     },
     [beginHistoryBatch],
   );
+
+  useEffect(() => {
+    const onWindowPointerUp = (event: PointerEvent) => {
+      const pointerId = event.pointerId;
+      if (
+        (pointerStateRef.current.pointerId != null &&
+          pointerStateRef.current.pointerId === pointerId) ||
+        (clipResizeRef.current &&
+          clipResizeRef.current.pointerId === pointerId) ||
+        (curveAdjustRef.current &&
+          curveAdjustRef.current.pointerId === pointerId) ||
+        (marqueeRef.current && marqueeRef.current.pointerId === pointerId)
+      ) {
+        onPointerUp(pointerId);
+      }
+    };
+
+    const onWindowBlur = () => {
+      cancelActiveInteraction();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        cancelActiveInteraction();
+      }
+    };
+
+    // Continue resize/rotate drags when the pointer moves outside the canvas
+    // element. The canvas has pointer capture, but on some platforms (e.g.
+    // Wails WebView on macOS) pointermove stops firing on the canvas once the
+    // cursor exits the app window. A window-level capture listener guarantees
+    // the drag keeps running.
+    const onWindowPointerMove = (event: PointerEvent) => {
+      const ps = pointerStateRef.current;
+      if (ps.pointerId === null || ps.pointerId !== event.pointerId) return;
+      if (!ps.resize && !ps.rotate) return;
+      const converter = getScenePointRef.current;
+      if (!converter) return;
+      const point = converter(event.clientX, event.clientY);
+      if (!point) return;
+      onPointerMove(event.pointerId, point.x, point.y, {
+        shiftKey: event.shiftKey,
+      });
+    };
+
+    window.addEventListener("pointerup", onWindowPointerUp, true);
+    window.addEventListener("pointercancel", onWindowPointerUp, true);
+    window.addEventListener("blur", onWindowBlur);
+    window.addEventListener("pointermove", onWindowPointerMove, true);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.removeEventListener("pointerup", onWindowPointerUp, true);
+      window.removeEventListener("pointercancel", onWindowPointerUp, true);
+      window.removeEventListener("blur", onWindowBlur);
+      window.removeEventListener("pointermove", onWindowPointerMove, true);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [cancelActiveInteraction, onPointerMove, onPointerUp]);
+
+  // Keep the rotation sensitivity ref in sync with the preferences system.
+  // This runs once on mount and subscribes to future changes from Settings.
+  useEffect(() => {
+    return onSceneRotationSensitivityChange((value) => {
+      rotationSensitivityRef.current = value;
+    });
+  }, []);
+
+  // While a drag is active (resize / rotate / clip / marquee), apply a global
+  // cursor override and disable text-selection on the document. This stops the
+  // browser from snapping the cursor back to "default" when the pointer moves
+  // outside the canvas element and prevents the WebKit grey-overlay / content-
+  // selection visual artifact that appears during rotation drags on macOS.
+  useEffect(() => {
+    const el = document.documentElement;
+    if (!activeCursor) {
+      el.style.removeProperty("cursor");
+      el.style.removeProperty("user-select");
+      el.style.removeProperty("-webkit-user-select");
+      return;
+    }
+    el.style.cursor = activeCursor;
+    el.style.userSelect = "none";
+    (el.style as CSSStyleDeclaration & { webkitUserSelect: string }).webkitUserSelect = "none";
+    return () => {
+      el.style.removeProperty("cursor");
+      el.style.removeProperty("user-select");
+      el.style.removeProperty("-webkit-user-select");
+    };
+  }, [activeCursor]);
 
   return {
     hoveredId,
     guides,
     measurement,
+    rotationIndicator,
     marqueeBounds,
     activeCursor,
     onPointerDown,
@@ -773,6 +973,41 @@ export function useSceneEditorInteractions() {
     onCurveHandlePointerDown,
     onPointerLeave,
   };
+}
+
+function normalizeDegrees(value: number): number {
+  return ((value % 360) + 360) % 360 || 0;
+}
+
+function shortestAngularDelta(from: number, to: number): number {
+  const forward = normalizeDegrees(to) - normalizeDegrees(from);
+  if (forward > 180) return forward - 360;
+  if (forward < -180) return forward + 360;
+  return forward;
+}
+
+function detectRotationSnap(rotation: number, sensitivity: number): {
+  snapped: boolean;
+  target: number | null;
+} {
+  const normalized = normalizeDegrees(rotation);
+  const sensitivityNorm = Math.max(0, Math.min(1, (sensitivity - 0.1) / 1.4));
+  const baseWindow = 2 + (1 - sensitivityNorm) * 7;
+
+  let bestAngle = 0;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (let step = 0; step < 360; step += 15) {
+    const delta = Math.abs(shortestAngularDelta(normalized, step));
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestAngle = step;
+    }
+  }
+
+  if (bestDelta <= baseWindow) {
+    return { snapped: true, target: bestAngle };
+  }
+  return { snapped: false, target: null };
 }
 
 function normalizeBounds(

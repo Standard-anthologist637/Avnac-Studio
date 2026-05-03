@@ -104,22 +104,6 @@ const HANDLES: {
   { id: "w", cx: 0, cy: 0.5, cursor: "ew-resize" },
 ];
 
-function nodeHalfDiagonal(
-  node: SaraswatiScene["nodes"][string] | undefined,
-): number | null {
-  if (!node || !isSaraswatiRenderableNode(node) || node.type === "line") {
-    return null;
-  }
-  const width = Math.max(1, node.width);
-  const height =
-    node.type === "text"
-      ? Math.max(1, node.fontSize * Math.max(1, node.lineHeight))
-      : Math.max(1, node.height);
-  const scaledWidth = Math.abs(width * node.scaleX);
-  const scaledHeight = Math.abs(height * node.scaleY);
-  return Math.hypot(scaledWidth, scaledHeight) / 2;
-}
-
 export default function SceneWorkspaceStage({
   scene,
   backend = canvas2DRendererBackend,
@@ -156,8 +140,8 @@ export default function SceneWorkspaceStage({
   const handleSize = Math.max(8, Math.min(48, 10 / Math.max(0.2, viewScale)));
   const borderWidth = Math.max(1, Math.min(6, 2 / Math.max(0.25, viewScale)));
   const rotateHandleOffset = Math.max(
-    24,
-    Math.min(72, 28 / Math.max(0.25, viewScale)),
+    16,
+    Math.min(40, 20 / Math.max(0.25, viewScale)),
   );
   const overlayUiScale = Math.max(
     1,
@@ -247,15 +231,11 @@ export default function SceneWorkspaceStage({
       }
     >();
 
-    for (const { id, bounds, controlBounds, isLine } of selectedBounds) {
+    for (const { id, bounds, controlBounds } of selectedBounds) {
+      const node = scene.nodes[id];
+      if (!node) continue;
       const centerX = bounds.x + bounds.width / 2;
-      const centerY = bounds.y + bounds.height / 2;
-      const halfDiagonal = nodeHalfDiagonal(scene.nodes[id]);
-      const stableRadius =
-        halfDiagonal ?? Math.max(bounds.width, bounds.height) / 2;
-      const handleY = isLine
-        ? controlBounds.y - rotateHandleOffset
-        : centerY - stableRadius - rotateHandleOffset;
+      const handleY = controlBounds.y - rotateHandleOffset;
       const connectorTop = Math.min(handleY, controlBounds.y);
       const connectorHeight = Math.max(1, controlBounds.y - handleY);
 
@@ -589,28 +569,6 @@ export default function SceneWorkspaceStage({
                 transformOrigin: "center",
               }}
             />
-            <div
-              className="absolute -translate-y-full rounded-md border border-black/10 bg-black/80 px-2 py-1 text-[11px] font-semibold tracking-wide text-white shadow-lg"
-              style={{
-                left: `${measurement.x}px`,
-                top: `${measurement.y - 8}px`,
-                transform: `translateY(-100%) scale(${overlayUiScale})`,
-                transformOrigin: "top left",
-              }}
-            >
-              W {measurement.width} · H {measurement.height}
-            </div>
-            <div
-              className="absolute -translate-y-full rounded-md border border-fuchsia-300/40 bg-fuchsia-600/90 px-2 py-1 text-[11px] font-semibold tracking-wide text-white shadow-lg"
-              style={{
-                left: `${measurement.x + 148}px`,
-                top: `${measurement.y - 8}px`,
-                transform: `translateY(-100%) scale(${overlayUiScale})`,
-                transformOrigin: "top left",
-              }}
-            >
-              X {measurement.x} · Y {measurement.y}
-            </div>
           </>
         ) : null}
 

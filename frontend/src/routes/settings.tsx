@@ -13,12 +13,16 @@ import {
 import EditorRangeSlider from "@/components/editor/shared/editor-range-slider";
 import {
   getSceneDeveloperMode,
+  getSceneRotationSensitivity,
   getSceneSnapIntensity,
   loadSceneDeveloperModeFromConfig,
+  loadSceneRotationSensitivityFromConfig,
   loadSceneSnapIntensityFromConfig,
   onSceneDeveloperModeChange,
+  onSceneRotationSensitivityChange,
   onSceneSnapIntensityChange,
   setSceneDeveloperMode,
+  setSceneRotationSensitivity,
   setSceneSnapIntensity,
 } from "@/lib/scene-editor-preferences";
 import { useUpdateCheck } from "../lib/use-update-check";
@@ -198,7 +202,11 @@ export const Route = createFileRoute("/settings")({
     const [snapIntensity, setSnapIntensityState] = useState(() =>
       getSceneSnapIntensity(),
     );
+    const [rotationSensitivity, setRotationSensitivityState] = useState(() =>
+      getSceneRotationSensitivity(),
+    );
     const [snapNotice, setSnapNotice] = useState<string | null>(null);
+    const [rotationNotice, setRotationNotice] = useState<string | null>(null);
     const [developerMode, setDeveloperModeState] = useState(() =>
       getSceneDeveloperMode(),
     );
@@ -299,10 +307,19 @@ export const Route = createFileRoute("/settings")({
       });
     }, []);
 
+    useEffect(() => {
+      return onSceneRotationSensitivityChange((value) => {
+        setRotationSensitivityState(value);
+      });
+    }, []);
+
     // Load persisted values from native config on mount.
     useEffect(() => {
       void loadSceneSnapIntensityFromConfig().then((v) =>
         setSnapIntensityState(v),
+      );
+      void loadSceneRotationSensitivityFromConfig().then((v) =>
+        setRotationSensitivityState(v),
       );
       void loadSceneDeveloperModeFromConfig().then((v) =>
         setDeveloperModeState(v),
@@ -449,6 +466,51 @@ export const Route = createFileRoute("/settings")({
                     </div>
                     {snapNotice ? (
                       <p className="text-sm text-emerald-700">{snapNotice}</p>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Scene rotation sensitivity */}
+                <div className="overflow-hidden rounded-[28px] border border-black/[0.08] bg-white/75 shadow-[0_20px_60px_rgba(0,0,0,0.06)] backdrop-blur-md">
+                  <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+                    <div className="min-w-0">
+                      <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-black/[0.08] bg-white/80 px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                        Scene
+                      </div>
+                      <h2 className="m-0 text-base font-semibold text-[var(--text)] sm:text-lg">
+                        Rotation Speed
+                      </h2>
+                      <p className="mt-1 text-sm leading-6 text-[var(--text-muted)]">
+                        Controls how fast drag-to-rotate responds in the canvas.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-black/[0.08] bg-white/85 px-4 py-3">
+                      <div className="mb-2 flex items-center justify-between text-sm text-[var(--text-muted)]">
+                        <span>0.10</span>
+                        <span className="font-medium text-[var(--text)]">
+                          {rotationSensitivity.toFixed(2)}
+                        </span>
+                        <span>1.50</span>
+                      </div>
+                      <EditorRangeSlider
+                        min={0.1}
+                        max={1.5}
+                        step={0.01}
+                        value={rotationSensitivity}
+                        onChange={(value) => {
+                          const next = Math.max(0.1, Math.min(1.5, value));
+                          setRotationSensitivityState(next);
+                          setSceneRotationSensitivity(next);
+                          setRotationNotice("Rotation speed updated.");
+                        }}
+                        aria-label="Rotation speed"
+                        trackClassName="w-full"
+                      />
+                    </div>
+                    {rotationNotice ? (
+                      <p className="text-sm text-emerald-700">
+                        {rotationNotice}
+                      </p>
                     ) : null}
                   </div>
                 </div>

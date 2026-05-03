@@ -40,6 +40,9 @@ import {
 } from "@/lib/avnac-vector-boards-storage";
 import {
   getSceneDeveloperMode,
+  getSceneSnapIntensity,
+  loadSceneRotationSensitivityFromConfig,
+  loadSceneSnapIntensityFromConfig,
   onSceneDeveloperModeChange,
   onSceneSnapIntensityChange,
 } from "@/lib/scene-editor-preferences";
@@ -253,10 +256,22 @@ export default function SceneEditorPage({ documentId }: Props) {
   }, [flushAutosaveNow, saveStore]);
 
   useEffect(() => {
+    // Seed from local cache immediately, then refresh from native config.
+    setSnapIntensity(getSceneSnapIntensity());
+    void loadSceneSnapIntensityFromConfig().then((value) => {
+      setSnapIntensity(value);
+    });
+
     return onSceneSnapIntensityChange((value) => {
       setSnapIntensity(value);
     });
   }, [setSnapIntensity]);
+
+  useEffect(() => {
+    // Trigger loading rotation sensitivity from the Go config so the
+    // preferences event fires and the interactions hook picks it up.
+    void loadSceneRotationSensitivityFromConfig();
+  }, []);
 
   useEffect(() => {
     return onSceneDeveloperModeChange((value) => {

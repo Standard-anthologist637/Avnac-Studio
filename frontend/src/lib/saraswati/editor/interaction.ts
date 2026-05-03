@@ -8,6 +8,8 @@ import { findTopHitNodeId } from "../spatial";
 
 export type { SaraswatiResizeHandle };
 
+const DEFAULT_ROTATION_SENSITIVITY = 0.75;
+
 type ResizeDragState = {
   handle: SaraswatiResizeHandle;
   nodeId: string;
@@ -20,13 +22,9 @@ type RotateDragState = {
   nodeId: string;
   centerX: number;
   centerY: number;
-  startAngle: number;
-  startRotation: number;
+  lastAngle: number;
   lastRotation: number;
 };
-
-const ROTATION_SENSITIVITY = 0.45;
-const ROTATION_SMOOTHING = 0.22;
 
 export type SaraswatiPointerState = {
   activeNodeId: string | null;
@@ -112,8 +110,7 @@ export function rotateHandlePointerDown(
       nodeId,
       centerX,
       centerY,
-      startAngle: Math.atan2(y - centerY, x - centerX),
-      startRotation: normalizeDegrees(startRotation),
+      lastAngle: Math.atan2(y - centerY, x - centerX),
       lastRotation: normalizeDegrees(startRotation),
     },
   };
@@ -124,6 +121,7 @@ export function pointerMove(
   pointerId: number,
   x: number,
   y: number,
+  options?: { rotationSensitivity?: number },
 ): { state: SaraswatiPointerState; command: SaraswatiCommand | null } {
   if (state.pointerId !== pointerId || !state.activeNodeId) {
     return { state, command: null };
@@ -142,26 +140,28 @@ export function pointerMove(
   }
 
   if (state.rotate) {
-    const { nodeId, centerX, centerY, startAngle, startRotation, lastRotation } =
-      state.rotate;
+    const sensitivity = Math.max(
+      0.1,
+      Math.min(1.5, options?.rotationSensitivity ?? DEFAULT_ROTATION_SENSITIVITY),
+    );
+    const { nodeId, centerX, centerY, lastAngle, lastRotation } = state.rotate;
     const currentAngle = Math.atan2(y - centerY, x - centerX);
-    const deltaDeg = normalizeDegrees((currentAngle - startAngle) * (180 / Math.PI));
-    const rawRotation = normalizeDegrees(
-      startRotation + deltaDeg * ROTATION_SENSITIVITY,
+    const deltaDeg = shortestAngularDelta(
+      (lastAngle * 180) / Math.PI,
+      (currentAngle * 180) / Math.PI,
     );
-    const smoothedRotation = normalizeDegrees(
-      lastRotation +
-        shortestAngularDelta(lastRotation, rawRotation) * ROTATION_SMOOTHING,
-    );
+    const rawRotation = normalizeDegrees(lastRotation + deltaDeg * sensitivity);
+    const nextRotation = snapRotationToCommonDegrees(rawRotation, sensitivity);
     return {
       state: {
         ...newState,
         rotate: {
           ...state.rotate,
-          lastRotation: smoothedRotation,
+          lastAngle: currentAngle,
+          lastRotation: nextRotation,
         },
       },
-      command: { type: "ROTATE_NODE", id: nodeId, rotation: smoothedRotation },
+      command: { type: "ROTATE_NODE", id: nodeId, rotation: nextRotation },
     };
   }
 
@@ -218,7 +218,7 @@ export function pointerUp(
 }
 
 function normalizeDegrees(value: number): number {
-  return (((value % 360) + 360) % 360) || 0;
+  return ((value % 360) + 360) % 360 || 0;
 }
 
 function shortestAngularDelta(from: number, to: number): number {
@@ -226,4 +226,26 @@ function shortestAngularDelta(from: number, to: number): number {
   if (forward > 180) return forward - 360;
   if (forward < -180) return forward + 360;
   return forward;
+}
+
+function snapRotationToCommonDegrees(rotation: number, sensitivity: number): number {
+  const normalized = normalizeDegrees(rotation);
+  const sensitivityNorm = Math.max(0, Math.min(1, (sensitivity - 0.1) / 1.4));
+  // Lower sensitivity => stronger magnetic snapping around common angles.
+  const baseWindow = 2 + (1 - sensitivityNorm) * 7;
+
+  let bestAngle = normalized;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (let step = 0; step < 360; step += 15) {
+    const delta = Math.abs(shortestAngularDelta(normalized, step));
+    if (delta < bestDelta) {
+      bestDelta = delta;
+      bestAngle = step;
+    }
+  }
+
+  if (bestDelta <= baseWindow) {
+    return normalizeDegrees(bestAngle);
+  }
+  return normalized;
 }

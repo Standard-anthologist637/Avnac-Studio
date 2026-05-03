@@ -210,6 +210,7 @@ function adaptRawObjects(input: {
         id: groupId,
         type: "group",
         parentId,
+        rotation: 0,
         visible: raw.visible !== false,
         opacity: clampOpacity(readNumber(raw.opacity, 1)),
         children: [],

@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import type { CanvasAlignKind } from "@/components/editor/canvas/canvas-selection-toolbar";
-import { isSaraswatiRenderableNode, type SaraswatiNode } from "@/lib/saraswati";
+import {
+  isSaraswatiRenderableNode,
+  type SaraswatiNode,
+  type SaraswatiRenderableNode,
+} from "@/lib/saraswati";
 import { getRenderableNodeBounds } from "@/lib/editor/overlays";
 import { getNodeBounds } from "@/lib/saraswati/spatial";
 import { buildGroupSelectionCommands } from "@/scene/workspace";
@@ -8,6 +12,137 @@ import { useSceneEditorStore } from "./store";
 
 const sceneClipboard: SaraswatiNode[] = [];
 const PASTE_OFFSET = 16;
+
+// ─── Group helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Recursively builds a map of old-id → new-id for every node in a subtree.
+ * Each call to this function produces fresh UUIDs.
+ */
+function buildSubtreeIdMap(
+  nodes: Record<string, SaraswatiNode>,
+  nodeId: string,
+  map: Map<string, string> = new Map(),
+): Map<string, string> {
+  const node = nodes[nodeId];
+  if (!node) return map;
+  map.set(nodeId, crypto.randomUUID());
+  if (node.type === "group") {
+    for (const childId of node.children) buildSubtreeIdMap(nodes, childId, map);
+  }
+  return map;
+}
+
+/**
+ * Build ADD_NODE commands to deep-clone an entire subtree with new IDs.
+ * Groups appear before their children so the reducer can parent them correctly.
+ */
+function buildDeepDuplicateCommands(
+  nodes: Record<string, SaraswatiNode>,
+  nodeId: string,
+  idMap: Map<string, string>,
+  dx: number,
+  dy: number,
+): { type: "ADD_NODE"; node: SaraswatiNode }[] {
+  const node = nodes[nodeId];
+  if (!node) return [];
+  const newId = idMap.get(nodeId)!;
+  // Use the mapped parent ID so children land inside the new group, not the old one.
+  const newParentId =
+    node.parentId && idMap.has(node.parentId)
+      ? idMap.get(node.parentId)!
+      : node.parentId;
+  const commands: { type: "ADD_NODE"; node: SaraswatiNode }[] = [];
+  if (node.type === "group") {
+    // Add the group shell first (empty children array — addNode fills it as children are added).
+    commands.push({
+      type: "ADD_NODE",
+      node: { ...node, id: newId, parentId: newParentId, children: [] },
+    });
+    for (const childId of node.children) {
+      commands.push(
+        ...buildDeepDuplicateCommands(nodes, childId, idMap, dx, dy),
+      );
+    }
+  } else {
+    const moved = cloneNode(node, newId, dx, dy);
+    commands.push({
+      type: "ADD_NODE",
+      node: { ...moved, parentId: newParentId },
+    });
+  }
+  return commands;
+}
+
+/** Collect all renderable leaf nodes under a group, recursively. */
+function collectGroupDescendants(
+  nodes: Record<string, SaraswatiNode>,
+  nodeId: string,
+  result: SaraswatiRenderableNode[] = [],
+): SaraswatiRenderableNode[] {
+  const node = nodes[nodeId];
+  if (!node) return result;
+  if (node.type === "group") {
+    for (const childId of node.children)
+      collectGroupDescendants(nodes, childId, result);
+  } else if (isSaraswatiRenderableNode(node)) {
+    result.push(node);
+  }
+  return result;
+}
+
+/**
+ * Flip a single renderable node around a pivot axis, mirroring its anchor
+ * position and negating its scale so the visual is also reflected.
+ */
+function flipRenderableAroundPivot(
+  node: SaraswatiRenderableNode,
+  axis: "x" | "y",
+  pivotX: number,
+  pivotY: number,
+): SaraswatiNode {
+  if (node.type === "line") {
+    if (axis === "x")
+      return { ...node, x1: 2 * pivotX - node.x1, x2: 2 * pivotX - node.x2 };
+    return { ...node, y1: 2 * pivotY - node.y1, y2: 2 * pivotY - node.y2 };
+  }
+  const scaledHalfW = Math.abs(node.width * node.scaleX) / 2;
+  const rawH =
+    node.type === "text"
+      ? node.fontSize * Math.max(1, node.lineHeight)
+      : (node as { height: number }).height;
+  const scaledHalfH = Math.abs(rawH * node.scaleY) / 2;
+  if (axis === "x") {
+    const cx =
+      node.originX === "center"
+        ? node.x
+        : node.originX === "right"
+          ? node.x - scaledHalfW
+          : node.x + scaledHalfW;
+    const newCx = 2 * pivotX - cx;
+    const newX =
+      node.originX === "center"
+        ? newCx
+        : node.originX === "right"
+          ? newCx + scaledHalfW
+          : newCx - scaledHalfW;
+    return { ...node, x: newX, scaleX: -node.scaleX } as SaraswatiNode;
+  }
+  const cy =
+    node.originY === "center"
+      ? node.y
+      : node.originY === "bottom"
+        ? node.y - scaledHalfH
+        : node.y + scaledHalfH;
+  const newCy = 2 * pivotY - cy;
+  const newY =
+    node.originY === "center"
+      ? newCy
+      : node.originY === "bottom"
+        ? newCy + scaledHalfH
+        : newCy - scaledHalfH;
+  return { ...node, y: newY, scaleY: -node.scaleY } as SaraswatiNode;
+}
 
 type SelectionBounds = {
   x: number;
@@ -172,12 +307,27 @@ export function useSceneSelectionActions() {
     for (const id of selectedIds) {
       const node = scene.nodes[id];
       if (!node) continue;
-      const nextId = crypto.randomUUID();
-      newIds.push(nextId);
-      commands.push({
-        type: "ADD_NODE",
-        node: cloneNode(node, nextId, PASTE_OFFSET, PASTE_OFFSET),
-      });
+      if (node.type === "group") {
+        const idMap = buildSubtreeIdMap(scene.nodes, id);
+        const newGroupId = idMap.get(id)!;
+        newIds.push(newGroupId);
+        commands.push(
+          ...buildDeepDuplicateCommands(
+            scene.nodes,
+            id,
+            idMap,
+            PASTE_OFFSET,
+            PASTE_OFFSET,
+          ),
+        );
+      } else {
+        const nextId = crypto.randomUUID();
+        newIds.push(nextId);
+        commands.push({
+          type: "ADD_NODE",
+          node: cloneNode(node, nextId, PASTE_OFFSET, PASTE_OFFSET),
+        });
+      }
     }
     if (commands.length === 0) return;
     applyCommands(commands);
@@ -241,13 +391,17 @@ export function useSceneSelectionActions() {
     applyCommands(
       selectedIds.flatMap((id) => {
         const node = scene.nodes[id];
-        if (!node || node.type === "group") return [];
-        return [
-          {
+        if (!node) return [];
+        if (node.type === "group") {
+          const groupBounds = getRenderableNodeBounds(scene, id);
+          if (!groupBounds) return [];
+          const pivotX = groupBounds.x + groupBounds.width / 2;
+          return collectGroupDescendants(scene.nodes, id).map((desc) => ({
             type: "REPLACE_NODE" as const,
-            node: flipNode(node, "x"),
-          },
-        ];
+            node: flipRenderableAroundPivot(desc, "x", pivotX, 0),
+          }));
+        }
+        return [{ type: "REPLACE_NODE" as const, node: flipNode(node, "x") }];
       }),
     );
   };
@@ -257,13 +411,17 @@ export function useSceneSelectionActions() {
     applyCommands(
       selectedIds.flatMap((id) => {
         const node = scene.nodes[id];
-        if (!node || node.type === "group") return [];
-        return [
-          {
+        if (!node) return [];
+        if (node.type === "group") {
+          const groupBounds = getRenderableNodeBounds(scene, id);
+          if (!groupBounds) return [];
+          const pivotY = groupBounds.y + groupBounds.height / 2;
+          return collectGroupDescendants(scene.nodes, id).map((desc) => ({
             type: "REPLACE_NODE" as const,
-            node: flipNode(node, "y"),
-          },
-        ];
+            node: flipRenderableAroundPivot(desc, "y", 0, pivotY),
+          }));
+        }
+        return [{ type: "REPLACE_NODE" as const, node: flipNode(node, "y") }];
       }),
     );
   };
@@ -351,8 +509,12 @@ export function useSceneSelectionActions() {
 
   const onUngroup = () => {
     if (selectedIds.length !== 1) return;
-    applyCommands([{ type: "UNGROUP_NODE", id: selectedIds[0]! }]);
-    setSelectedIds([]);
+    const groupId = selectedIds[0]!;
+    const group = scene?.nodes[groupId];
+    if (!group || group.type !== "group") return;
+    const childrenToSelect = [...group.children];
+    applyCommands([{ type: "UNGROUP_NODE", id: groupId }]);
+    setSelectedIds(childrenToSelect.length > 0 ? childrenToSelect : []);
   };
 
   return {

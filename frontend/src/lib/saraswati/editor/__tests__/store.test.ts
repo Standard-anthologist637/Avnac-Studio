@@ -5,22 +5,25 @@ import {
   type SaraswatiRectNode,
 } from "../..";
 
-function buildRectNode(id: string): SaraswatiRectNode {
+function buildRectNode(
+  id: string,
+  patch?: Partial<Pick<SaraswatiRectNode, "x" | "y" | "width" | "height">>,
+): SaraswatiRectNode {
   return {
     id,
     type: "rect",
     parentId: "root",
     visible: true,
-    x: 100,
-    y: 120,
+    x: patch?.x ?? 100,
+    y: patch?.y ?? 120,
     rotation: 0,
     scaleX: 1,
     scaleY: 1,
     opacity: 1,
     originX: "left",
     originY: "top",
-    width: 80,
-    height: 60,
+    width: patch?.width ?? 80,
+    height: patch?.height ?? 60,
     radiusX: 0,
     radiusY: 0,
     fill: { type: "solid", color: "#000000" },
@@ -119,5 +122,115 @@ describe("createSaraswatiEditorStore", () => {
 
     expect(store.getState().canUndo).toBe(false);
     expect(store.getState().canRedo).toBe(false);
+  });
+
+  it("keeps grouped children proportional when resizing to tiny bounds", () => {
+    const scene = createEmptySaraswatiScene({ width: 800, height: 600 });
+    const rectA = buildRectNode("rect-a", {
+      x: 100,
+      y: 120,
+      width: 80,
+      height: 60,
+    });
+    const rectB = buildRectNode("rect-b", {
+      x: 240,
+      y: 120,
+      width: 120,
+      height: 80,
+    });
+    scene.nodes[rectA.id] = rectA;
+    scene.nodes[rectB.id] = rectB;
+
+    const root = scene.nodes.root;
+    if (root.type !== "group") {
+      throw new Error("Expected root group");
+    }
+    root.children.push(rectA.id, rectB.id);
+
+    const store = createSaraswatiEditorStore(scene);
+    store.dispatch({
+      type: "GROUP_NODES",
+      id: "group-1",
+      parentId: "root",
+      children: [rectA.id, rectB.id],
+    });
+
+    // Shrink grouped bounds to near-minimum size.
+    store.dispatch({
+      type: "RESIZE_NODE",
+      id: "group-1",
+      x: 100,
+      y: 120,
+      width: 1,
+      height: 1,
+    });
+
+    const nextA = store.getState().scene.nodes[rectA.id];
+    const nextB = store.getState().scene.nodes[rectB.id];
+    if (nextA.type !== "rect" || nextB.type !== "rect") {
+      throw new Error("Expected grouped rect nodes");
+    }
+
+    // Under tiny grouped resize, children should remain proportionally small,
+    // not jump to 1px each (which causes overlap/collapse).
+    expect(nextA.width).toBeGreaterThan(0);
+    expect(nextB.width).toBeGreaterThan(0);
+    expect(nextA.width).toBeLessThan(1);
+    expect(nextB.width).toBeLessThan(1);
+  });
+
+  it("rotates grouped children around the group center", () => {
+    const scene = createEmptySaraswatiScene({ width: 800, height: 600 });
+    const rectA = buildRectNode("rect-a", {
+      x: 100,
+      y: 120,
+      width: 80,
+      height: 60,
+    });
+    const rectB = buildRectNode("rect-b", {
+      x: 240,
+      y: 120,
+      width: 120,
+      height: 80,
+    });
+    scene.nodes[rectA.id] = rectA;
+    scene.nodes[rectB.id] = rectB;
+
+    const root = scene.nodes.root;
+    if (root.type !== "group") {
+      throw new Error("Expected root group");
+    }
+    root.children.push(rectA.id, rectB.id);
+
+    const store = createSaraswatiEditorStore(scene);
+    store.dispatch({
+      type: "GROUP_NODES",
+      id: "group-1",
+      parentId: "root",
+      children: [rectA.id, rectB.id],
+    });
+
+    const beforeA = store.getState().scene.nodes[rectA.id];
+    const beforeB = store.getState().scene.nodes[rectB.id];
+    if (beforeA.type !== "rect" || beforeB.type !== "rect") {
+      throw new Error("Expected grouped rect nodes");
+    }
+
+    store.dispatch({ type: "ROTATE_NODE", id: "group-1", rotation: 45 });
+
+    const group = store.getState().scene.nodes["group-1"];
+    const nextA = store.getState().scene.nodes[rectA.id];
+    const nextB = store.getState().scene.nodes[rectB.id];
+    if (group.type !== "group" || nextA.type !== "rect" || nextB.type !== "rect") {
+      throw new Error("Expected group + rect nodes");
+    }
+
+    expect(group.rotation).toBe(45);
+    expect(nextA.rotation).toBe(45);
+    expect(nextB.rotation).toBe(45);
+    expect(nextA.x).not.toBe(beforeA.x);
+    expect(nextA.y).not.toBe(beforeA.y);
+    expect(nextB.x).not.toBe(beforeB.x);
+    expect(nextB.y).not.toBe(beforeB.y);
   });
 });

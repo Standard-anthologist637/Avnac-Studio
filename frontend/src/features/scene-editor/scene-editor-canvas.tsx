@@ -65,7 +65,6 @@ export default function SceneEditorCanvas({
   const setCanvasPan = useSceneEditorStore((s) => s.setCanvasPan);
   const setRenderStats = useSceneEditorStore((s) => s.setRenderStats);
   const dropActions = useSceneEditorDropActions();
-  const interactions = useSceneEditorInteractions();
   const actions = useSceneSelectionActions();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -254,6 +253,25 @@ export default function SceneEditorCanvas({
   const scaledWidth = Math.round(artboardWidth * scale);
   const scaledHeight = Math.round(artboardHeight * scale);
 
+  // Convert screen-space clientX/clientY to scene coordinates.
+  // Used by the global window pointermove handler in useSceneEditorInteractions
+  // to continue drag operations when the pointer exits the canvas element.
+  const getScenePoint = useCallback(
+    (clientX: number, clientY: number) => {
+      const surface = surfaceRef.current;
+      if (!surface || scale <= 0) return null;
+      const rect = surface.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      return {
+        x: (clientX - rect.left) / scale,
+        y: (clientY - rect.top) / scale,
+      };
+    },
+    [scale],
+  );
+
+  const interactions = useSceneEditorInteractions({ getScenePoint });
+
   const rotateHandleClearance = 36;
   const toolbarPlacement: "above" | "below" =
     actions.selectionBounds &&
@@ -435,7 +453,7 @@ export default function SceneEditorCanvas({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex flex-1 overflow-auto bg-neutral-100/80 p-8"
+      className={`flex flex-1 bg-neutral-100/80 p-8 ${interactions.activeCursor ? "overflow-hidden" : "overflow-auto"}`}
       style={viewportPanCursor ? { cursor: viewportPanCursor } : undefined}
       onPointerMove={(event) => {
         if (viewportPanDragRef.current) return;
@@ -496,6 +514,60 @@ export default function SceneEditorCanvas({
             onRenderStats={setRenderStats}
           />
         </div>
+
+        {(() => {
+          const m = interactions.measurement;
+          if (!m) return null;
+          // Convert scene coords → CSS px (these are inside surfaceRef which is scaledWidth×scaledHeight)
+          const cx = (m.x + m.width / 2) * scale;
+          const topEdgePx = m.y * scale;
+          const bottomEdgePx = (m.y + m.height) * scale;
+          // Show above when there's at least 32px gap from the artboard top, otherwise below
+          const showAbove = topEdgePx > 32;
+          const labelTop = showAbove ? topEdgePx - 6 : bottomEdgePx + 6;
+          const labelTransform = showAbove
+            ? "translate(-50%, -100%)"
+            : "translate(-50%, 0%)";
+          // Clamp horizontal center so the label doesn't overflow the artboard
+          const clampedCx = Math.max(60, Math.min(scaledWidth - 60, cx));
+          const label =
+            m.kind === "move"
+              ? `X • ${m.x} · Y • ${m.y}`
+              : `W • ${m.width} · H • ${m.height}`;
+          const labelClass =
+            m.kind === "move"
+              ? "pointer-events-none absolute z-20 rounded-md border border-fuchsia-300/40 bg-fuchsia-600/90 px-2 py-1 text-[11px] font-semibold tracking-wide text-white shadow-lg whitespace-nowrap"
+              : "pointer-events-none absolute z-20 rounded-md border border-black/10 bg-black/80 px-2 py-1 text-[11px] font-semibold tracking-wide text-white shadow-lg whitespace-nowrap";
+          return (
+            <div
+              key={m.kind}
+              className={labelClass}
+              style={{
+                left: clampedCx,
+                top: labelTop,
+                transform: labelTransform,
+              }}
+            >
+              {label}
+            </div>
+          );
+        })()}
+
+        {interactions.rotationIndicator ? (
+          <div
+            className={`pointer-events-none absolute z-20 rounded-md px-2 py-1 text-[11px] font-semibold tracking-wide text-white shadow-lg whitespace-nowrap ${interactions.rotationIndicator.snapped ? "border border-emerald-300/50 bg-emerald-600/90" : "border border-sky-300/40 bg-sky-600/85"}`}
+            style={{
+              left: Math.max(68, Math.min(scaledWidth - 68, scaledWidth / 2)),
+              top: 12,
+              transform: "translateX(-50%)",
+            }}
+          >
+            {interactions.rotationIndicator.snapped &&
+            interactions.rotationIndicator.snapTarget != null
+              ? `Angle ${Math.round(interactions.rotationIndicator.angle)}° · Snapped ${interactions.rotationIndicator.snapTarget}°`
+              : `Angle ${Math.round(interactions.rotationIndicator.angle)}°`}
+          </div>
+        ) : null}
 
         {inlineTextEdit ? (
           <SceneInlineTextEditor
