@@ -2,7 +2,7 @@ import type { SceneWorkspaceDropIntent } from "@/scene/workspace";
 import type { SaraswatiImageNode } from "@/lib/saraswati";
 import { vectorDocHasRenderableStrokes } from "@/lib/avnac-vector-board-document";
 import { loadVectorBoardDocs } from "@/lib/avnac-vector-boards-storage";
-import { renderVectorBoardDocumentPreview } from "@/components/editor/vector-boards/vector-board-workspace";
+import { renderVectorBoardDocumentTransparent } from "@/components/editor/vector-boards/vector-board-workspace";
 import { useCallback } from "react";
 import { useSceneEditorStore } from "./store";
 
@@ -142,7 +142,7 @@ export function useSceneEditorDropActions() {
             offscreen.height = RENDER_H;
             const ctx = offscreen.getContext("2d");
             if (!ctx) return;
-            renderVectorBoardDocumentPreview(ctx, doc, RENDER_W, RENDER_H);
+            renderVectorBoardDocumentTransparent(ctx, doc, RENDER_W, RENDER_H);
             const dataUrl = offscreen.toDataURL("image/png");
             await addImageAtPoint(dataUrl, point);
           } catch {
