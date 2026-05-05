@@ -690,6 +690,15 @@ export function renderVectorBoardDocumentPreview(
   paintDocument(ctx, doc, w, h);
 }
 
+export function renderVectorBoardDocumentTransparent(
+  ctx: CanvasRenderingContext2D,
+  doc: VectorBoardDocument,
+  w: number,
+  h: number,
+) {
+  paintDocument(ctx, doc, w, h);
+}
+
 function paintDraft(
   ctx: CanvasRenderingContext2D,
   draft: DraftState | null,
