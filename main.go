@@ -11,7 +11,7 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-var appVersion = "v0.2.0"
+var appVersion = "v0.2.1"
 
 func main() {
 	// Create an instance of the app structure
