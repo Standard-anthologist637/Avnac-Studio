@@ -300,10 +300,14 @@ export default function SceneEditorCanvas({
   }, [inlineTextEdit, scene]);
 
   const onDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    // During dragover, dataTransfer.files is always empty due to browser
-    // security restrictions — check dataTransfer.types to detect file drags.
+    // During dragover, dataTransfer.getData() always returns "" for custom
+    // MIME types and dataTransfer.files is always empty due to browser
+    // security restrictions — check dataTransfer.types instead.
     const types = Array.from(event.dataTransfer.types);
-    if (types.includes("Files")) {
+    if (
+      types.includes("Files") ||
+      types.includes(AVNAC_VECTOR_BOARD_DRAG_MIME)
+    ) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "copy";
       return;
