@@ -231,11 +231,7 @@ jobs:
           CURR_TAG="${GITHUB_REF#refs/tags/}"
           PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v' | sed -n '2p')
 
-          echo "## What's Changed" > commit_log.md
-          echo "" >> commit_log.md
           if [ -n "$PREV_TAG" ]; then
-            echo "Changes since \`${PREV_TAG}\`:" >> commit_log.md
-            echo "" >> commit_log.md
             RANGE="${PREV_TAG}..${CURR_TAG}"
           else
             RANGE="${CURR_TAG}"
@@ -245,26 +241,19 @@ jobs:
 
           while IFS= read -r HASH; do
             [ -z "$HASH" ] && continue
-            MSG=$(git log -1 --pretty=format:"%s" "$HASH")
-            SHORT="${HASH:0:7}"
             GH_LOGIN=$(curl -sf \
               -H "Authorization: Bearer ${GH_TOKEN}" \
               -H "Accept: application/vnd.github+json" \
               "https://api.github.com/repos/${{ github.repository }}/commits/${HASH}" \
               | jq -r '.author.login // empty' 2>/dev/null || echo "")
             if [ -n "$GH_LOGIN" ]; then
-              echo "- ${MSG} — @${GH_LOGIN} (\`${SHORT}\`)" >> commit_log.md
               echo "$GH_LOGIN" >> "$USERS_FILE"
-            else
-              echo "- ${MSG} (\`${SHORT}\`)" >> commit_log.md
             fi
           done < <(git log "$RANGE" --pretty=format:"%H" --no-merges)
 
-          echo "" >> commit_log.md
+          > commit_log.md
 
           if [ -s "$USERS_FILE" ]; then
-            echo "---" >> commit_log.md
-            echo "" >> commit_log.md
             echo "### Contributors" >> commit_log.md
             echo "" >> commit_log.md
             echo "<table><tr>" >> commit_log.md
